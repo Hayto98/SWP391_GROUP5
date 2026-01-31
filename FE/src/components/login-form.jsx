@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { loginUser } from "@/lib/api";
 
 const loginFormSchema = z.object({
   email: z
@@ -44,8 +45,25 @@ export function LoginForm({ className, ...props }) {
     },
     mode: "onBlur",
   });
-  const onSubmit = () => {
-    toast.success("đăng nhập thành công.");
+  const onSubmit = async (values) => {
+    try {
+      const response = await loginUser({
+        email: values.email,
+        password: values.password,
+      });
+
+      if (response?.tokens?.accessToken) {
+        localStorage.setItem("accessToken", response.tokens.accessToken);
+      }
+      if (response?.tokens?.refreshToken) {
+        localStorage.setItem("refreshToken", response.tokens.refreshToken);
+      }
+
+      toast.success("đăng nhập thành công.");
+      navigate("/dashboard");
+    } catch (error) {
+      toast.error(error.message || "Đăng nhập thất bại");
+    }
   };
 
   return (
@@ -120,7 +138,9 @@ export function LoginForm({ className, ...props }) {
                 )}
               />
               <Field>
-                <Button type="submit">đăng nhập</Button>
+                <Button type="submit" disabled={form.formState.isSubmitting}>
+                  {form.formState.isSubmitting ? "Đang xử lý..." : "đăng nhập"}
+                </Button>
               </Field>
               <FieldSeparator className="*:data-[slot=field-separator-content]:bg-card">
                 Hoặc đăng nhập với

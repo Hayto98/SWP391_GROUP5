@@ -15,9 +15,14 @@ import { useNavigate } from "react-router-dom";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { registerUser } from "@/lib/api";
 
 const registerFormSchema = z
   .object({
+    fullname: z
+      .string()
+      .min(3, "tên không ngắn hơn 3 ký tự")
+      .max(100, "tên không dài hơn 100 ký tự"),
     email: z
       .string()
       .trim()
@@ -25,10 +30,8 @@ const registerFormSchema = z
         (val) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val),
         "Email không hợp lệ",
       ),
-    username: z
-      .string()
-      .min(3, "tên không ngắn hơn 3 ký tự")
-      .max(20, "tên không dài hơn 20 ký tự"),
+    phone: z.string().trim().optional(),
+    roleId: z.string().trim().min(1, "Vui lòng nhập mã vai trò"),
     password: z
       .string()
       .min(6, "mật khẩu không ngắn hơn 6 ký tự")
@@ -45,16 +48,31 @@ export function SignupForm({ className, ...props }) {
   const form = useForm({
     resolver: zodResolver(registerFormSchema),
     defaultValues: {
+      fullname: "",
       email: "",
-      username: "",
+      phone: "",
+      roleId: "",
       password: "",
       confirmPassword: "",
     },
     mode: "onBlur",
   });
 
-  const onSubmit = (data) => {
-    toast.success("Đăng ký tài khoản thành công.");
+  const onSubmit = async (values) => {
+    try {
+      await registerUser({
+        fullname: values.fullname,
+        email: values.email,
+        phone: values.phone ? values.phone : undefined,
+        password: values.password,
+        roleId: values.roleId,
+      });
+
+      toast.success("Đăng ký tài khoản thành công.");
+      navigate("/login");
+    } catch (error) {
+      toast.error(error.message || "Đăng ký thất bại");
+    }
   };
   return (
     <div className={cn("flex flex-col gap-6 ", className)} {...props}>
@@ -68,6 +86,27 @@ export function SignupForm({ className, ...props }) {
                   Nhập thông tin để tạo tài khoản
                 </p>
               </div>
+              <Controller
+                name="fullname"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor={field.name}>Họ và tên</FieldLabel>
+                    <Input
+                      {...field}
+                      id={field.name}
+                      type="text"
+                      aria-invalid={fieldState.invalid}
+                    />
+                    {fieldState.invalid && (
+                      <FieldError
+                        className="text-start"
+                        errors={[fieldState.error]}
+                      />
+                    )}
+                  </Field>
+                )}
+              />
               <Controller
                 name="email"
                 control={form.control}
@@ -90,11 +129,32 @@ export function SignupForm({ className, ...props }) {
                 )}
               />
               <Controller
-                name="username"
+                name="phone"
                 control={form.control}
                 render={({ field, fieldState }) => (
                   <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel htmlFor={field.name}>tên tài khoản</FieldLabel>
+                    <FieldLabel htmlFor={field.name}>Số điện thoại</FieldLabel>
+                    <Input
+                      {...field}
+                      id={field.name}
+                      type="tel"
+                      aria-invalid={fieldState.invalid}
+                    />
+                    {fieldState.invalid && (
+                      <FieldError
+                        className="text-start"
+                        errors={[fieldState.error]}
+                      />
+                    )}
+                  </Field>
+                )}
+              />
+              <Controller
+                name="roleId"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor={field.name}>Mã vai trò</FieldLabel>
                     <Input
                       {...field}
                       id={field.name}
@@ -157,7 +217,11 @@ export function SignupForm({ className, ...props }) {
                 />
               </Field>
               <Field>
-                <Button type="submit">Tạo tài khoản</Button>
+                <Button type="submit" disabled={form.formState.isSubmitting}>
+                  {form.formState.isSubmitting
+                    ? "Đang xử lý..."
+                    : "Tạo tài khoản"}
+                </Button>
               </Field>
               <FieldSeparator className="*:data-[slot=field-separator-content]:bg-card">
                 Hoặc tiếp tục với
