@@ -27,6 +27,7 @@ import CollectorTasks from "@/pages/collector/tasks/Tasks";
 import CollectorHistory from "@/pages/collector/history/History";
 
 import React from "react";
+import Homepage from "@/pages/homepage/Homepage";
 import { Route, Routes } from "react-router-dom";
 import Login from "@/pages/login/Login";
 import Register from "@/pages/register/Register";
@@ -39,6 +40,8 @@ function AppRoutes() {
   return (
     <>
       <Routes>
+        {/* Homepage Route */}
+        <Route path="/" element={<Homepage />} />
         {/* Public routes*/}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
