@@ -31,7 +31,6 @@ const registerFormSchema = z
         "Email không hợp lệ",
       ),
     phone: z.string().trim().optional(),
-    roleId: z.string().trim().min(1, "Vui lòng nhập mã vai trò"),
     password: z
       .string()
       .min(6, "mật khẩu không ngắn hơn 6 ký tự")
@@ -51,7 +50,6 @@ export function SignupForm({ className, ...props }) {
       fullname: "",
       email: "",
       phone: "",
-      roleId: "",
       password: "",
       confirmPassword: "",
     },
@@ -149,27 +147,7 @@ export function SignupForm({ className, ...props }) {
                   </Field>
                 )}
               />
-              <Controller
-                name="roleId"
-                control={form.control}
-                render={({ field, fieldState }) => (
-                  <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel htmlFor={field.name}>Mã vai trò</FieldLabel>
-                    <Input
-                      {...field}
-                      id={field.name}
-                      type="text"
-                      aria-invalid={fieldState.invalid}
-                    />
-                    {fieldState.invalid && (
-                      <FieldError
-                        className="text-start"
-                        errors={[fieldState.error]}
-                      />
-                    )}
-                  </Field>
-                )}
-              />
+
               <Field className="flex flex-row">
                 <Controller
                   name="password"

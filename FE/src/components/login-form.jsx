@@ -18,6 +18,7 @@ import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { loginUser } from "@/lib/api";
+import { useAuthStore } from "@/stores/authStore";
 
 const loginFormSchema = z.object({
   email: z
@@ -34,6 +35,7 @@ const loginFormSchema = z.object({
 });
 
 export function LoginForm({ className, ...props }) {
+  const login = useAuthStore((s) => s.login);
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
 
@@ -47,20 +49,33 @@ export function LoginForm({ className, ...props }) {
   });
   const onSubmit = async (values) => {
     try {
-      const response = await loginUser({
-        email: values.email,
-        password: values.password,
-      });
+      // const response = await loginUser({
+      //   email: values.email,
+      //   password: values.password,
+      // });
 
-      if (response?.tokens?.accessToken) {
-        localStorage.setItem("accessToken", response.tokens.accessToken);
-      }
-      if (response?.tokens?.refreshToken) {
-        localStorage.setItem("refreshToken", response.tokens.refreshToken);
-      }
+      // if (response?.tokens?.accessToken) {
+      //   localStorage.setItem("accessToken", response.tokens.accessToken);
+      // }
+      // if (response?.tokens?.refreshToken) {
+      //   localStorage.setItem("refreshToken", response.tokens.refreshToken);
+      // }
+
+      //fake
+      const userData = {
+        userAccountId: 1,
+        fullname: "Nguyễn Văn A",
+        email: values.email,
+        phone: "0123456789",
+        role: "citizen",
+      };
+
+      login(userData);
+
+      // login(response?.user);
 
       toast.success("đăng nhập thành công.");
-      navigate("/dashboard");
+      navigate("/");
     } catch (error) {
       toast.error(error.message || "Đăng nhập thất bại");
     }

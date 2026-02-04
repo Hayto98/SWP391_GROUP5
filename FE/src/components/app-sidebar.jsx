@@ -15,11 +15,13 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { navByRole } from "@/config/sidebarConfig";
+import { useAuthStore } from "@/stores/authStore";
 
 // This is sample data.
 
 export function AppSidebar({ ...props }) {
-  const navMain = navByRole["admin"];
+  const user = useAuthStore((s) => s.user);
+  const navMain = navByRole[user.role];
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
@@ -44,13 +46,7 @@ export function AppSidebar({ ...props }) {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <NavUser
-          user={{
-            name: "enterprise".toUpperCase(),
-            email: "m@example.com",
-            avatar: "/avatars/shadcn.jpg",
-          }}
-        />
+        <NavUser />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
