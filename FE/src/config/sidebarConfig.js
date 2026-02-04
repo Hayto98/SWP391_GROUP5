@@ -7,6 +7,7 @@ import {
   PieChart,
   Settings2,
   Shield,
+  Trash2,
   Trophy,
   Users,
 } from "lucide-react";
@@ -17,6 +18,11 @@ export const navByRole = {
       title: "Tổng quan",
       url: "/citizen",
       icon: PieChart,
+    },
+    {
+      title: "Báo cáo rác",
+      url: "/citizen/trash-report",
+      icon: Trash2,
     },
     {
       title: "Báo cáo của tôi",
