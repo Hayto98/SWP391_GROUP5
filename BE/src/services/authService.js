@@ -117,7 +117,24 @@ async function login({ email, password }) {
   }
 }
 
+async function logout(accessToken) {
+  if (!accessToken) {
+    throw new ApiError(401, 'Access token is required')
+  }
+
+  try {
+    const { sub: userAccountId } = tokenService.verifyAccessToken(accessToken)
+    await refreshTokenRepository.removeByUserId(userAccountId)
+  } catch (error) {
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      throw new ApiError(401, 'Invalid access token')
+    }
+    throw error
+  }
+}
+
 module.exports = {
   register,
-  login
+  login,
+  logout
 }
