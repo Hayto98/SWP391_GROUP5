@@ -78,7 +78,6 @@ module.exports = {
   generateAccessToken,
   generateRefreshToken,
   hashToken,
-  hashToken,
   calculateExpiryDate,
   verifyAccessToken
 }

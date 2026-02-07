@@ -11,8 +11,11 @@ function requireRole(...allowedRoles) {
       return next(new ApiError(403, 'User identity not verified'))
     }
 
+    const userRoleId = Number(req.user.roleId)
+
     // Check if user's role is in the allowed list
-    if (!allowedRoles.includes(req.user.roleId)) {
+    if (!allowedRoles.includes(userRoleId)) {
+      console.log(`[Authorization] Access denied. User Role: ${req.user.roleId}, Allowed: ${allowedRoles}`)
       return next(new ApiError(403, 'Access denied: insufficient permissions'))
     }
 

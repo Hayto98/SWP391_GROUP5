@@ -21,6 +21,25 @@ async function findByEmail(email) {
   return rows[0] || null
 }
 
+async function findByPhone(phone) {
+  const [rows] = await db.execute(
+    `SELECT user_account_id AS userAccountId,
+            fullname,
+            email,
+            phone,
+            password_hash AS passwordHash,
+            role_id AS roleId,
+            is_disabled AS isDisabled,
+            is_locked AS isLocked,
+            created_at AS createdAt
+       FROM UserAccount
+      WHERE phone = ?
+      LIMIT 1`,
+    [phone]
+  )
+  return rows[0] || null
+}
+
 async function findById(userAccountId) {
   const [rows] = await db.execute(
     `SELECT user_account_id AS userAccountId,
@@ -32,7 +51,7 @@ async function findById(userAccountId) {
             is_locked AS isLocked,
             created_at AS createdAt
        FROM UserAccount
-      WHERE user_account_id = ? AND is_deleted = 0
+      WHERE user_account_id = ? AND is_disabled = 0
       LIMIT 1`,
     [userAccountId]
   )
@@ -50,7 +69,7 @@ async function findAll({ limit = 20, offset = 0 } = {}) {
             is_locked AS isLocked,
             created_at AS createdAt
        FROM UserAccount
-      WHERE is_deleted = 0
+      WHERE is_disabled = 0
       ORDER BY created_at DESC
       LIMIT ? OFFSET ?`,
     [String(limit), String(offset)]
@@ -59,7 +78,7 @@ async function findAll({ limit = 20, offset = 0 } = {}) {
 }
 
 async function countAll() {
-  const [rows] = await db.execute('SELECT COUNT(*) as total FROM UserAccount WHERE is_deleted = 0')
+  const [rows] = await db.execute('SELECT COUNT(*) as total FROM UserAccount WHERE is_disabled = 0')
   return rows[0].total
 }
 
@@ -106,13 +125,13 @@ async function updateLockStatus(userAccountId, isLocked) {
 // ==================== DELETE (Soft) ====================
 
 async function softDeleteUser(userAccountId) {
-  await db.execute('UPDATE UserAccount SET is_deleted = 1 WHERE user_account_id = ?', [userAccountId])
+  await db.execute('UPDATE UserAccount SET is_disabled = 1 WHERE user_account_id = ?', [userAccountId])
 }
 
 // ==================== UTILITY ====================
 
 async function countByRole(roleId) {
-  const [rows] = await db.execute('SELECT COUNT(*) as count FROM UserAccount WHERE role_id = ? AND is_deleted = 0', [
+  const [rows] = await db.execute('SELECT COUNT(*) as count FROM UserAccount WHERE role_id = ? AND is_disabled = 0', [
     roleId
   ])
   return rows[0].count
@@ -120,6 +139,7 @@ async function countByRole(roleId) {
 
 module.exports = {
   findByEmail,
+  findByPhone,
   findById,
   findAll,
   countAll,
