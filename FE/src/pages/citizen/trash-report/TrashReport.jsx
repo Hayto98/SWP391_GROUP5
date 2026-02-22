@@ -13,7 +13,7 @@ function TrashReport() {
   const [weight, setWeight] = useState("");
   const [locationType, setLocationType] = useState("nha-rieng");
   const [description, setDescription] = useState("");
-  const [marker, setMarker] = useState();
+  const [markersByType, setMarkersByType] = useState({});
 
   const selectedTrashType = trashTypes.find((t) => t.name === selectedType);
 
@@ -45,11 +45,11 @@ function TrashReport() {
       type: locationType,
       name,
     };
-    setMarker(newMarker);
+    setMarkersByType((prev) => ({ ...prev, [locationType]: newMarker }));
   };
 
-  const handleDeleMarker = (id) => {
-    setMarker(null);
+  const handleDeleMarker = () => {
+    setMarkersByType((prev) => ({ ...prev, [locationType]: null }));
   };
 
   const handleAddTrash = () => {
@@ -108,7 +108,8 @@ function TrashReport() {
         <LocationSelection
           locationType={locationType}
           setLocationType={setLocationType}
-          marker={marker}
+          marker={markersByType[locationType] ?? null}
+          markersByType={markersByType}
           onMapClick={handleMapClick}
           onDeleteMarker={handleDeleMarker}
         />

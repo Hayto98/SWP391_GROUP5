@@ -42,7 +42,7 @@ function VoucherList({ vouchers, userPoints, onRedeemVoucher }) {
           <img
             src={voucher.image}
             alt={voucher.voucher_name}
-            className="relative z-20 h-64 w-full object-cover brightness-90 dark:brightness-75"
+            className="hover:scale-105 duration-300 relative z-20 h-64 w-full object-cover brightness-90 dark:brightness-75"
           />
           <CardHeader className="flex-1">
             <div className="flex items-center justify-between">

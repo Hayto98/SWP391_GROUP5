@@ -170,7 +170,7 @@ function Rewards() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       {/* Header - Tổng điểm */}
       <Card className="bg-linear-to-r from-amber-500 to-orange-500 text-white">
         <CardHeader>

@@ -18,6 +18,7 @@ import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { loginUser } from "@/services/authService";
+import { fakeLogin } from "@/services/fakeAuth";
 import { useAuthStore } from "@/stores/authStore";
 
 const loginFormSchema = z.object({
@@ -50,26 +51,9 @@ export function LoginForm({ className, ...props }) {
   });
   const onSubmit = async (values) => {
     try {
-      // FAKE ADMIN LOGIN - Comment out for production
-      const fakeAdminResponse = {
-        tokens: {
-          accessToken: "fake-admin-token",
-          refreshToken: "fake-admin-refresh-token",
-        },
-        user: {
-          userAccountId: 1,
-          phone: values.phone,
-          fullname: "Admin User",
-          roleId: 1,
-        },
-      };
-
-      // Use fake response instead of API call
-      const response = fakeAdminResponse;
-      // const response = await loginUser({
-      //   phone: values.phone,
-      //   password: values.password,
-      // });
+      // FAKE LOGIN - dùng tạm cho dev. Thay bằng API thật khi production:
+      // const response = await loginUser({ phone: values.phone, password: values.password });
+      const response = fakeLogin(values.phone, values.password);
 
       if (response?.tokens?.accessToken) {
         localStorage.setItem("accessToken", response.tokens.accessToken);
