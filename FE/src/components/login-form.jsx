@@ -17,16 +17,17 @@ import { toast } from "sonner";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { loginUser } from "@/lib/api";
+import { loginUser } from "@/services/authService";
 import { useAuthStore } from "@/stores/authStore";
 
 const loginFormSchema = z.object({
-  email: z
+  phone: z
     .string()
     .trim()
+    .min(10, "Số điện thoại phải có ít nhất 10 số")
     .refine(
-      (val) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val),
-      "Email không hợp lệ",
+      (val) => /(84|0[3|5|7|8|9])+([0-9]{8})\b/.test(val),
+      "Số điện thoại không hợp lệ",
     ),
   password: z
     .string()
@@ -42,40 +43,86 @@ export function LoginForm({ className, ...props }) {
   const form = useForm({
     resolver: zodResolver(loginFormSchema),
     defaultValues: {
-      email: "",
+      phone: "",
       password: "",
     },
     mode: "onBlur",
   });
   const onSubmit = async (values) => {
     try {
+      // FAKE ADMIN LOGIN - Comment out for production
+      const fakeAdminResponse = {
+        tokens: {
+          accessToken: "fake-admin-token",
+          refreshToken: "fake-admin-refresh-token",
+        },
+        user: {
+          userAccountId: 1,
+          phone: values.phone,
+          fullname: "Admin User",
+          roleId: 1,
+        },
+      };
+
+      // Use fake response instead of API call
+      const response = fakeAdminResponse;
       // const response = await loginUser({
-      //   email: values.email,
+      //   phone: values.phone,
       //   password: values.password,
       // });
 
-      // if (response?.tokens?.accessToken) {
-      //   localStorage.setItem("accessToken", response.tokens.accessToken);
-      // }
-      // if (response?.tokens?.refreshToken) {
-      //   localStorage.setItem("refreshToken", response.tokens.refreshToken);
-      // }
+      if (response?.tokens?.accessToken) {
+        localStorage.setItem("accessToken", response.tokens.accessToken);
+      }
+      if (response?.tokens?.refreshToken) {
+        localStorage.setItem("refreshToken", response.tokens.refreshToken);
+      }
 
-      //fake
-      const userData = {
-        userAccountId: 1,
-        fullname: "Nguyễn Văn A",
-        email: values.email,
-        phone: "0123456789",
-        role: "citizen",
-      };
+      // Map roleId to role string
+      const roleId = response?.user?.roleId;
+      let role = "";
+      switch (roleId) {
+        case 1:
+          role = "admin";
+          break;
+        case 2:
+          role = "citizen";
+          break;
+        case 3:
+          role = "enterprise";
+          break;
+        case 4:
+          role = "collector";
+          break;
+        default:
+          role = "citizen";
+      }
 
-      login(userData);
-
-      // login(response?.user);
+      // Lưu user vào store với role
+      login({
+        ...response?.user,
+        role,
+      });
 
       toast.success("đăng nhập thành công.");
-      navigate("/");
+
+      // Navigate based on role
+      switch (role) {
+        case "admin":
+          navigate("/admin");
+          break;
+        case "citizen":
+          navigate("/citizen");
+          break;
+        case "enterprise":
+          navigate("/enterprise");
+          break;
+        case "collector":
+          navigate("/collector");
+          break;
+        default:
+          navigate("/");
+      }
     } catch (error) {
       toast.error(error.message || "Đăng nhập thất bại");
     }
@@ -94,15 +141,17 @@ export function LoginForm({ className, ...props }) {
                 </p>
               </div>
               <Controller
-                name="email"
+                name="phone"
                 control={form.control}
                 render={({ field, fieldState }) => (
                   <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel htmlFor={field.name}>Email</FieldLabel>
+                    <FieldLabel htmlFor={field.name}>
+                      Số điện thoại <span className="text-red-500">*</span>
+                    </FieldLabel>
                     <Input
                       {...field}
                       id={field.name}
-                      type="email"
+                      type="tel"
                       aria-invalid={fieldState.invalid}
                     />
                     {fieldState.invalid && (
@@ -119,7 +168,9 @@ export function LoginForm({ className, ...props }) {
                 control={form.control}
                 render={({ field, fieldState }) => (
                   <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel htmlFor={field.name}>mật khẩu</FieldLabel>
+                    <FieldLabel htmlFor={field.name}>
+                      mật khẩu <span className="text-red-500">*</span>
+                    </FieldLabel>
                     <div className="relative">
                       <Input
                         {...field}
