@@ -35,7 +35,7 @@ function ReportDetailDialog({ isOpen, onClose, report, getStatusColor }) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="md:min-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Chi tiết báo cáo</DialogTitle>
           <DialogDescription>

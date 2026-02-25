@@ -10,7 +10,7 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 
 // Fix default marker icon
@@ -23,6 +23,21 @@ L.Icon.Default.mergeOptions({
   shadowUrl:
     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
+
+// TODO: Thay bằng dữ liệu từ API tài khoản người dùng
+const SAVED_LOCATIONS = {
+  "nha-rieng": {
+    lat: 10.7769,
+    lng: 106.7009,
+    name: "Nhà riêng (Quận 1, TP.HCM)",
+  },
+  "van-phong": {
+    lat: 10.7895,
+    lng: 106.7156,
+    name: "Văn phòng (Quận Bình Thạnh, TP.HCM)",
+  },
+  "nha-noi": { lat: 10.8231, lng: 106.6297, name: "Nhà nội (Quận 12, TP.HCM)" },
+};
 
 // LocationPicker component - must be inside MapContainer
 function LocationPicker({ onChange }) {
@@ -38,12 +53,22 @@ function LocationSelection({
   locationType,
   setLocationType,
   marker,
+  markersByType,
   onMapClick,
   onDeleteMarker,
 }) {
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [mapCenter, setMapCenter] = useState([10.7769, 106.7009]);
   const [mapRef, setMapRef] = useState(null);
+
+  // Khi đổi loại vị trí, fly đến địa chỉ đã lưu trong tài khoản và đặt marker
+  useEffect(() => {
+    const saved = SAVED_LOCATIONS[locationType];
+    if (mapRef && saved) {
+      mapRef.flyTo([saved.lat, saved.lng], 17);
+      onMapClick?.({ lat: saved.lat, lng: saved.lng });
+    }
+  }, [locationType, mapRef]);
 
   const getUserLocation = () => {
     setIsLoadingLocation(true);
@@ -98,33 +123,22 @@ function LocationSelection({
       <div className="space-y-4">
         <div>
           <div className="flex gap-2 flex-wrap">
-            <Button
-              variant={locationType === "nha-rieng" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setLocationType("nha-rieng")}
-              className="gap-2"
-            >
-              <Home className="size-4" />
-              Nhà riêng
-            </Button>
-            <Button
-              variant={locationType === "van-phong" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setLocationType("van-phong")}
-              className="gap-2"
-            >
-              <Building2 className="size-4" />
-              Văn phòng
-            </Button>
-            <Button
-              variant={locationType === "nha-noi" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setLocationType("nha-noi")}
-              className="gap-2"
-            >
-              <MapPin className="size-4" />
-              Nhà nội
-            </Button>
+            {[
+              { key: "nha-rieng", label: "Nhà riêng", Icon: Home },
+              { key: "van-phong", label: "Văn phòng", Icon: Building2 },
+              { key: "nha-noi", label: "Nhà nội", Icon: MapPin },
+            ].map(({ key, label, Icon }) => (
+              <Button
+                key={key}
+                variant={locationType === key ? "default" : "outline"}
+                size="sm"
+                onClick={() => setLocationType(key)}
+                className="gap-2 relative"
+              >
+                <Icon className="size-4" />
+                {label}
+              </Button>
+            ))}
           </div>
         </div>
 

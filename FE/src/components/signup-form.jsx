@@ -15,7 +15,7 @@ import { useNavigate } from "react-router-dom";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { registerUser } from "@/lib/api";
+import { registerUser } from "@/services/authService";
 
 const registerFormSchema = z
   .object({
@@ -30,7 +30,14 @@ const registerFormSchema = z
         (val) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val),
         "Email không hợp lệ",
       ),
-    phone: z.string().trim().optional(),
+    phone: z
+      .string()
+      .trim()
+      .min(10, "Số điện thoại phải có ít nhất 10 số")
+      .refine(
+        (val) => /(84|0[3|5|7|8|9])+([0-9]{8})\b/.test(val),
+        "Số điện thoại không hợp lệ",
+      ),
     password: z
       .string()
       .min(6, "mật khẩu không ngắn hơn 6 ký tự")
@@ -61,9 +68,9 @@ export function SignupForm({ className, ...props }) {
       await registerUser({
         fullname: values.fullname,
         email: values.email,
-        phone: values.phone ? values.phone : undefined,
+        phone: values.phone,
         password: values.password,
-        roleId: values.roleId,
+        roleId: 2,
       });
 
       toast.success("Đăng ký tài khoản thành công.");
@@ -89,7 +96,9 @@ export function SignupForm({ className, ...props }) {
                 control={form.control}
                 render={({ field, fieldState }) => (
                   <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel htmlFor={field.name}>Họ và tên</FieldLabel>
+                    <FieldLabel htmlFor={field.name}>
+                      Họ và tên <span className="text-red-500">*</span>
+                    </FieldLabel>
                     <Input
                       {...field}
                       id={field.name}
@@ -110,7 +119,9 @@ export function SignupForm({ className, ...props }) {
                 control={form.control}
                 render={({ field, fieldState }) => (
                   <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel htmlFor={field.name}>Email</FieldLabel>
+                    <FieldLabel htmlFor={field.name}>
+                      Email <span className="text-red-500">*</span>
+                    </FieldLabel>
                     <Input
                       {...field}
                       id={field.name}
@@ -131,7 +142,9 @@ export function SignupForm({ className, ...props }) {
                 control={form.control}
                 render={({ field, fieldState }) => (
                   <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel htmlFor={field.name}>Số điện thoại</FieldLabel>
+                    <FieldLabel htmlFor={field.name}>
+                      Số điện thoại <span className="text-red-500">*</span>
+                    </FieldLabel>
                     <Input
                       {...field}
                       id={field.name}
@@ -154,7 +167,9 @@ export function SignupForm({ className, ...props }) {
                   control={form.control}
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
-                      <FieldLabel htmlFor={field.name}>mật khẩu</FieldLabel>
+                      <FieldLabel htmlFor={field.name}>
+                        mật khẩu <span className="text-red-500">*</span>
+                      </FieldLabel>
                       <Input
                         {...field}
                         id={field.name}
@@ -176,7 +191,8 @@ export function SignupForm({ className, ...props }) {
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
                       <FieldLabel htmlFor={field.name}>
-                        xác nhận mật khẩu
+                        xác nhận mật khẩu{" "}
+                        <span className="text-red-500">*</span>
                       </FieldLabel>
                       <Input
                         {...field}

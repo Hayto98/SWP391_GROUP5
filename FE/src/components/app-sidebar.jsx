@@ -34,7 +34,7 @@ export function AppSidebar({ ...props }) {
           </div>
           <div className="grid flex-1 text-left text-sm leading-tight">
             <span className="truncate font-medium">Recycle</span>
-            <span className="truncate text-xs">Enterprize</span>
+            <span className="truncate text-xs">{user.role}</span>
           </div>
         </SidebarMenuButton>
       </SidebarHeader>
