@@ -4,6 +4,7 @@ const express = require('express')
 const cors = require('cors')
 const errorHandler = require('./middlewares/errorHandler')
 const authRoutes = require('./routes/authRoutes')
+const adminRoutes = require('./routes/adminRoutes')
 
 const app = express()
 const port = Number(process.env.PORT || 3000)
@@ -28,7 +29,9 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' })
 })
 
+// Routes
 app.use('/api/auth', authRoutes)
+app.use('/api/v1/admin', adminRoutes)
 
 app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' })

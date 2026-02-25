@@ -65,6 +65,11 @@ function generateRefreshToken(payload, jwtId) {
   return jwt.sign(payload, secret, { expiresIn, jwtid: jwtId })
 }
 
+function verifyAccessToken(token) {
+  const secret = ensureSecret(process.env.ACCESS_TOKEN_SECRET, 'ACCESS_TOKEN_SECRET')
+  return jwt.verify(token, secret)
+}
+
 function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex')
 }
@@ -73,5 +78,6 @@ module.exports = {
   generateAccessToken,
   generateRefreshToken,
   hashToken,
-  calculateExpiryDate
+  calculateExpiryDate,
+  verifyAccessToken
 }

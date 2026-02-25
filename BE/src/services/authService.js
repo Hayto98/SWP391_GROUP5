@@ -8,13 +8,18 @@ const tokenService = require('./tokenService')
 const DEFAULT_SALT_ROUNDS = 10
 
 async function register({ fullname, email, phone, password, roleId }) {
-  if (!fullname || !email || !password || !roleId) {
-    throw new ApiError(400, 'fullname, email, password and roleId are required')
+  if (!fullname || !email || !password || !roleId || !phone) {
+    throw new ApiError(400, 'fullname, email, phone, password and roleId are required')
   }
 
-  const existingUser = await userRepository.findByEmail(email)
-  if (existingUser) {
+  const existingUserByEmail = await userRepository.findByEmail(email)
+  if (existingUserByEmail) {
     throw new ApiError(409, 'Email is already registered')
+  }
+
+  const existingUserByPhone = await userRepository.findByPhone(phone)
+  if (existingUserByPhone) {
+    throw new ApiError(409, 'Phone number is already registered')
   }
 
   const userAccountId = uuidv4()
@@ -54,12 +59,12 @@ async function register({ fullname, email, phone, password, roleId }) {
   }
 }
 
-async function login({ email, password }) {
-  if (!email || !password) {
-    throw new ApiError(400, 'email and password are required')
+async function login({ phone, password }) {
+  if (!phone || !password) {
+    throw new ApiError(400, 'phone and password are required')
   }
 
-  const user = await userRepository.findByEmail(email)
+  const user = await userRepository.findByPhone(phone)
 
   if (!user) {
     throw new ApiError(401, 'Invalid credentials')
@@ -83,6 +88,7 @@ async function login({ email, password }) {
   const accessTokenPayload = {
     sub: user.userAccountId,
     email: user.email,
+    phone: user.phone,
     roleId: user.roleId
   }
 
@@ -117,7 +123,24 @@ async function login({ email, password }) {
   }
 }
 
+async function logout(accessToken) {
+  if (!accessToken) {
+    throw new ApiError(401, 'Access token is required')
+  }
+
+  try {
+    const { sub: userAccountId } = tokenService.verifyAccessToken(accessToken)
+    await refreshTokenRepository.removeByUserId(userAccountId)
+  } catch (error) {
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      throw new ApiError(401, 'Invalid access token')
+    }
+    throw error
+  }
+}
+
 module.exports = {
   register,
-  login
+  login,
+  logout
 }
