@@ -20,8 +20,7 @@ async function login(req, res, next) {
 
 async function logout(req, res, next) {
   try {
-    const accessToken = req.headers.authorization?.split(' ')[1]
-    await authService.logout(accessToken)
+    await authService.logout()
     res.status(204).send()
   } catch (error) {
     next(error)

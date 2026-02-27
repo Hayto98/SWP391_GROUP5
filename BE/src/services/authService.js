@@ -1,8 +1,6 @@
 const bcrypt = require('bcryptjs')
-const { v4: uuidv4 } = require('uuid')
 const ApiError = require('../errors/ApiError')
 const userRepository = require('../repositories/userRepository')
-const refreshTokenRepository = require('../repositories/refreshTokenRepository')
 const tokenService = require('./tokenService')
 
 const DEFAULT_SALT_ROUNDS = 10
@@ -70,10 +68,6 @@ async function login({ phone, password }) {
     throw new ApiError(401, 'Invalid credentials')
   }
 
-  if (user.isDisabled) {
-    throw new ApiError(403, 'Account is disabled')
-  }
-
   if (user.isLocked) {
     throw new ApiError(403, 'Account is locked')
   }
@@ -83,8 +77,6 @@ async function login({ phone, password }) {
     throw new ApiError(401, 'Invalid credentials')
   }
 
-  const refreshTokenId = uuidv4()
-  const refreshTokenPayload = { sub: user.userAccountId, type: 'refresh' }
   const accessTokenPayload = {
     sub: user.userAccountId,
     email: user.email,
@@ -93,18 +85,6 @@ async function login({ phone, password }) {
   }
 
   const accessToken = tokenService.generateAccessToken(accessTokenPayload)
-  const refreshToken = tokenService.generateRefreshToken(refreshTokenPayload, refreshTokenId)
-  const tokenHash = tokenService.hashToken(refreshToken)
-  const refreshTokenExpiresAt = tokenService.calculateExpiryDate(process.env.REFRESH_TOKEN_EXPIRES_IN || '7d')
-
-  await refreshTokenRepository.removeByUserId(user.userAccountId)
-  await refreshTokenRepository.saveRefreshToken({
-    refreshTokenId,
-    userAccountId: user.userAccountId,
-    tokenHash,
-    expiresAt: refreshTokenExpiresAt,
-    createdAt: new Date()
-  })
 
   return {
     user: {
@@ -116,27 +96,13 @@ async function login({ phone, password }) {
     },
     tokens: {
       accessToken,
-      refreshToken,
-      expiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN || '15m',
-      refreshTokenExpiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN || '7d'
+      expiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN || '15m'
     }
   }
 }
 
-async function logout(accessToken) {
-  if (!accessToken) {
-    throw new ApiError(401, 'Access token is required')
-  }
-
-  try {
-    const { sub: userAccountId } = tokenService.verifyAccessToken(accessToken)
-    await refreshTokenRepository.removeByUserId(userAccountId)
-  } catch (error) {
-    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
-      throw new ApiError(401, 'Invalid access token')
-    }
-    throw error
-  }
+async function logout() {
+  // Chỉ access token được client xóa khi logout
 }
 
 module.exports = {
