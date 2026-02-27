@@ -10,12 +10,14 @@ async function findByEmail(email) {
             phone,
             password_hash AS passwordHash,
             role_id AS roleId,
-            is_disabled AS isDisabled,
+            collector_reject_count AS collectorRejectCount,
             is_locked AS isLocked,
             email_verified AS emailVerified,
             failed_login_count AS failedLoginCount,
-            created_at AS createdAt,
-            last_login_at AS lastLoginAt
+
+            last_login_at AS lastLoginAt,
+            ban_reason AS banReason,
+            created_at AS createdAt
        FROM UserAccount
       WHERE email = ?
       LIMIT 1`,
@@ -32,12 +34,14 @@ async function findByPhone(phone) {
             phone,
             password_hash AS passwordHash,
             role_id AS roleId,
-            is_disabled AS isDisabled,
+            collector_reject_count AS collectorRejectCount,
             is_locked AS isLocked,
             email_verified AS emailVerified,
             failed_login_count AS failedLoginCount,
-            created_at AS createdAt,
-            last_login_at AS lastLoginAt
+
+            last_login_at AS lastLoginAt,
+            ban_reason AS banReason,
+            created_at AS createdAt
        FROM UserAccount
       WHERE phone = ?
       LIMIT 1`,
@@ -46,6 +50,8 @@ async function findByPhone(phone) {
   return rows[0] || null
 }
 
+const SOFT_DELETED_REASON = 'Account deactivated'
+
 async function findById(userAccountId) {
   const [rows] = await db.execute(
     `SELECT user_account_id AS userAccountId,
@@ -53,16 +59,19 @@ async function findById(userAccountId) {
             email,
             phone,
             role_id AS roleId,
-            is_disabled AS isDisabled,
+            collector_reject_count AS collectorRejectCount,
             is_locked AS isLocked,
             email_verified AS emailVerified,
             failed_login_count AS failedLoginCount,
-            created_at AS createdAt,
-            last_login_at AS lastLoginAt
+
+            last_login_at AS lastLoginAt,
+            ban_reason AS banReason,
+            created_at AS createdAt
        FROM UserAccount
-      WHERE user_account_id = ? AND is_deleted = 0
+      WHERE user_account_id = ?
+        AND (ban_reason IS NULL OR ban_reason != ?)
       LIMIT 1`,
-    [userAccountId]
+    [userAccountId, SOFT_DELETED_REASON]
   )
   return rows[0] || null
 }
@@ -74,23 +83,28 @@ async function findAll({ limit = 20, offset = 0 } = {}) {
             email,
             phone,
             role_id AS roleId,
-            is_disabled AS isDisabled,
+            collector_reject_count AS collectorRejectCount,
             is_locked AS isLocked,
             email_verified AS emailVerified,
             failed_login_count AS failedLoginCount,
-            created_at AS createdAt,
-            last_login_at AS lastLoginAt
+
+            last_login_at AS lastLoginAt,
+            ban_reason AS banReason,
+            created_at AS createdAt
        FROM UserAccount
-      WHERE is_disabled = 0
+      WHERE (ban_reason IS NULL OR ban_reason != ?)
       ORDER BY created_at DESC
       LIMIT ? OFFSET ?`,
-    [String(limit), String(offset)]
+    [SOFT_DELETED_REASON, String(limit), String(offset)]
   )
   return rows
 }
 
 async function countAll() {
-  const [rows] = await db.execute('SELECT COUNT(*) as total FROM UserAccount WHERE is_disabled = 0')
+  const [rows] = await db.execute(
+    'SELECT COUNT(*) as total FROM UserAccount WHERE (ban_reason IS NULL OR ban_reason != ?)',
+    [SOFT_DELETED_REASON]
+  )
   return rows[0].total
 }
 
@@ -106,8 +120,8 @@ async function countAll() {
  * @returns {Promise<Array>} Filtered users
  */
 async function findWithFilters(filters = {}, limit = 20, offset = 0) {
-  let whereConditions = ['is_deleted = 0']
-  const params = []
+  let whereConditions = ['(ban_reason IS NULL OR ban_reason != ?)']
+  const params = [SOFT_DELETED_REASON]
 
   // Filter by role
   if (filters.roleId !== undefined && filters.roleId !== null) {
@@ -173,8 +187,8 @@ async function findWithFilters(filters = {}, limit = 20, offset = 0) {
  * @returns {Promise<number>} Total count matching filters
  */
 async function countWithFilters(filters = {}) {
-  let whereConditions = ['is_deleted = 0']
-  const params = []
+  let whereConditions = ['(ban_reason IS NULL OR ban_reason != ?)']
+  const params = [SOFT_DELETED_REASON]
 
   if (filters.roleId !== undefined && filters.roleId !== null) {
     whereConditions.push('role_id = ?')
@@ -251,25 +265,41 @@ async function updateRole(userAccountId, roleId) {
 }
 
 async function updateLockStatus(userAccountId, isLocked) {
-  await db.execute('UPDATE UserAccount SET is_locked = ? WHERE user_account_id = ?', [isLocked ? 1 : 0, userAccountId])
+  const locked = isLocked ? 1 : 0
+  await db.execute(
+    'UPDATE UserAccount SET is_locked = ?, ban_reason = IF(? = 0, NULL, ban_reason) WHERE user_account_id = ?',
+    [locked, locked, userAccountId]
+  )
+}
+
+async function updateFailedLoginCount(userAccountId, count) {
+  await db.execute('UPDATE UserAccount SET failed_login_count = ? WHERE user_account_id = ?', [count, userAccountId])
+}
+
+async function updateLastLogin(userAccountId) {
+  await db.execute(
+    'UPDATE UserAccount SET last_login_at = ?, failed_login_count = 0 WHERE user_account_id = ?',
+    [new Date(), userAccountId]
+  )
 }
 
 // ==================== DELETE (Soft) ====================
 
 async function softDeleteUser(userAccountId) {
-  const deletedAt = new Date()
+  // Mark account as deactivated using `ban_reason` and lock it.
   await db.execute(
-    'UPDATE UserAccount SET is_deleted = 1, deleted_at = ? WHERE user_account_id = ?',
-    [deletedAt, userAccountId]
+    'UPDATE UserAccount SET is_locked = 1, ban_reason = ? WHERE user_account_id = ?',
+    [SOFT_DELETED_REASON, userAccountId]
   )
 }
 
 // ==================== UTILITY ====================
 
 async function countByRole(roleId) {
-  const [rows] = await db.execute('SELECT COUNT(*) as count FROM UserAccount WHERE role_id = ? AND is_disabled = 0', [
-    roleId
-  ])
+  const [rows] = await db.execute(
+    'SELECT COUNT(*) as count FROM UserAccount WHERE role_id = ? AND (ban_reason IS NULL OR ban_reason != ?)',
+    [roleId, SOFT_DELETED_REASON]
+  )
   return rows[0].count
 }
 
@@ -285,6 +315,8 @@ module.exports = {
   update,
   updateRole,
   updateLockStatus,
+  updateFailedLoginCount,
+  updateLastLogin,
   softDeleteUser,
   countByRole
 }

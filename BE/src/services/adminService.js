@@ -349,7 +349,7 @@ async function changeUserStatus(targetUserId, isLockedValue, adminId) {
  * Business Rules:
  * - BR-A01: Admin cannot delete their own account
  * - BR-A04: Cannot delete the last admin
- * - Uses soft delete (is_deleted = true, sets deleted_at)
+ * - Uses soft delete by setting `ban_reason = 'Account deactivated'` and locking the account
  */
 async function deleteUser(targetUserId, adminId) {
   // BR-A01: Admin cannot delete their own account

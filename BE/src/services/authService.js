@@ -59,32 +59,36 @@ async function register({ fullname, email, phone, password, roleId }) {
   }
 }
 
-async function login({ phone, password }) {
-  if (!phone || !password) {
-    throw new ApiError(400, 'phone and password are required')
+async function login({ email, password }) {
+  if (!email || !password) {
+    throw new ApiError(400, 'email and password are required')
   }
 
-  const user = await userRepository.findByPhone(phone)
+  const user = await userRepository.findByEmail(email)
 
   if (!user) {
     throw new ApiError(401, 'Invalid credentials')
   }
 
-  if (user.isDisabled) {
-    throw new ApiError(403, 'Account is disabled')
-  }
-
   if (user.isLocked) {
-    throw new ApiError(403, 'Account is locked')
+    throw new ApiError(403, `Account is locked. Reason: ${user.banReason || 'Not specified'}`)
   }
 
   const passwordMatches = await bcrypt.compare(password, user.passwordHash)
   if (!passwordMatches) {
+    const newFailedCount = (user.failedLoginCount || 0) + 1
+    if (newFailedCount >= 5) {
+      // Lock account after 5 failed attempts
+      await userRepository.updateLockStatus(user.userAccountId, true)
+    } else {
+      await userRepository.updateFailedLoginCount(user.userAccountId, newFailedCount)
+    }
     throw new ApiError(401, 'Invalid credentials')
   }
 
-  const refreshTokenId = uuidv4()
-  const refreshTokenPayload = { sub: user.userAccountId, type: 'refresh' }
+  // Update last login and reset failed login count
+  await userRepository.updateLastLogin(user.userAccountId)
+
   const accessTokenPayload = {
     sub: user.userAccountId,
     email: user.email,
@@ -92,8 +96,12 @@ async function login({ phone, password }) {
     roleId: user.roleId
   }
 
+  const refreshTokenId = uuidv4()
+  const refreshTokenPayload = { sub: user.userAccountId, type: 'refresh' }
+
   const accessToken = tokenService.generateAccessToken(accessTokenPayload)
   const refreshToken = tokenService.generateRefreshToken(refreshTokenPayload, refreshTokenId)
+  
   const tokenHash = tokenService.hashToken(refreshToken)
   const refreshTokenExpiresAt = tokenService.calculateExpiryDate(process.env.REFRESH_TOKEN_EXPIRES_IN || '7d')
 
@@ -117,26 +125,13 @@ async function login({ phone, password }) {
     tokens: {
       accessToken,
       refreshToken,
-      expiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN || '15m',
-      refreshTokenExpiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN || '7d'
+      expiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN || '15m'
     }
   }
 }
 
-async function logout(accessToken) {
-  if (!accessToken) {
-    throw new ApiError(401, 'Access token is required')
-  }
-
-  try {
-    const { sub: userAccountId } = tokenService.verifyAccessToken(accessToken)
-    await refreshTokenRepository.removeByUserId(userAccountId)
-  } catch (error) {
-    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
-      throw new ApiError(401, 'Invalid access token')
-    }
-    throw error
-  }
+async function logout() {
+  // Chỉ access token được client xóa khi logout
 }
 
 module.exports = {
