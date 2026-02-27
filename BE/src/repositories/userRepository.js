@@ -10,9 +10,14 @@ async function findByEmail(email) {
             phone,
             password_hash AS passwordHash,
             role_id AS roleId,
+            collector_reject_count AS collectorRejectCount,
             is_locked AS isLocked,
+            email_verified AS emailVerified,
+            failed_login_count AS failedLoginCount,
+            last_login_at AS lastLoginAt,
+            ban_reason AS banReason,
             created_at AS createdAt
-       FROM user_accounts
+       FROM UserAccount
       WHERE email = ?
       LIMIT 1`,
     [email]
@@ -28,9 +33,14 @@ async function findByPhone(phone) {
             phone,
             password_hash AS passwordHash,
             role_id AS roleId,
+            collector_reject_count AS collectorRejectCount,
             is_locked AS isLocked,
+            email_verified AS emailVerified,
+            failed_login_count AS failedLoginCount,
+            last_login_at AS lastLoginAt,
+            ban_reason AS banReason,
             created_at AS createdAt
-       FROM user_accounts
+       FROM UserAccount
       WHERE phone = ?
       LIMIT 1`,
     [phone]
@@ -47,9 +57,14 @@ async function findById(userAccountId) {
             email,
             phone,
             role_id AS roleId,
+            collector_reject_count AS collectorRejectCount,
             is_locked AS isLocked,
+            email_verified AS emailVerified,
+            failed_login_count AS failedLoginCount,
+            last_login_at AS lastLoginAt,
+            ban_reason AS banReason,
             created_at AS createdAt
-       FROM user_accounts
+       FROM UserAccount
       WHERE user_account_id = ?
         AND (ban_reason IS NULL OR ban_reason != ?)
       LIMIT 1`,
@@ -65,9 +80,14 @@ async function findAll({ limit = 20, offset = 0 } = {}) {
             email,
             phone,
             role_id AS roleId,
+            collector_reject_count AS collectorRejectCount,
             is_locked AS isLocked,
+            email_verified AS emailVerified,
+            failed_login_count AS failedLoginCount,
+            last_login_at AS lastLoginAt,
+            ban_reason AS banReason,
             created_at AS createdAt
-       FROM user_accounts
+       FROM UserAccount
       WHERE (ban_reason IS NULL OR ban_reason != ?)
       ORDER BY created_at DESC
       LIMIT ? OFFSET ?`,
@@ -78,7 +98,7 @@ async function findAll({ limit = 20, offset = 0 } = {}) {
 
 async function countAll() {
   const [rows] = await db.execute(
-    'SELECT COUNT(*) as total FROM user_accounts WHERE (ban_reason IS NULL OR ban_reason != ?)',
+    'SELECT COUNT(*) as total FROM UserAccount WHERE (ban_reason IS NULL OR ban_reason != ?)',
     [SOFT_DELETED_REASON]
   )
   return rows[0].total
@@ -88,7 +108,7 @@ async function countAll() {
 
 async function createUser({ userAccountId, fullname, email, phone, passwordHash, roleId, createdAt }) {
   await db.execute(
-    `INSERT INTO user_accounts
+    `INSERT INTO UserAccount
       (user_account_id, fullname, email, phone, password_hash, role_id, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [userAccountId, fullname, email, phone, passwordHash, roleId, createdAt]
@@ -113,18 +133,29 @@ async function update(userAccountId, { fullname, phone }) {
   if (updates.length === 0) return
 
   values.push(userAccountId)
-  await db.execute(`UPDATE user_accounts SET ${updates.join(', ')} WHERE user_account_id = ?`, values)
+  await db.execute(`UPDATE UserAccount SET ${updates.join(', ')} WHERE user_account_id = ?`, values)
 }
 
 async function updateRole(userAccountId, roleId) {
-  await db.execute('UPDATE user_accounts SET role_id = ? WHERE user_account_id = ?', [roleId, userAccountId])
+  await db.execute('UPDATE UserAccount SET role_id = ? WHERE user_account_id = ?', [roleId, userAccountId])
 }
 
 async function updateLockStatus(userAccountId, isLocked) {
   const locked = isLocked ? 1 : 0
   await db.execute(
-    'UPDATE user_accounts SET is_locked = ?, ban_reason = IF(? = 0, NULL, ban_reason) WHERE user_account_id = ?',
+    'UPDATE UserAccount SET is_locked = ?, ban_reason = IF(? = 0, NULL, ban_reason) WHERE user_account_id = ?',
     [locked, locked, userAccountId]
+  )
+}
+
+async function updateFailedLoginCount(userAccountId, count) {
+  await db.execute('UPDATE UserAccount SET failed_login_count = ? WHERE user_account_id = ?', [count, userAccountId])
+}
+
+async function updateLastLogin(userAccountId) {
+  await db.execute(
+    'UPDATE UserAccount SET last_login_at = ?, failed_login_count = 0 WHERE user_account_id = ?',
+    [new Date(), userAccountId]
   )
 }
 
@@ -132,7 +163,7 @@ async function updateLockStatus(userAccountId, isLocked) {
 
 async function softDeleteUser(userAccountId) {
   await db.execute(
-    'UPDATE user_accounts SET is_locked = 1, ban_reason = ? WHERE user_account_id = ?',
+    'UPDATE UserAccount SET is_locked = 1, ban_reason = ? WHERE user_account_id = ?',
     [SOFT_DELETED_REASON, userAccountId]
   )
 }
@@ -141,7 +172,7 @@ async function softDeleteUser(userAccountId) {
 
 async function countByRole(roleId) {
   const [rows] = await db.execute(
-    'SELECT COUNT(*) as count FROM user_accounts WHERE role_id = ? AND (ban_reason IS NULL OR ban_reason != ?)',
+    'SELECT COUNT(*) as count FROM UserAccount WHERE role_id = ? AND (ban_reason IS NULL OR ban_reason != ?)',
     [roleId, SOFT_DELETED_REASON]
   )
   return rows[0].count
@@ -157,6 +188,8 @@ module.exports = {
   update,
   updateRole,
   updateLockStatus,
+  updateFailedLoginCount,
+  updateLastLogin,
   softDeleteUser,
   countByRole
 }

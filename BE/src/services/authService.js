@@ -1,6 +1,8 @@
 const bcrypt = require('bcryptjs')
+const { v4: uuidv4 } = require('uuid')
 const ApiError = require('../errors/ApiError')
 const userRepository = require('../repositories/userRepository')
+const refreshTokenRepository = require('../repositories/refreshTokenRepository')
 const tokenService = require('./tokenService')
 
 const DEFAULT_SALT_ROUNDS = 10
@@ -57,25 +59,35 @@ async function register({ fullname, email, phone, password, roleId }) {
   }
 }
 
-async function login({ phone, password }) {
-  if (!phone || !password) {
-    throw new ApiError(400, 'phone and password are required')
+async function login({ email, password }) {
+  if (!email || !password) {
+    throw new ApiError(400, 'email and password are required')
   }
 
-  const user = await userRepository.findByPhone(phone)
+  const user = await userRepository.findByEmail(email)
 
   if (!user) {
     throw new ApiError(401, 'Invalid credentials')
   }
 
   if (user.isLocked) {
-    throw new ApiError(403, 'Account is locked')
+    throw new ApiError(403, `Account is locked. Reason: ${user.banReason || 'Not specified'}`)
   }
 
   const passwordMatches = await bcrypt.compare(password, user.passwordHash)
   if (!passwordMatches) {
+    const newFailedCount = (user.failedLoginCount || 0) + 1
+    if (newFailedCount >= 5) {
+      // Lock account after 5 failed attempts
+      await userRepository.updateLockStatus(user.userAccountId, true)
+    } else {
+      await userRepository.updateFailedLoginCount(user.userAccountId, newFailedCount)
+    }
     throw new ApiError(401, 'Invalid credentials')
   }
+
+  // Update last login and reset failed login count
+  await userRepository.updateLastLogin(user.userAccountId)
 
   const accessTokenPayload = {
     sub: user.userAccountId,
@@ -84,7 +96,23 @@ async function login({ phone, password }) {
     roleId: user.roleId
   }
 
+  const refreshTokenId = uuidv4()
+  const refreshTokenPayload = { sub: user.userAccountId, type: 'refresh' }
+
   const accessToken = tokenService.generateAccessToken(accessTokenPayload)
+  const refreshToken = tokenService.generateRefreshToken(refreshTokenPayload, refreshTokenId)
+  
+  const tokenHash = tokenService.hashToken(refreshToken)
+  const refreshTokenExpiresAt = tokenService.calculateExpiryDate(process.env.REFRESH_TOKEN_EXPIRES_IN || '7d')
+
+  await refreshTokenRepository.removeByUserId(user.userAccountId)
+  await refreshTokenRepository.saveRefreshToken({
+    refreshTokenId,
+    userAccountId: user.userAccountId,
+    tokenHash,
+    expiresAt: refreshTokenExpiresAt,
+    createdAt: new Date()
+  })
 
   return {
     user: {
@@ -96,6 +124,7 @@ async function login({ phone, password }) {
     },
     tokens: {
       accessToken,
+      refreshToken,
       expiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN || '15m'
     }
   }

@@ -42,3 +42,17 @@ app.use(errorHandler)
 app.listen(port, () => {
   console.log(`API listening on port ${port}`)
 })
+
+process.on('exit', (code) => {
+  console.log(`About to exit with code: ${code}`);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('There was an uncaught error', err);
+  process.exit(1); 
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
