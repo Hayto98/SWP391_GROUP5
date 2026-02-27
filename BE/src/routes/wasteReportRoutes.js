@@ -4,6 +4,7 @@ const wasteReportController = require('../controllers/WasteReport/wasteReportCon
 
 const router = express.Router()
 
+router.post('/', verifyToken, wasteReportController.createReport)
 router.get('/my', verifyToken, wasteReportController.getMyReports)
 router.get('/:id', verifyToken, wasteReportController.getReportById)
 router.put('/:id', verifyToken, wasteReportController.updateReport)

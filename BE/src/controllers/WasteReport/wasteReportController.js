@@ -1,6 +1,34 @@
 const wasteReportService = require('../../services/wasteReportService')
 
 /**
+ * Tạo mới một báo cáo rác thải
+ * POST /reports
+ */
+async function createReport(req, res, next) {
+  try {
+    const userAccountId = req.user.sub
+    const { wasteTypeId, gpsLat, gpsLng, description, fileUri } = req.body
+
+    const report = await wasteReportService.createReport({
+      userAccountId,
+      wasteTypeId,
+      gpsLat,
+      gpsLng,
+      description,
+      fileUri
+    })
+
+    res.status(201).json({
+      success: true,
+      message: 'Tạo báo cáo rác thải thành công.',
+      data: report
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
  * Lấy danh sách báo cáo rác của một User công dân (Citizen)
  * Theo yêu cầu SCRUM-14 GET /reports/my
  */
@@ -73,6 +101,7 @@ async function deleteReport(req, res, next) {
 }
 
 module.exports = {
+  createReport,
   getMyReports,
   getReportById,
   updateReport,

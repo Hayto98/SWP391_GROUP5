@@ -1,13 +1,41 @@
 const db = require('../config/database')
 const { v4: uuidv4 } = require('uuid')
 
+// ==================== CREATE ====================
+
+/**
+ * Tạo mới một WasteReport
+ */
+async function createReport({ wasteReportId, citizenId, wasteTypeId, gpsLat, gpsLng, description, createdAt }) {
+  await db.execute(
+    `INSERT INTO WasteReport
+      (waste_report_id, citizen_id, waste_type_id, ai_suggested_waste_type_id, is_duplicate, gps_lat, gps_lng, description, created_at)
+     VALUES (?, ?, ?, NULL, 0, ?, ?, ?, ?)`,
+    [wasteReportId, citizenId, wasteTypeId, gpsLat, gpsLng, description, createdAt]
+  )
+}
+
+/**
+ * Tạo attachment cho WasteReport (lưu vào bảng ReportAttachment)
+ */
+async function createReportAttachment({ reportAttachmentId, wasteReportId, fileUri, uploadedAt }) {
+  await db.execute(
+    `INSERT INTO ReportAttachment
+      (report_attachment_id, waste_report_id, file_uri, uploaded_at)
+     VALUES (?, ?, ?, ?)`,
+    [reportAttachmentId, wasteReportId, fileUri, uploadedAt]
+  )
+}
+
+// ==================== READ ====================
+
 /**
  * Lấy danh sách báo cáo rác của một User công dân (Citizen)
  * Theo yêu cầu SCRUM-14 GET /reports/my
  */
 async function findMyReports(citizenId, { fromDate, toDate, status, limit, offset }) {
   // MySQL 5.7 compatible query (No CTEs or Window Functions)
-  
+
   let selectPart = `
     SELECT SQL_CALC_FOUND_ROWS
       wr.waste_report_id,
@@ -51,7 +79,7 @@ async function findMyReports(citizenId, { fromDate, toDate, status, limit, offse
     
     WHERE wr.citizen_id = ?
   `
-  
+
   const queryParams = [citizenId]
 
   if (fromDate) {
@@ -67,7 +95,7 @@ async function findMyReports(citizenId, { fromDate, toDate, status, limit, offse
   // To filter by current_status in MySQL 5.7 without repeating the correlated subquery in the WHERE clause,
   // we filter at the application level after fetching, OR we wrap the query into an outer SELECT.
   // Wrapping the whole query to allow filtering AND pagination accurately:
-  
+
   let finalQuery = `
     SELECT SQL_CALC_FOUND_ROWS * FROM (${selectPart.replace('SQL_CALC_FOUND_ROWS', '')}) AS DerivedReports 
     WHERE 1=1
@@ -83,31 +111,31 @@ async function findMyReports(citizenId, { fromDate, toDate, status, limit, offse
   }
 
   finalQuery += ` ORDER BY created_at DESC`
-  
+
   if (limit !== undefined && offset !== undefined) {
     finalQuery += ` LIMIT ? OFFSET ?`
     queryParams.push(Number(limit), Number(offset))
   }
 
   const [rows] = await db.execute(finalQuery, queryParams)
-  
-  // Lấy tổng số rows cho pagination
-  const [countRows] = await db.execute('SELECT FOUND_ROWS() as totalCount');
-  const total = countRows[0].totalCount;
 
-  const data = rows.map(row => {
-    const attachments = row.attachment_uris ? row.attachment_uris.split('|||').map(uri => ({ fileUri: uri })) : [];
-    
-    const statusVal = row.current_status || 'OPEN';
-    
-    let assignedCollector = null;
+  // Lấy tổng số rows cho pagination
+  const [countRows] = await db.execute('SELECT FOUND_ROWS() as totalCount')
+  const total = countRows[0].totalCount
+
+  const data = rows.map((row) => {
+    const attachments = row.attachment_uris ? row.attachment_uris.split('|||').map((uri) => ({ fileUri: uri })) : []
+
+    const statusVal = row.current_status || 'OPEN'
+
+    let assignedCollector = null
     if (statusVal === 'ASSIGNED' || statusVal === 'IN_PROGRESS' || statusVal === 'COLLECTED') {
       if (row.collector_user_account_id) {
-         assignedCollector = {
+        assignedCollector = {
           userAccountId: row.collector_user_account_id,
           fullname: row.collector_fullname,
           phone: row.collector_phone,
-          avatar: null 
+          avatar: null
         }
       }
     }
@@ -188,23 +216,23 @@ async function findReportById(reportId) {
     
     WHERE wr.waste_report_id = ?
   `
-  
-  const [rows] = await db.execute(query, [reportId])
-  
-  if (rows.length === 0) return null;
 
-  const row = rows[0];
-  const attachments = row.attachment_uris ? row.attachment_uris.split('|||').map(uri => ({ fileUri: uri })) : [];
-  const statusVal = row.current_status || 'OPEN';
-  
-  let assignedCollector = null;
+  const [rows] = await db.execute(query, [reportId])
+
+  if (rows.length === 0) return null
+
+  const row = rows[0]
+  const attachments = row.attachment_uris ? row.attachment_uris.split('|||').map((uri) => ({ fileUri: uri })) : []
+  const statusVal = row.current_status || 'OPEN'
+
+  let assignedCollector = null
   if (statusVal === 'ASSIGNED' || statusVal === 'IN_PROGRESS' || statusVal === 'COLLECTED') {
     if (row.collector_user_account_id) {
-       assignedCollector = {
+      assignedCollector = {
         userAccountId: row.collector_user_account_id,
         fullname: row.collector_fullname,
         phone: row.collector_phone,
-        avatar: null 
+        avatar: null
       }
     }
   }
@@ -258,7 +286,7 @@ async function updateReportById(reportId, updateData) {
   }
 
   // Nếu không có field nào cần update thì bypass
-  if (fields.length === 0) return true;
+  if (fields.length === 0) return true
 
   const query = `UPDATE WasteReport SET ${fields.join(', ')} WHERE waste_report_id = ?`
   values.push(reportId)
@@ -272,29 +300,29 @@ async function updateReportById(reportId, updateData) {
  * Yêu cầu xóa các bảng phụ có khóa ngoại trỏ tới WasteReport trước
  */
 async function deleteReportById(reportId) {
-  const connection = await db.getConnection();
+  const connection = await db.getConnection()
   try {
-    await connection.beginTransaction();
+    await connection.beginTransaction()
 
     // 1. Xóa CollectedRecord (nếu có - do seed script lúc nãy có gắn)
-    await connection.execute('DELETE FROM CollectedRecord WHERE waste_report_id = ?', [reportId]);
+    await connection.execute('DELETE FROM CollectedRecord WHERE waste_report_id = ?', [reportId])
 
     // 2. Xóa ReportAttachment
-    await connection.execute('DELETE FROM ReportAttachment WHERE waste_report_id = ?', [reportId]);
+    await connection.execute('DELETE FROM ReportAttachment WHERE waste_report_id = ?', [reportId])
 
     // 3. Xóa ReportStatusHistory
-    await connection.execute('DELETE FROM ReportStatusHistory WHERE waste_report_id = ?', [reportId]);
+    await connection.execute('DELETE FROM ReportStatusHistory WHERE waste_report_id = ?', [reportId])
 
     // 4. Xóa bảng cha WasteReport
-    const [result] = await connection.execute('DELETE FROM WasteReport WHERE waste_report_id = ?', [reportId]);
+    const [result] = await connection.execute('DELETE FROM WasteReport WHERE waste_report_id = ?', [reportId])
 
-    await connection.commit();
-    return result.affectedRows > 0;
+    await connection.commit()
+    return result.affectedRows > 0
   } catch (error) {
-    await connection.rollback();
-    throw error;
+    await connection.rollback()
+    throw error
   } finally {
-    connection.release();
+    connection.release()
   }
 }
 
@@ -302,11 +330,13 @@ async function deleteReportById(reportId) {
  * Lấy danh sách báo cáo bằng userId của UserAccount, do Client thường chỉ có token mang UserAccountId
  */
 async function findCitizenIdByUserAccountId(userAccountId) {
-  const [rows] = await db.execute('SELECT citizen_id FROM Citizen WHERE user_account_id = ?', [userAccountId]);
-  return rows[0]?.citizen_id || null;
+  const [rows] = await db.execute('SELECT citizen_id FROM Citizen WHERE user_account_id = ?', [userAccountId])
+  return rows[0]?.citizen_id || null
 }
 
 module.exports = {
+  createReport,
+  createReportAttachment,
   findMyReports,
   findReportById,
   updateReportById,
