@@ -10,10 +10,9 @@ async function findByEmail(email) {
             phone,
             password_hash AS passwordHash,
             role_id AS roleId,
-            is_disabled AS isDisabled,
             is_locked AS isLocked,
             created_at AS createdAt
-       FROM UserAccount
+       FROM user_accounts
       WHERE email = ?
       LIMIT 1`,
     [email]
@@ -29,16 +28,17 @@ async function findByPhone(phone) {
             phone,
             password_hash AS passwordHash,
             role_id AS roleId,
-            is_disabled AS isDisabled,
             is_locked AS isLocked,
             created_at AS createdAt
-       FROM UserAccount
+       FROM user_accounts
       WHERE phone = ?
       LIMIT 1`,
     [phone]
   )
   return rows[0] || null
 }
+
+const SOFT_DELETED_REASON = 'Account deactivated'
 
 async function findById(userAccountId) {
   const [rows] = await db.execute(
@@ -47,13 +47,13 @@ async function findById(userAccountId) {
             email,
             phone,
             role_id AS roleId,
-            is_disabled AS isDisabled,
             is_locked AS isLocked,
             created_at AS createdAt
-       FROM UserAccount
-      WHERE user_account_id = ? AND is_disabled = 0
+       FROM user_accounts
+      WHERE user_account_id = ?
+        AND (ban_reason IS NULL OR ban_reason != ?)
       LIMIT 1`,
-    [userAccountId]
+    [userAccountId, SOFT_DELETED_REASON]
   )
   return rows[0] || null
 }
@@ -65,20 +65,22 @@ async function findAll({ limit = 20, offset = 0 } = {}) {
             email,
             phone,
             role_id AS roleId,
-            is_disabled AS isDisabled,
             is_locked AS isLocked,
             created_at AS createdAt
-       FROM UserAccount
-      WHERE is_disabled = 0
+       FROM user_accounts
+      WHERE (ban_reason IS NULL OR ban_reason != ?)
       ORDER BY created_at DESC
       LIMIT ? OFFSET ?`,
-    [String(limit), String(offset)]
+    [SOFT_DELETED_REASON, String(limit), String(offset)]
   )
   return rows
 }
 
 async function countAll() {
-  const [rows] = await db.execute('SELECT COUNT(*) as total FROM UserAccount WHERE is_disabled = 0')
+  const [rows] = await db.execute(
+    'SELECT COUNT(*) as total FROM user_accounts WHERE (ban_reason IS NULL OR ban_reason != ?)',
+    [SOFT_DELETED_REASON]
+  )
   return rows[0].total
 }
 
@@ -86,7 +88,7 @@ async function countAll() {
 
 async function createUser({ userAccountId, fullname, email, phone, passwordHash, roleId, createdAt }) {
   await db.execute(
-    `INSERT INTO UserAccount
+    `INSERT INTO user_accounts
       (user_account_id, fullname, email, phone, password_hash, role_id, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [userAccountId, fullname, email, phone, passwordHash, roleId, createdAt]
@@ -111,29 +113,37 @@ async function update(userAccountId, { fullname, phone }) {
   if (updates.length === 0) return
 
   values.push(userAccountId)
-  await db.execute(`UPDATE UserAccount SET ${updates.join(', ')} WHERE user_account_id = ?`, values)
+  await db.execute(`UPDATE user_accounts SET ${updates.join(', ')} WHERE user_account_id = ?`, values)
 }
 
 async function updateRole(userAccountId, roleId) {
-  await db.execute('UPDATE UserAccount SET role_id = ? WHERE user_account_id = ?', [roleId, userAccountId])
+  await db.execute('UPDATE user_accounts SET role_id = ? WHERE user_account_id = ?', [roleId, userAccountId])
 }
 
 async function updateLockStatus(userAccountId, isLocked) {
-  await db.execute('UPDATE UserAccount SET is_locked = ? WHERE user_account_id = ?', [isLocked ? 1 : 0, userAccountId])
+  const locked = isLocked ? 1 : 0
+  await db.execute(
+    'UPDATE user_accounts SET is_locked = ?, ban_reason = IF(? = 0, NULL, ban_reason) WHERE user_account_id = ?',
+    [locked, locked, userAccountId]
+  )
 }
 
 // ==================== DELETE (Soft) ====================
 
 async function softDeleteUser(userAccountId) {
-  await db.execute('UPDATE UserAccount SET is_disabled = 1 WHERE user_account_id = ?', [userAccountId])
+  await db.execute(
+    'UPDATE user_accounts SET is_locked = 1, ban_reason = ? WHERE user_account_id = ?',
+    [SOFT_DELETED_REASON, userAccountId]
+  )
 }
 
 // ==================== UTILITY ====================
 
 async function countByRole(roleId) {
-  const [rows] = await db.execute('SELECT COUNT(*) as count FROM UserAccount WHERE role_id = ? AND is_disabled = 0', [
-    roleId
-  ])
+  const [rows] = await db.execute(
+    'SELECT COUNT(*) as count FROM user_accounts WHERE role_id = ? AND (ban_reason IS NULL OR ban_reason != ?)',
+    [roleId, SOFT_DELETED_REASON]
+  )
   return rows[0].count
 }
 
