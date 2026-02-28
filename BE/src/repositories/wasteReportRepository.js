@@ -1,5 +1,6 @@
 const db = require('../config/database')
 const { v4: uuidv4 } = require('uuid')
+const { ROLES } = require('../utils/constants')
 
 // ==================== CREATE ====================
 
@@ -35,6 +36,13 @@ async function createReportAttachment({ reportAttachmentId, wasteReportId, fileU
  */
 async function findMyReports(citizenId, { fromDate, toDate, status, limit, offset }) {
   // MySQL 5.7 compatible query (No CTEs or Window Functions)
+  const normalizedFromDate = Array.isArray(fromDate) ? fromDate[0] : fromDate
+  const normalizedToDate = Array.isArray(toDate) ? toDate[0] : toDate
+  const normalizedStatus = Array.isArray(status) ? status[0] : status
+  const parsedLimit = Number(limit)
+  const parsedOffset = Number(offset)
+  const safeLimit = Number.isFinite(parsedLimit) ? Math.max(1, Math.trunc(parsedLimit)) : 10
+  const safeOffset = Number.isFinite(parsedOffset) ? Math.max(0, Math.trunc(parsedOffset)) : 0
 
   let selectPart = `
     SELECT SQL_CALC_FOUND_ROWS
@@ -82,14 +90,14 @@ async function findMyReports(citizenId, { fromDate, toDate, status, limit, offse
 
   const queryParams = [citizenId]
 
-  if (fromDate) {
+  if (normalizedFromDate !== undefined && normalizedFromDate !== null && String(normalizedFromDate).trim() !== '') {
     selectPart += ` AND wr.created_at >= ?`
-    queryParams.push(fromDate)
+    queryParams.push(String(normalizedFromDate).trim())
   }
 
-  if (toDate) {
+  if (normalizedToDate !== undefined && normalizedToDate !== null && String(normalizedToDate).trim() !== '') {
     selectPart += ` AND wr.created_at <= ?`
-    queryParams.push(toDate)
+    queryParams.push(String(normalizedToDate).trim())
   }
 
   // To filter by current_status in MySQL 5.7 without repeating the correlated subquery in the WHERE clause,
@@ -101,23 +109,26 @@ async function findMyReports(citizenId, { fromDate, toDate, status, limit, offse
     WHERE 1=1
   `
 
-  if (status) {
-    if (status === 'OPEN') {
+  if (normalizedStatus !== undefined && normalizedStatus !== null && String(normalizedStatus).trim() !== '') {
+    const statusValue = String(normalizedStatus).trim().toUpperCase()
+    if (statusValue === 'OPEN') {
       finalQuery += ` AND (current_status = ? OR current_status IS NULL)`
     } else {
       finalQuery += ` AND current_status = ?`
     }
-    queryParams.push(status)
+    queryParams.push(statusValue)
   }
 
   finalQuery += ` ORDER BY created_at DESC`
 
-  if (limit !== undefined && offset !== undefined) {
-    finalQuery += ` LIMIT ? OFFSET ?`
-    queryParams.push(Number(limit), Number(offset))
-  }
+  finalQuery += ` LIMIT ${safeLimit} OFFSET ${safeOffset}`
 
-  const [rows] = await db.execute(finalQuery, queryParams)
+  const safeQueryParams = queryParams.map((value) => {
+    if (value === undefined) return null
+    return value
+  })
+
+  const [rows] = await db.execute(finalQuery, safeQueryParams)
 
   // Lấy tổng số rows cho pagination
   const [countRows] = await db.execute('SELECT FOUND_ROWS() as totalCount')
@@ -330,8 +341,35 @@ async function deleteReportById(reportId) {
  * Lấy danh sách báo cáo bằng userId của UserAccount, do Client thường chỉ có token mang UserAccountId
  */
 async function findCitizenIdByUserAccountId(userAccountId) {
+  if (!userAccountId) return null
   const [rows] = await db.execute('SELECT citizen_id FROM Citizen WHERE user_account_id = ?', [userAccountId])
   return rows[0]?.citizen_id || null
+}
+
+async function ensureCitizenIdByUserAccountId(userAccountId) {
+  if (!userAccountId) return null
+  let citizenId = await findCitizenIdByUserAccountId(userAccountId)
+  if (citizenId) return citizenId
+
+  const newCitizenId = uuidv4()
+  const createdAt = new Date()
+
+  await db.execute(
+    `INSERT INTO Citizen (citizen_id, user_account_id, total_points, created_at)
+     SELECT ?, ua.user_account_id, 0, ?
+       FROM UserAccount ua
+      WHERE ua.user_account_id = ?
+        AND ua.role_id = ?
+        AND NOT EXISTS (
+          SELECT 1
+            FROM Citizen c
+           WHERE c.user_account_id = ua.user_account_id
+        )`,
+    [newCitizenId, createdAt, userAccountId, ROLES.CITIZEN]
+  )
+
+  citizenId = await findCitizenIdByUserAccountId(userAccountId)
+  return citizenId || null
 }
 
 module.exports = {
@@ -341,5 +379,6 @@ module.exports = {
   findReportById,
   updateReportById,
   deleteReportById,
-  findCitizenIdByUserAccountId
+  findCitizenIdByUserAccountId,
+  ensureCitizenIdByUserAccountId
 }

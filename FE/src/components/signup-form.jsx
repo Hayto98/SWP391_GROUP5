@@ -70,7 +70,7 @@ export function SignupForm({ className, ...props }) {
         email: values.email,
         phone: values.phone,
         password: values.password,
-        roleId: 2,
+        roleId: 4, // CITIZEN
       });
 
       toast.success("Đăng ký tài khoản thành công.");

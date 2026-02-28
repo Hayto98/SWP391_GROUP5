@@ -11,42 +11,49 @@ import {
 } from "@/components/ui/select";
 import { Search, UserRoundPlus } from "lucide-react";
 
-export function UserFilters({ onAddUser }) {
+export function UserFilters({
+  keyword = "",
+  role = "",
+  onKeywordChange,
+  onRoleChange,
+  onSearch,
+  onAddUser,
+}) {
   return (
-    <Card className="w-full my-4 px-4 flex flex-row gap-2">
-      <div className="relative flex-1">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          type="text"
-          placeholder="tìm theo tên hoặc email."
-          className="pl-10"
-        />
-      </div>
-      <Select>
-        <SelectTrigger className="w-full max-w-48">
-          <SelectValue placeholder="Tất cả vai trò" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            <SelectItem value="1">Quản trị viên</SelectItem>
-            <SelectItem value="2">Cư dân</SelectItem>
-            <SelectItem value="3">Doanh nghiệp</SelectItem>
-            <SelectItem value="4">Người thu gom</SelectItem>
-          </SelectGroup>
-        </SelectContent>
-      </Select>
-
-      <Select>
-        <SelectTrigger className="w-full max-w-48">
-          <SelectValue placeholder="Trạng thái hoạt động" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            <SelectItem value="1">Đang hoạt động</SelectItem>
-            <SelectItem value="2">Bị khoá</SelectItem>
-          </SelectGroup>
-        </SelectContent>
-      </Select>
+    <Card className="w-full my-4 px-4 py-3 flex flex-row flex-wrap gap-2">
+      <form
+        className="flex flex-1 min-w-[200px] gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSearch?.();
+        }}
+      >
+        <div className="relative flex-1 min-w-[180px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Tìm theo tên, email hoặc SĐT..."
+            className="pl-10"
+            value={keyword}
+            onChange={(e) => onKeywordChange?.(e.target.value)}
+          />
+        </div>
+        <Select value={role || "all"} onValueChange={(v) => onRoleChange?.(v === "all" ? "" : v)}>
+          <SelectTrigger className="w-[140px]">
+            <SelectValue placeholder="Tất cả vai trò" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tất cả vai trò</SelectItem>
+            <SelectGroup>
+              <SelectItem value="1">Quản trị viên</SelectItem>
+              <SelectItem value="2">Doanh nghiệp</SelectItem>
+              <SelectItem value="3">Người thu gom</SelectItem>
+              <SelectItem value="4">Cư dân</SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+        <Button type="submit">Tìm kiếm</Button>
+      </form>
       <Button onClick={onAddUser}>
         <UserRoundPlus />
         Thêm người dùng

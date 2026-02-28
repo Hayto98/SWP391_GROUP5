@@ -1,4 +1,5 @@
 const db = require('../config/database')
+const { ROLES } = require('../utils/constants')
 
 // ==================== READ ====================
 
@@ -73,7 +74,24 @@ async function findById(userAccountId) {
   return rows[0] || null
 }
 
-async function findAll({ limit = 20, offset = 0 } = {}) {
+async function findAll({ limit = 20, offset = 0, keyword, roleId } = {}) {
+  const conditions = ['(ban_reason IS NULL OR ban_reason != ?)']
+  const params = [SOFT_DELETED_REASON]
+
+  if (keyword && keyword.trim()) {
+    const searchTerm = `%${keyword.trim()}%`
+    conditions.push('(fullname LIKE ? OR email LIKE ? OR phone LIKE ?)')
+    params.push(searchTerm, searchTerm, searchTerm)
+  }
+
+  if (roleId !== undefined && roleId !== null && roleId !== '') {
+    conditions.push('role_id = ?')
+    params.push(Number(roleId))
+  }
+
+  const whereClause = conditions.join(' AND ')
+  params.push(String(limit), String(offset))
+
   const [rows] = await db.execute(
     `SELECT user_account_id AS userAccountId,
             fullname,
@@ -88,19 +106,31 @@ async function findAll({ limit = 20, offset = 0 } = {}) {
             ban_reason AS banReason,
             created_at AS createdAt
        FROM UserAccount
-      WHERE (ban_reason IS NULL OR ban_reason != ?)
-      ORDER BY created_at DESC
+      WHERE ${whereClause}
+      ORDER BY role_id ASC, created_at DESC
       LIMIT ? OFFSET ?`,
-    [SOFT_DELETED_REASON, String(limit), String(offset)]
+    params
   )
   return rows
 }
 
-async function countAll() {
-  const [rows] = await db.execute(
-    'SELECT COUNT(*) as total FROM UserAccount WHERE (ban_reason IS NULL OR ban_reason != ?)',
-    [SOFT_DELETED_REASON]
-  )
+async function countAll({ keyword, roleId } = {}) {
+  const conditions = ['(ban_reason IS NULL OR ban_reason != ?)']
+  const params = [SOFT_DELETED_REASON]
+
+  if (keyword && keyword.trim()) {
+    const searchTerm = `%${keyword.trim()}%`
+    conditions.push('(fullname LIKE ? OR email LIKE ? OR phone LIKE ?)')
+    params.push(searchTerm, searchTerm, searchTerm)
+  }
+
+  if (roleId !== undefined && roleId !== null && roleId !== '') {
+    conditions.push('role_id = ?')
+    params.push(Number(roleId))
+  }
+
+  const whereClause = conditions.join(' AND ')
+  const [rows] = await db.execute(`SELECT COUNT(*) as total FROM UserAccount WHERE ${whereClause}`, params)
   return rows[0].total
 }
 
@@ -120,29 +150,18 @@ async function createUser({ userAccountId, fullname, email, phone, passwordHash,
     )
 
     // 2. Insert into role-specific table if necessary
-    // Role IDs (from schema): 1 = ADMIN, 2 = CITIZEN, 3 = ENTERPRISE, 4 = COLLECTOR
     const { v4: uuidv4 } = require('uuid')
-    
-    if (roleId === 2) {
+
+    if (roleId === ROLES.CITIZEN) {
       // CITIZEN
       await connection.execute(
         `INSERT INTO Citizen (citizen_id, user_account_id, total_points, created_at)
          VALUES (?, ?, 0, ?)`,
         [uuidv4(), userAccountId, createdAt]
       )
-    } else if (roleId === 4) {
+    } else if (roleId === ROLES.COLLECTOR) {
       // COLLECTOR
-      // The schema dump earlier said Collector table doesn't exist, but it's defined in the provided schema.
-      // Make sure the table exists or handle potential error if we plan to seed Collector too.
-      // For now, if role is 4 we try to insert assuming it acts similarly depending on db setup, 
-      // but according to the user schema output "Table haittse.Collector doesn't exist".
-      // Let's check if the user provided Collector in schema... Wait, the user schema has no Collector!
-      // In the user's latest message, they provided: Role, UserAccount, Permission, RolePermission, Citizen,
-      // WasteType, RewardConfig, WasteReport, ReportAttachment, ReportStatusType, ReportStatusHistory, 
-      // CollectedRecord, CompletionAttachment, PointTransaction, Voucher, VoucherRedemption, Feedback, 
-      // FeedbackAttachment, Notification, AuditLog. 
-      // But no Collector table.
-      // The role "COLLECTOR" just exists in Role, and its references like collector_user_account_id go directly to UserAccount!
+      // Collector references user_account_id trực tiếp, không cần insert bảng riêng.
     }
 
     await connection.commit()
@@ -156,7 +175,7 @@ async function createUser({ userAccountId, fullname, email, phone, passwordHash,
 
 // ==================== UPDATE ====================
 
-async function update(userAccountId, { fullname, phone }) {
+async function update(userAccountId, { fullname, phone, roleId, isLocked, banReason }) {
   const updates = []
   const values = []
 
@@ -167,6 +186,18 @@ async function update(userAccountId, { fullname, phone }) {
   if (phone !== undefined) {
     updates.push('phone = ?')
     values.push(phone)
+  }
+  if (roleId !== undefined) {
+    updates.push('role_id = ?')
+    values.push(roleId)
+  }
+  if (isLocked !== undefined) {
+    updates.push('is_locked = ?')
+    values.push(isLocked ? 1 : 0)
+  }
+  if (banReason !== undefined) {
+    updates.push('ban_reason = ?')
+    values.push(banReason)
   }
 
   if (updates.length === 0) return
@@ -192,19 +223,19 @@ async function updateFailedLoginCount(userAccountId, count) {
 }
 
 async function updateLastLogin(userAccountId) {
-  await db.execute(
-    'UPDATE UserAccount SET last_login_at = ?, failed_login_count = 0 WHERE user_account_id = ?',
-    [new Date(), userAccountId]
-  )
+  await db.execute('UPDATE UserAccount SET last_login_at = ?, failed_login_count = 0 WHERE user_account_id = ?', [
+    new Date(),
+    userAccountId
+  ])
 }
 
 // ==================== DELETE (Soft) ====================
 
 async function softDeleteUser(userAccountId) {
-  await db.execute(
-    'UPDATE UserAccount SET is_locked = 1, ban_reason = ? WHERE user_account_id = ?',
-    [SOFT_DELETED_REASON, userAccountId]
-  )
+  await db.execute('UPDATE UserAccount SET is_locked = 1, ban_reason = ? WHERE user_account_id = ?', [
+    SOFT_DELETED_REASON,
+    userAccountId
+  ])
 }
 
 // ==================== UTILITY ====================

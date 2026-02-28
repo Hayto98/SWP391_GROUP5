@@ -1,4 +1,9 @@
 const wasteReportService = require('../../services/wasteReportService')
+const ApiError = require('../../errors/ApiError')
+
+function getUserAccountIdFromRequest(req) {
+  return req.user?.sub || req.user?.userAccountId || req.user?.id || null
+}
 
 /**
  * Tạo mới một báo cáo rác thải
@@ -6,7 +11,10 @@ const wasteReportService = require('../../services/wasteReportService')
  */
 async function createReport(req, res, next) {
   try {
-    const userAccountId = req.user.sub
+    const userAccountId = getUserAccountIdFromRequest(req)
+    if (!userAccountId) {
+      throw new ApiError(401, 'Unauthorized')
+    }
     const { wasteTypeId, gpsLat, gpsLng, description, fileUri } = req.body
 
     const report = await wasteReportService.createReport({
@@ -34,8 +42,10 @@ async function createReport(req, res, next) {
  */
 async function getMyReports(req, res, next) {
   try {
-    // sub is the userAccountId decoded by verifyToken middleware
-    const userAccountId = req.user.sub
+    const userAccountId = getUserAccountIdFromRequest(req)
+    if (!userAccountId) {
+      throw new ApiError(401, 'Unauthorized')
+    }
     const queryParams = req.query
 
     const result = await wasteReportService.getMyReports(userAccountId, queryParams)
@@ -52,7 +62,10 @@ async function getMyReports(req, res, next) {
  */
 async function getReportById(req, res, next) {
   try {
-    const userAccountId = req.user.sub
+    const userAccountId = getUserAccountIdFromRequest(req)
+    if (!userAccountId) {
+      throw new ApiError(401, 'Unauthorized')
+    }
     const reportId = req.params.id
 
     const result = await wasteReportService.getReportById(reportId, userAccountId)
@@ -70,7 +83,10 @@ async function getReportById(req, res, next) {
  */
 async function updateReport(req, res, next) {
   try {
-    const userAccountId = req.user.sub
+    const userAccountId = getUserAccountIdFromRequest(req)
+    if (!userAccountId) {
+      throw new ApiError(401, 'Unauthorized')
+    }
     const reportId = req.params.id
     const updateData = req.body
 
@@ -89,7 +105,10 @@ async function updateReport(req, res, next) {
  */
 async function deleteReport(req, res, next) {
   try {
-    const userAccountId = req.user.sub
+    const userAccountId = getUserAccountIdFromRequest(req)
+    if (!userAccountId) {
+      throw new ApiError(401, 'Unauthorized')
+    }
     const reportId = req.params.id
 
     const result = await wasteReportService.deleteReport(reportId, userAccountId)
