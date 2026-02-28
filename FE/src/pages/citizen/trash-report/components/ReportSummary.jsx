@@ -2,8 +2,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Camera, X } from "lucide-react";
 import { useState, useRef } from "react";
+import { Input } from "@/components/ui/input";
 
-function ReportSummary({ description, setDescription, onSubmit }) {
+function ReportSummary({
+  description,
+  setDescription,
+  fileUri,
+  setFileUri,
+  onSubmit,
+  submitting,
+}) {
   const [images, setImages] = useState([]);
   const fileInputRef = useRef(null);
 
@@ -71,6 +79,12 @@ function ReportSummary({ description, setDescription, onSubmit }) {
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-start mt-4">Tải ảnh lên</h3>
 
+        <Input
+          placeholder="Hoặc nhập link ảnh (fileUri)"
+          value={fileUri}
+          onChange={(e) => setFileUri?.(e.target.value)}
+        />
+
         <div
           onClick={() => fileInputRef.current?.click()}
           onDrop={handleDrop}
@@ -118,8 +132,8 @@ function ReportSummary({ description, setDescription, onSubmit }) {
 
       {/* Submit Button */}
       <div className="flex justify-end mt-6">
-        <Button onClick={onSubmit} size="lg">
-          Gửi báo cáo thu gom
+        <Button onClick={onSubmit} size="lg" disabled={submitting}>
+          {submitting ? "Đang gửi..." : "Gửi báo cáo thu gom"}
         </Button>
       </div>
     </>

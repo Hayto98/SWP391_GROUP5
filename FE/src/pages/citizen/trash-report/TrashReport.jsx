@@ -1,117 +1,125 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import axios from "axios";
-import TrashSelection, { trashTypes } from "./components/TrashSelection";
+import TrashSelection from "./components/TrashSelection";
 import LocationSelection from "./components/LocationSelection";
 import ReportSummary from "./components/ReportSummary";
+import { getWasteTypes } from "@/services/wasteService";
+import { createWasteReport } from "@/services/wasteReportService";
+import { reverseGeocode } from "@/services/geocodingService";
 
 function TrashReport() {
-  const [trashes, setTrashes] = useState([]);
+  const [wasteTypes, setWasteTypes] = useState([]);
+  const [loadingWasteTypes, setLoadingWasteTypes] = useState(true);
   const [selectedType, setSelectedType] = useState("");
   const [weight, setWeight] = useState("");
-  const [locationType, setLocationType] = useState("nha-rieng");
   const [description, setDescription] = useState("");
-  const [markersByType, setMarkersByType] = useState({});
+  const [fileUri, setFileUri] = useState("");
+  const [selectedMarker, setSelectedMarker] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const selectedTrashType = trashTypes.find((t) => t.name === selectedType);
+  const selectedWasteType = useMemo(
+    () => wasteTypes.find((item) => item.wasteTypeId === selectedType),
+    [wasteTypes, selectedType],
+  );
 
-  const reverseGeocode = async (lat, lng) => {
-    try {
-      const res = await axios.get(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=vi`,
-        {
-          headers: {
-            Accept: "application/json",
-          },
-        },
-      );
-
-      if (res.data && res.data.display_name) {
-        return res.data.display_name;
+  useEffect(() => {
+    const fetchWasteTypes = async () => {
+      setLoadingWasteTypes(true);
+      try {
+        const data = await getWasteTypes();
+        setWasteTypes(data);
+      } catch (error) {
+        toast.error(error.message || "Không thể tải danh sách loại rác");
+      } finally {
+        setLoadingWasteTypes(false);
       }
-    } catch (error) {
-      toast.error("Lỗi khi lấy tên vị trí.");
-      return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-    }
-  };
+    };
+
+    fetchWasteTypes();
+  }, []);
 
   const handleMapClick = async (latlng) => {
     const name = await reverseGeocode(latlng.lat, latlng.lng);
-    const newMarker = {
+    setSelectedMarker({
       id: Date.now(),
       position: [latlng.lat, latlng.lng],
-      type: locationType,
       name,
-    };
-    setMarkersByType((prev) => ({ ...prev, [locationType]: newMarker }));
+    });
   };
 
-  const handleDeleMarker = () => {
-    setMarkersByType((prev) => ({ ...prev, [locationType]: null }));
+  const handleDeleteMarker = () => {
+    setSelectedMarker(null);
   };
 
-  const handleAddTrash = () => {
-    if (!selectedType || !weight) {
-      toast.warning("Vui lòng chọn loại rác và nhập khối lượng");
+  const handleSendReport = async () => {
+    if (!selectedType) {
+      toast.warning("Vui lòng chọn 1 loại rác");
       return;
     }
 
-    const trashType = trashTypes.find((t) => t.name === selectedType);
-    const weightNum = parseFloat(weight);
-
-    if (weightNum < trashType.minWeight) {
-      toast.warning(
-        `Khối lượng tối thiểu cho ${trashType.label} là ${trashType.minWeight}kg`,
-      );
+    const weightNum = Number(weight);
+    if (!weight || Number.isNaN(weightNum) || weightNum <= 0) {
+      toast.warning("Vui lòng nhập khối lượng hợp lệ");
       return;
     }
 
-    const newTrash = {
-      id: Date.now(),
-      type: trashType.label,
-      weight: weightNum,
-      points: weightNum * trashType.points,
+    if (!selectedMarker) {
+      toast.warning("Vui lòng chọn vị trí thu gom");
+      return;
+    }
+
+    const finalDescription =
+      description?.trim() || selectedWasteType?.wasteTypeName || "";
+
+    if (!finalDescription) {
+      toast.warning("Vui lòng nhập mô tả báo cáo");
+      return;
+    }
+
+    const reportPayload = {
+      wasteTypeId: selectedType,
+      gpsLat: selectedMarker.position[0],
+      gpsLng: selectedMarker.position[1],
+      description: finalDescription,
+      fileUri: fileUri?.trim() || undefined,
     };
 
-    setTrashes([...trashes, newTrash]);
-    setSelectedType("");
-    setWeight("");
-  };
-
-  const handleClearAll = () => {
-    setTrashes([]);
-    setSelectedType("");
-    setWeight("");
-  };
-
-  const handleSendReport = () => {
-    toast.success("gửi báo cáo thành công");
+    setSubmitting(true);
+    try {
+      await createWasteReport(reportPayload);
+      toast.success("Gửi báo cáo thành công");
+      setSelectedType("");
+      setWeight("");
+      setDescription("");
+      setFileUri("");
+      setSelectedMarker(null);
+    } catch (error) {
+      toast.error(error.message || "Gửi báo cáo thất bại");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <Card className="space-y-4">
       <CardContent>
         <TrashSelection
+          wasteTypes={wasteTypes}
+          loadingWasteTypes={loadingWasteTypes}
           selectedType={selectedType}
           setSelectedType={setSelectedType}
           weight={weight}
           setWeight={setWeight}
-          trashes={trashes}
-          onAddTrash={handleAddTrash}
-          onClearAll={handleClearAll}
         />
 
         <Separator className="my-4" />
 
         <LocationSelection
-          locationType={locationType}
-          setLocationType={setLocationType}
-          marker={markersByType[locationType] ?? null}
-          markersByType={markersByType}
+          marker={selectedMarker}
           onMapClick={handleMapClick}
-          onDeleteMarker={handleDeleMarker}
+          onDeleteMarker={handleDeleteMarker}
         />
 
         <Separator className="my-6" />
@@ -119,7 +127,10 @@ function TrashReport() {
         <ReportSummary
           description={description}
           setDescription={setDescription}
+          fileUri={fileUri}
+          setFileUri={setFileUri}
           onSubmit={handleSendReport}
+          submitting={submitting}
         />
       </CardContent>
     </Card>
