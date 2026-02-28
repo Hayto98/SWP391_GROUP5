@@ -107,12 +107,51 @@ async function countAll() {
 // ==================== CREATE ====================
 
 async function createUser({ userAccountId, fullname, email, phone, passwordHash, roleId, createdAt }) {
-  await db.execute(
-    `INSERT INTO UserAccount
-      (user_account_id, fullname, email, phone, password_hash, role_id, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [userAccountId, fullname, email, phone, passwordHash, roleId, createdAt]
-  )
+  const connection = await db.getConnection()
+  try {
+    await connection.beginTransaction()
+
+    // 1. Insert into UserAccount
+    await connection.execute(
+      `INSERT INTO UserAccount
+        (user_account_id, fullname, email, phone, password_hash, role_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [userAccountId, fullname, email, phone, passwordHash, roleId, createdAt]
+    )
+
+    // 2. Insert into role-specific table if necessary
+    // Role IDs (from schema): 1 = ADMIN, 2 = CITIZEN, 3 = ENTERPRISE, 4 = COLLECTOR
+    const { v4: uuidv4 } = require('uuid')
+    
+    if (roleId === 2) {
+      // CITIZEN
+      await connection.execute(
+        `INSERT INTO Citizen (citizen_id, user_account_id, total_points, created_at)
+         VALUES (?, ?, 0, ?)`,
+        [uuidv4(), userAccountId, createdAt]
+      )
+    } else if (roleId === 4) {
+      // COLLECTOR
+      // The schema dump earlier said Collector table doesn't exist, but it's defined in the provided schema.
+      // Make sure the table exists or handle potential error if we plan to seed Collector too.
+      // For now, if role is 4 we try to insert assuming it acts similarly depending on db setup, 
+      // but according to the user schema output "Table haittse.Collector doesn't exist".
+      // Let's check if the user provided Collector in schema... Wait, the user schema has no Collector!
+      // In the user's latest message, they provided: Role, UserAccount, Permission, RolePermission, Citizen,
+      // WasteType, RewardConfig, WasteReport, ReportAttachment, ReportStatusType, ReportStatusHistory, 
+      // CollectedRecord, CompletionAttachment, PointTransaction, Voucher, VoucherRedemption, Feedback, 
+      // FeedbackAttachment, Notification, AuditLog. 
+      // But no Collector table.
+      // The role "COLLECTOR" just exists in Role, and its references like collector_user_account_id go directly to UserAccount!
+    }
+
+    await connection.commit()
+  } catch (error) {
+    await connection.rollback()
+    throw error
+  } finally {
+    connection.release()
+  }
 }
 
 // ==================== UPDATE ====================
