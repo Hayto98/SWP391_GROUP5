@@ -32,6 +32,7 @@ app.get('/health', (req, res) => {
 // Routes
 app.use('/api/auth', authRoutes)
 app.use('/api/v1/admin', adminRoutes)
+app.use('/api/reports', require('./routes/wasteReportRoutes'))
 
 app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' })
