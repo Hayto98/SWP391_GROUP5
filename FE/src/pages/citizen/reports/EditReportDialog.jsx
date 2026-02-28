@@ -44,8 +44,14 @@ function EditReportDialog({
       setDescription(report.description || "");
       setWasteTypeId(String(report.wasteTypeId || ""));
 
-      const matchedWeight = report.description?.match(/(\d+(?:\.\d+)?)\s*kg/i);
-      setWeightKg(matchedWeight ? matchedWeight[1] : "");
+      const apiWeight = Number(report.weightKg);
+      if (Number.isFinite(apiWeight) && apiWeight > 0) {
+        setWeightKg(String(apiWeight));
+      } else {
+        const matchedWeight =
+          report.description?.match(/(\d+(?:\.\d+)?)\s*kg/i);
+        setWeightKg(matchedWeight ? matchedWeight[1] : "");
+      }
 
       if (
         Number.isFinite(Number(report.latitude)) &&

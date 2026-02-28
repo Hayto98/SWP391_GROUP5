@@ -82,6 +82,7 @@ function TrashReport() {
       wasteTypeId: selectedType,
       gpsLat: selectedMarker.position[0],
       gpsLng: selectedMarker.position[1],
+      weight: weightNum,
       description: finalDescription,
       fileUri: fileUri?.trim() || undefined,
     };

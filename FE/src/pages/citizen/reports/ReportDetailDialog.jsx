@@ -76,18 +76,23 @@ function ReportDetailDialog({
                 </div>
                 <div className="bg-gray-50 rounded-lg p-3 border">
                   <p className="text-xs text-muted-foreground">
-                    Điểm thưởng / đơn vị
+                    Khối lượng (kg)
                   </p>
-                  <p className="font-medium">
-                    {report.wasteTypeDetail?.rewardConfig?.pointsPerUnit ?? "-"}
-                  </p>
+                  <p className="font-medium">{report.weightKg ?? "-"}</p>
                 </div>
+
                 <div className="bg-gray-50 rounded-lg p-3 border">
                   <p className="text-xs text-muted-foreground">
                     Mô tả cấu hình điểm
                   </p>
                   <p className="font-medium">
                     {report.wasteTypeDetail?.rewardConfig?.description || "-"}
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3 border md:col-span-2">
+                  <p className="text-xs text-muted-foreground">Mô tả báo cáo</p>
+                  <p className="font-medium whitespace-pre-line wrap-break-word">
+                    {report.description || "-"}
                   </p>
                 </div>
               </div>

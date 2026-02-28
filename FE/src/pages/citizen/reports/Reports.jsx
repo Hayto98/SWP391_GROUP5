@@ -115,6 +115,10 @@ function mapReport(report) {
   const lat = Number(report?.location?.lat || 0);
   const lng = Number(report?.location?.lng || 0);
   const rawStatus = report?.status || "OPEN";
+  const normalizedWeightKg =
+    report?.weightKg !== undefined && report?.weightKg !== null
+      ? Number(report.weightKg)
+      : null;
 
   return {
     id: report.wasteReportId,
@@ -133,7 +137,11 @@ function mapReport(report) {
     progress: progressTemplate[rawStatus] || progressTemplate.OPEN,
     trashTypes: [],
     totalPoints: 0,
-    description: "",
+    description: report?.description || "",
+    weightKg:
+      Number.isFinite(normalizedWeightKg) && normalizedWeightKg > 0
+        ? normalizedWeightKg
+        : null,
     citizenImages: (report.attachments || []).map((item) => item.fileUri),
     collectorImages: [],
     collector: report.assignedCollector
