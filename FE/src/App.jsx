@@ -18,7 +18,7 @@ import EnterpriseProfileOverview from "./pages/enterprise/profile/overview/Enter
 function App() {
   return (
     <>
-      <ProgressTracking />
+      <AppRoutes />
       <Toaster richColors position="top-right" />
     </>
   );
