@@ -1,8 +1,8 @@
 const ROLES = {
   ADMIN: 1,
-  CITIZEN: 2,
+  ENTERPRISE: 2,
   COLLECTOR: 3,
-  ENTERPRISE: 4
+  CITIZEN: 4
 }
 
 const USER_STATUS = {

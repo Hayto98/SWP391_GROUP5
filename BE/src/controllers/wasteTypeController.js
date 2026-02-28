@@ -9,6 +9,16 @@ async function getActiveWasteTypes(req, res, next) {
   }
 }
 
+async function getWasteTypeById(req, res, next) {
+  try {
+    const result = await wasteTypeService.getWasteTypeById(req.params.id)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
 module.exports = {
-  getActiveWasteTypes
+  getActiveWasteTypes,
+  getWasteTypeById
 }
