@@ -17,9 +17,12 @@ import CitizenComplaints from "@/pages/citizen/complaints/Complaints";
 
 // Enterprise pages
 import EnterpriseDashboard from "@/pages/enterprise/dashboard/Dashboard";
+import EnterpriseOverview from "@/pages/enterprise/overview/EnterpriseOverview";
 import EnterpriseReports from "@/pages/enterprise/reports/Reports";
 import EnterpriseEmployees from "@/pages/enterprise/employees/Employees";
 import EnterpriseRewardsConfig from "@/pages/enterprise/rewards-config/RewardsConfig";
+import Warehouse from "@/pages/enterprise/warehouse/Warehouse";
+import Orders from "@/pages/enterprise/orders/Orders";
 
 // Collector pages
 import CollectorDashboard from "@/pages/collector/dashboard/Dashboard";
@@ -77,6 +80,9 @@ function AppRoutes() {
           <Route element={<RoleRoute allowedRoles={["enterprise"]} />}>
             <Route path="/enterprise" element={<DashboardLayout />}>
               <Route index element={<EnterpriseDashboard />} />
+              <Route path="overview" element={<EnterpriseOverview />} />
+              <Route path="orders" element={<Orders />} />
+              <Route path="warehouse" element={<Warehouse />} />
               <Route path="reports" element={<EnterpriseReports />} />
               <Route path="employees" element={<EnterpriseEmployees />} />
               <Route
