@@ -33,6 +33,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes)
 app.use('/api/v1/admin', adminRoutes)
 app.use('/api/reports', require('./routes/wasteReportRoutes'))
+app.use('/api/waste-types', require('./routes/wasteTypeRoutes'))
 
 app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' })
@@ -45,15 +46,15 @@ app.listen(port, () => {
 })
 
 process.on('exit', (code) => {
-  console.log(`About to exit with code: ${code}`);
-});
+  console.log(`About to exit with code: ${code}`)
+})
 
 process.on('uncaughtException', (err) => {
-  console.error('There was an uncaught error', err);
-  process.exit(1); 
-});
+  console.error('There was an uncaught error', err)
+  process.exit(1)
+})
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  process.exit(1);
-});
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason)
+  process.exit(1)
+})
