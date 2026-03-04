@@ -189,9 +189,12 @@ async function getAllWasteTypes({ isActive, page = 1, limit = 20 } = {}) {
     offset
   })
 
+  // Remove createdAt and updatedAt from response
+  const filteredData = result.data.map(({ createdAt, updatedAt, ...rest }) => rest)
+
   return {
     success: true,
-    data: result.data,
+    data: filteredData,
     pagination: {
       page: pageNum,
       limit: limitNum,
@@ -210,9 +213,12 @@ async function getWasteTypeById(wasteTypeId) {
     throw new ApiError(404, 'WasteType không tồn tại')
   }
 
+  // Remove createdAt and updatedAt from response
+  const { createdAt, updatedAt, ...filteredData } = wasteType
+
   return {
     success: true,
-    data: wasteType
+    data: filteredData
   }
 }
 
@@ -271,9 +277,12 @@ async function createRewardConfig({ wasteTypeId, pointsPerUnit, description }) {
   return {
     success: true,
     data: {
-      rewardConfigId: result.rewardConfigId,
-      wasteTypeId: result.wasteTypeId,
-      pointsPerUnit: result.pointsPerUnit
+      reward_config_id: result.rewardConfigId,
+      waste_type_id: result.wasteTypeId,
+      points_per_unit: result.pointsPerUnit,
+      description: result.description,
+      is_active: result.isActive === 1 || result.isActive === true,
+      created_at: result.createdAt
     }
   }
 }
@@ -331,9 +340,9 @@ async function updateRewardConfig(rewardConfigId, { pointsPerUnit, description }
   return {
     success: true,
     data: {
-      rewardConfigId: result.rewardConfigId,
-      pointsPerUnit: result.pointsPerUnit,
-      updatedAt: result.updatedAt
+      reward_config_id: result.rewardConfigId,
+      points_per_unit: result.pointsPerUnit,
+      updated_at: result.updatedAt
     }
   }
 }
@@ -357,9 +366,20 @@ async function getAllRewardConfigs({ isActive, page = 1, limit = 20 } = {}) {
     offset
   })
 
+  const mapped = result.data.map((r) => ({
+    reward_config_id: r.rewardConfigId,
+    waste_type_id: r.wasteTypeId,
+    waste_type_name: r.wasteTypeName,
+    unit_type: r.unitType,
+    points_per_unit: r.pointsPerUnit,
+    description: r.description,
+    is_active: r.isActive === 1 || r.isActive === true,
+    created_at: r.createdAt
+  }))
+
   return {
     success: true,
-    data: result.data,
+    data: mapped,
     pagination: {
       page: pageNum,
       limit: limitNum,
@@ -380,7 +400,14 @@ async function getRewardConfigById(rewardConfigId) {
 
   return {
     success: true,
-    data: config
+    data: {
+      reward_config_id: config.rewardConfigId,
+      waste_type_id: config.wasteTypeId,
+      points_per_unit: config.pointsPerUnit,
+      description: config.description,
+      is_active: config.isActive === 1 || config.isActive === true,
+      created_at: config.createdAt
+    }
   }
 }
 
@@ -395,7 +422,14 @@ async function getRewardConfigByWasteTypeId(wasteTypeId) {
 
   return {
     success: true,
-    data: config
+    data: {
+      reward_config_id: config.rewardConfigId,
+      waste_type_id: config.wasteTypeId,
+      points_per_unit: config.pointsPerUnit,
+      description: config.description,
+      is_active: config.isActive === 1 || config.isActive === true,
+      created_at: config.createdAt
+    }
   }
 }
 

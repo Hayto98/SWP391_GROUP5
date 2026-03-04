@@ -15,9 +15,9 @@ async function createWasteType({ wasteTypeName, unitType }) {
   const createdAt = new Date()
 
   await db.execute(
-    `INSERT INTO WasteType (waste_type_id, waste_type_name, unit_type, is_active, created_at, updated_at)
-     VALUES (?, ?, ?, 1, ?, ?)`,
-    [wasteTypeId, wasteTypeName, unitType, createdAt, createdAt]
+    `INSERT INTO WasteType (waste_type_id, waste_type_name, unit_type, is_active)
+     VALUES (?, ?, ?, 1)`,
+    [wasteTypeId, wasteTypeName, unitType]
   )
 
   return {
@@ -36,7 +36,7 @@ async function createWasteType({ wasteTypeName, unitType }) {
  */
 async function findById(wasteTypeId) {
   const [rows] = await db.execute(
-    `SELECT waste_type_id, waste_type_name, unit_type, is_active, created_at, updated_at
+    `SELECT waste_type_id, waste_type_name, unit_type, is_active
      FROM WasteType
      WHERE waste_type_id = ?`,
     [wasteTypeId]
@@ -60,7 +60,7 @@ async function findById(wasteTypeId) {
  */
 async function findByName(wasteTypeName) {
   const [rows] = await db.execute(
-    `SELECT waste_type_id, waste_type_name, unit_type, is_active, created_at, updated_at
+    `SELECT waste_type_id, waste_type_name, unit_type, is_active
      FROM WasteType
      WHERE LOWER(waste_type_name) = LOWER(?)`,
     [wasteTypeName]
@@ -105,7 +105,7 @@ async function findByNameExcludeId(wasteTypeName, excludeWasteTypeId) {
  * Lấy tất cả WasteType (có phân trang và filter)
  */
 async function findAll({ isActive, limit = 20, offset = 0 } = {}) {
-  let query = `SELECT SQL_CALC_FOUND_ROWS waste_type_id, waste_type_name, unit_type, is_active, created_at, updated_at
+  let query = `SELECT SQL_CALC_FOUND_ROWS waste_type_id, waste_type_name, unit_type, is_active
                FROM WasteType WHERE 1=1`
   const params = []
 
@@ -125,9 +125,7 @@ async function findAll({ isActive, limit = 20, offset = 0 } = {}) {
     wasteTypeId: row.waste_type_id,
     wasteTypeName: row.waste_type_name,
     unitType: row.unit_type,
-    isActive: row.is_active === 1,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at
+    isActive: row.is_active === 1
   }))
 
   return { data, total }
@@ -139,7 +137,6 @@ async function findAll({ isActive, limit = 20, offset = 0 } = {}) {
  * Cập nhật WasteType
  */
 async function updateWasteType(wasteTypeId, { wasteTypeName, unitType }) {
-  const updatedAt = new Date()
   const fields = []
   const values = []
 
@@ -153,11 +150,8 @@ async function updateWasteType(wasteTypeId, { wasteTypeName, unitType }) {
     values.push(unitType)
   }
 
-  fields.push('updated_at = ?')
-  values.push(updatedAt)
-
-  if (fields.length === 1) {
-    // Chỉ có updated_at, không có gì cần update
+  if (fields.length === 0) {
+    // Không có trường nào để update
     return null
   }
 
@@ -175,11 +169,9 @@ async function updateWasteType(wasteTypeId, { wasteTypeName, unitType }) {
  * Soft delete (inactive) WasteType
  */
 async function setInactive(wasteTypeId) {
-  const updatedAt = new Date()
-
   const [result] = await db.execute(
-    `UPDATE WasteType SET is_active = 0, updated_at = ? WHERE waste_type_id = ?`,
-    [updatedAt, wasteTypeId]
+    `UPDATE WasteType SET is_active = 0 WHERE waste_type_id = ?`,
+    [wasteTypeId]
   )
 
   return result.affectedRows > 0
