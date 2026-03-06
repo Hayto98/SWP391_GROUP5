@@ -67,8 +67,9 @@ async function getReportById(req, res, next) {
       throw new ApiError(401, 'Unauthorized')
     }
     const reportId = req.params.id
+    const roleId = req.user?.roleId || null
 
-    const result = await wasteReportService.getReportById(reportId, userAccountId)
+    const result = await wasteReportService.getReportById(reportId, userAccountId, roleId)
 
     res.status(200).json(result)
   } catch (error) {
