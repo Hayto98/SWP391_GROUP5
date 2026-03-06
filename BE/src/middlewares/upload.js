@@ -10,13 +10,13 @@ const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
 
 const fileFilter = (req, file, cb) => {
-    if (ALLOWED_TYPES.includes(file.mimetype)) {
-        cb(null, true)
-    } else {
-        // Pass null (not an Error) to avoid aborting body parsing —
-        // the file is silently rejected; service can check req.files.length if needed.
-        cb(null, false)
-    }
+  if (ALLOWED_TYPES.includes(file.mimetype)) {
+    cb(null, true)
+  } else {
+    // Pass null (not an Error) to avoid aborting body parsing —
+    // the file is silently rejected; service can check req.files.length if needed.
+    cb(null, false)
+  }
 }
 
 const limits = { fileSize: MAX_FILE_SIZE_BYTES }
@@ -29,23 +29,23 @@ const _multerMultiple = multer({ storage, fileFilter, limits }).any()
  * with human-readable messages (MB instead of bytes).
  */
 function wrapMulter(multerFn) {
-    return function (req, res, next) {
-        multerFn(req, res, (err) => {
-            if (!err) return next()
+  return function (req, res, next) {
+    multerFn(req, res, (err) => {
+      if (!err) return next()
 
-            if (err.code === 'LIMIT_FILE_SIZE') {
-                return next(new ApiError(400, `File too large. Maximum allowed size is ${MAX_FILE_SIZE_MB} MB per file.`))
-            }
-            if (err.code === 'LIMIT_UNEXPECTED_FILE') {
-                return next(new ApiError(400, `Unexpected field name. Received invalid file field name.`))
-            }
-            if (err.code === 'LIMIT_FILE_COUNT') {
-                return next(new ApiError(400, 'Too many files. Maximum 5 files allowed.'))
-            }
-            // Generic multer or fileFilter error
-            return next(new ApiError(400, err.message || 'File upload error'))
-        })
-    }
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return next(new ApiError(400, `File too large. Maximum allowed size is ${MAX_FILE_SIZE_MB} MB per file.`))
+      }
+      if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+        return next(new ApiError(400, `Unexpected field name. Received invalid file field name.`))
+      }
+      if (err.code === 'LIMIT_FILE_COUNT') {
+        return next(new ApiError(400, 'Too many files. Maximum 5 files allowed.'))
+      }
+      // Generic multer or fileFilter error
+      return next(new ApiError(400, err.message || 'File upload error'))
+    })
+  }
 }
 
 /**

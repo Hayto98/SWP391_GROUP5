@@ -12,4 +12,3 @@ router.put('/:id', verifyToken, wasteReportController.updateReport)
 router.delete('/:id', verifyToken, wasteReportController.deleteReport)
 
 module.exports = router
-

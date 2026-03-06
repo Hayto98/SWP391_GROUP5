@@ -252,10 +252,10 @@ async function countActiveReports(collectorId) {
  * @param {number} newStatusId
  */
 async function updateReportStatus(connection, reportId, newStatusId) {
-  await connection.execute(
-    `UPDATE wastereport SET report_status_type_id = ? WHERE waste_report_id = ?`,
-    [newStatusId, reportId]
-  )
+  await connection.execute(`UPDATE wastereport SET report_status_type_id = ? WHERE waste_report_id = ?`, [
+    newStatusId,
+    reportId
+  ])
 }
 
 /**
@@ -332,16 +332,19 @@ async function findStatusTypeIdByName(connection, statusName) {
  * @param {string|null} data.fileUri
  * @param {Date}   data.recordedAt
  */
-async function insertCollectedRecord(connection, {
-  collectedRecordId,
-  wasteReportId,
-  collectorUserAccountId,
-  actualQuantityValue,
-  quantityUnit,
-  note,
-  fileUri,
-  recordedAt
-}) {
+async function insertCollectedRecord(
+  connection,
+  {
+    collectedRecordId,
+    wasteReportId,
+    collectorUserAccountId,
+    actualQuantityValue,
+    quantityUnit,
+    note,
+    fileUri,
+    recordedAt
+  }
+) {
   await connection.execute(
     `INSERT INTO collectedrecord
        (collected_record_id, waste_report_id, collector_user_account_id,
@@ -425,14 +428,10 @@ async function findRewardConfig(connection, wasteTypeId) {
  * @param {string} data.transactionReason
  * @param {Date}   data.createdAt
  */
-async function insertPointTransaction(connection, {
-  pointTransactionId,
-  citizenId,
-  wasteReportId,
-  pointsDelta,
-  transactionReason,
-  createdAt
-}) {
+async function insertPointTransaction(
+  connection,
+  { pointTransactionId, citizenId, wasteReportId, pointsDelta, transactionReason, createdAt }
+) {
   await connection.execute(
     `INSERT INTO pointtransaction
        (point_transaction_id, citizen_id, waste_report_id,
@@ -470,12 +469,10 @@ async function updateCitizenPoints(connection, citizenId, pointsDelta) {
  * @param {string} data.fileUri
  * @param {Date}   data.uploadedAt
  */
-async function insertCompletionAttachment(connection, {
-  completionAttachmentId,
-  collectedRecordId,
-  fileUri,
-  uploadedAt
-}) {
+async function insertCompletionAttachment(
+  connection,
+  { completionAttachmentId, collectedRecordId, fileUri, uploadedAt }
+) {
   await connection.execute(
     `INSERT INTO completionattachment
        (completion_attachment_id, collected_record_id, file_uri, uploaded_at)

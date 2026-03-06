@@ -32,7 +32,6 @@ async function createReport(req, res, next) {
   }
 }
 
-
 /**
  * Lấy danh sách báo cáo rác của một User công dân (Citizen)
  * Theo yêu cầu SCRUM-14 GET /reports/my
