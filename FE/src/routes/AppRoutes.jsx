@@ -30,6 +30,7 @@ import CollectorTasks from "@/pages/collector/tasks/Tasks";
 import CollectorHistory from "@/pages/collector/history/History";
 import CollectorTaskDetail from "@/pages/collector/tasks/taskDetail";
 import CollectorTaskAccept from "@/pages/collector/tasks/taskAcept";
+import CollectorTaskCollect from "@/pages/collector/tasks/taskCollect";
 
 import React from "react";
 import Homepage from "@/pages/homepage/Homepage";
@@ -101,6 +102,7 @@ function AppRoutes() {
               <Route path="tasks" element={<CollectorTasks />} />
               <Route path="tasks/:taskId" element={<CollectorTaskDetail />} />
               <Route path="tasks/:taskId/accept" element={<CollectorTaskAccept />} />
+              <Route path="tasks/:taskId/collect" element={<CollectorTaskCollect />} />
               <Route path="history" element={<CollectorHistory />} />
             </Route>
           </Route>

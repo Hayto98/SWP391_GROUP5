@@ -1,25 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
 	AlertTriangle,
-	CheckCircle2,
-	Circle,
 	Clock3,
 	MapPin,
 	Navigation,
 	PhoneCall,
-	Truck,
 	X,
 } from "lucide-react";
 import { ALL_TASKS } from "./taskData";
-
-const WORKFLOW_STEPS = [
-	"Đã nhận",
-	"Đang di chuyển",
-	"Đã đến nơi",
-	"Đang thu gom",
-	"Hoàn thành",
-];
+import TaskMissionShell from "./components/TaskMissionShell";
 
 function parseSlaToSeconds(slaText) {
 	const match = slaText?.match(/(\d+)/);
@@ -58,7 +48,6 @@ function TaskAccept() {
 		return ALL_TASKS.find((item) => item.id.replace("#", "") === taskId) || null;
 	}, [state, taskId]);
 
-	const [currentStep, setCurrentStep] = useState(2);
 	const [incidentOpen, setIncidentOpen] = useState(false);
 	const [incidentNote, setIncidentNote] = useState("");
 	const [incidentNotice, setIncidentNotice] = useState("");
@@ -66,7 +55,6 @@ function TaskAccept() {
 		parseSlaToSeconds(task?.sla)
 	);
 
-	const reporterPhoneLabel = "0909 123 456";
 	const reporterPhoneRaw = "0909123456";
 
 	useEffect(() => {
@@ -97,6 +85,7 @@ function TaskAccept() {
 		);
 	}
 
+	const routeTaskId = task.id.replace("#", "");
 	const destination = `${task.area}, ${task.district}, TP. Hồ Chí Minh`;
 
 	const openDirection = () => {
@@ -108,10 +97,11 @@ function TaskAccept() {
 		);
 	};
 
-	const hasArrived = currentStep >= 3;
-
-	const handleMarkArrived = () => {
-		setCurrentStep((prev) => Math.max(prev, 3));
+	const handleArrived = () => {
+		const arrivedAt = new Date().toISOString();
+		navigate(`/collector/tasks/${routeTaskId}/collect`, {
+			state: { task, arrivedAt },
+		});
 	};
 
 	const openCallSender = () => {
@@ -131,70 +121,26 @@ function TaskAccept() {
 	const isOverdue = remainingSeconds === 0;
 	const countdownText = formatDuration(remainingSeconds);
 
+	const summaryItems = [
+		{ label: "TASK ID", value: task.id },
+		{ label: "REPORT ID", value: `R-${routeTaskId}` },
+		{ label: "Địa điểm", value: destination },
+		{ label: "Loại rác khai báo", value: task.wasteType },
+		{ label: "Hạn chót SLA", value: task.sla },
+	];
+
 	return (
-		<div className="bg-gray-50 min-h-screen font-sans pb-10">
-			<main className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-5">
-				<div className="flex items-center justify-between">
-					<div className="text-sm">
-						<Link to="/collector/tasks" className="text-green-500 font-medium">
-							Nhiệm vụ
-						</Link>
-						<span className="text-gray-400"> / </span>
-						<Link
-							to={`/collector/tasks/${task.id.replace("#", "")}`}
-							state={{ task }}
-							className="text-green-500 font-medium"
-						>
-							Chi tiết nhiệm vụ
-						</Link>
-						<span className="text-gray-400"> / </span>
-						<span className="text-gray-500">Đi tới điểm thu gom</span>
-					</div>
-
-					<span className="px-3 py-1.5 rounded-xl text-sm bg-blue-50 text-blue-700 border border-blue-100 font-medium inline-flex items-center gap-1.5">
-						<Truck className="w-4 h-4" />
-						Đang di chuyển
-					</span>
-				</div>
-
-				<div>
-					<h1 className="text-2xl lg:text-3xl font-bold text-gray-900">
-						Đang xử lý nhiệm vụ {task.id}
-					</h1>
-					<p className="text-green-600 text-sm lg:text-base mt-1">
-						Theo dõi lộ trình và cập nhật tiến độ tại đây.
-					</p>
-				</div>
-
-				<div className="bg-white border border-gray-100 rounded-2xl p-4 lg:p-5 shadow-sm">
-					<div className="grid grid-cols-1 md:grid-cols-5 gap-2">
-						{WORKFLOW_STEPS.map((step, idx) => {
-							const order = idx + 1;
-							const done = order <= currentStep;
-
-							return (
-								<div
-									key={step}
-									className={`rounded-xl border px-3 py-2.5 text-sm ${
-										done
-											? "bg-green-50 border-green-200 text-green-700"
-											: "bg-gray-50 border-gray-200 text-gray-500"
-									}`}
-								>
-									<div className="inline-flex items-center gap-2 font-medium">
-										{done ? (
-											<CheckCircle2 className="w-4 h-4" />
-										) : (
-											<Circle className="w-4 h-4" />
-										)}
-										{step}
-									</div>
-								</div>
-							);
-						})}
-					</div>
-				</div>
-
+		<>
+			<TaskMissionShell
+				task={task}
+				currentStep={2}
+				statusLabel="Đang di chuyển"
+				statusTone="blue"
+				breadcrumbLabel="Đi tới điểm thu gom"
+				title={`Đang xử lý nhiệm vụ ${task.id}`}
+				subtitle="Theo dõi lộ trình và cập nhật tiến độ tại đây."
+				summaryItems={summaryItems}
+			>
 				<div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 					<div className="lg:col-span-2 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
 						<div className="text-sm font-semibold text-gray-800 inline-flex items-center gap-2 mb-3">
@@ -228,27 +174,12 @@ function TaskAccept() {
 							</p>
 						</div>
 
-						<div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm space-y-3">
-							<InfoRow label="Mã nhiệm vụ" value={task.id} />
-							<InfoRow label="Khu vực" value={task.area} />
-							<InfoRow label="Quận" value={task.district} />
-							<InfoRow label="Loại rác" value={task.wasteType} />
-							<InfoRow label="Người gửi" value={reporterPhoneLabel} icon={<PhoneCall className="w-4 h-4 text-blue-500" />} />
-							<InfoRow label="Điểm đến" value={destination} />
-						</div>
+						<SwipeToConfirmArrived onComplete={handleArrived} />
 					</div>
 				</div>
 
 				<div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
 					<div className="flex flex-wrap lg:flex-nowrap gap-3">
-						<button
-							onClick={handleMarkArrived}
-							disabled={hasArrived}
-							className="flex-1 min-w-45 rounded-xl bg-green-500 text-white py-3 font-semibold hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
-						>
-							{hasArrived ? "Đã đến nơi" : "Đã đến nơi"}
-						</button>
-
 						<button
 							onClick={() => setIncidentOpen(true)}
 							className="flex-1 min-w-45 rounded-xl bg-red-50 text-red-700 py-3 font-semibold hover:bg-red-100 inline-flex items-center justify-center gap-2"
@@ -280,7 +211,7 @@ function TaskAccept() {
 						</div>
 					)}
 				</div>
-			</main>
+			</TaskMissionShell>
 
 			<IncidentReportModal
 				open={incidentOpen}
@@ -289,6 +220,175 @@ function TaskAccept() {
 				onNoteChange={setIncidentNote}
 				onConfirm={handleSendIncident}
 			/>
+		</>
+	);
+}
+
+function SwipeToConfirmArrived({ onComplete }) {
+	const THUMB_SIZE = 48;
+	const TRACK_PADDING = 4;
+	const [progress, setProgress] = useState(0);
+	const [isDragging, setIsDragging] = useState(false);
+	const [isCompleted, setIsCompleted] = useState(false);
+	const [usableWidth, setUsableWidth] = useState(0);
+
+	const trackRef = useRef(null);
+	const holdTimerRef = useRef(null);
+	const pointerIdRef = useRef(null);
+	const completedRef = useRef(false);
+	const progressRef = useRef(0);
+
+	useEffect(() => {
+		const updateWidth = () => {
+			if (!trackRef.current) {
+				return;
+			}
+
+			const nextWidth =
+				trackRef.current.clientWidth - THUMB_SIZE - TRACK_PADDING * 2;
+			setUsableWidth(Math.max(0, nextWidth));
+		};
+
+		updateWidth();
+		window.addEventListener("resize", updateWidth);
+
+		return () => {
+			window.removeEventListener("resize", updateWidth);
+		};
+	}, []);
+
+	useEffect(() => {
+		return () => {
+			if (holdTimerRef.current) {
+				clearTimeout(holdTimerRef.current);
+			}
+		};
+	}, []);
+
+	const getProgressFromClientX = (clientX) => {
+		if (!trackRef.current || usableWidth <= 0) {
+			return 0;
+		}
+
+		const rect = trackRef.current.getBoundingClientRect();
+		const x = clientX - rect.left - TRACK_PADDING - THUMB_SIZE / 2;
+		const ratio = x / usableWidth;
+		return Math.max(0, Math.min(100, ratio * 100));
+	};
+
+	const syncProgress = (nextProgress) => {
+		progressRef.current = nextProgress;
+		setProgress(nextProgress);
+	};
+
+	const completeSwipe = () => {
+		if (completedRef.current) {
+			return;
+		}
+
+		completedRef.current = true;
+		setIsCompleted(true);
+		syncProgress(100);
+		setTimeout(() => {
+			onComplete();
+		}, 420);
+	};
+
+	const handlePointerDown = (event) => {
+		if (isCompleted) {
+			return;
+		}
+
+		pointerIdRef.current = event.pointerId;
+		setIsDragging(true);
+		syncProgress(getProgressFromClientX(event.clientX));
+		event.currentTarget.setPointerCapture(event.pointerId);
+	};
+
+	const handlePointerMove = (event) => {
+		if (!isDragging || pointerIdRef.current !== event.pointerId || isCompleted) {
+			return;
+		}
+
+		syncProgress(getProgressFromClientX(event.clientX));
+	};
+
+	const finalizePointer = () => {
+		if (!isDragging || isCompleted) {
+			return;
+		}
+
+		setIsDragging(false);
+		if (progressRef.current >= 83) {
+			completeSwipe();
+		} else {
+			syncProgress(0);
+		}
+	};
+
+	const startHoldConfirm = () => {
+		if (isCompleted) {
+			return;
+		}
+
+		holdTimerRef.current = setTimeout(() => {
+			completeSwipe();
+		}, 1000);
+	};
+
+	const cancelHoldConfirm = () => {
+		if (holdTimerRef.current) {
+			clearTimeout(holdTimerRef.current);
+			holdTimerRef.current = null;
+		}
+	};
+
+	return (
+		<div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+			<p className="text-sm font-semibold text-gray-800 mb-2">Vuốt để xác nhận đã đến nơi</p>
+			<p className="text-xs text-gray-500 mb-3">
+				Kéo thanh sang phải, hoặc nhấn giữ 1 giây nếu bạn đang dùng chuột.
+			</p>
+
+			<div
+				ref={trackRef}
+				className="relative h-14 rounded-full select-none touch-none"
+				onPointerDown={handlePointerDown}
+				onPointerMove={handlePointerMove}
+				onPointerUp={finalizePointer}
+				onPointerCancel={finalizePointer}
+			>
+				<div className="absolute inset-0 rounded-full border border-gray-200 bg-gray-100" />
+				<div
+					className="absolute inset-y-0 left-0 rounded-full bg-green-500 transition-[width] duration-150"
+					style={{ width: `${progress}%` }}
+				/>
+				<div
+					className="absolute top-1 left-1 h-12 w-12 rounded-full bg-white shadow-sm border border-gray-200 flex items-center justify-center text-green-600 transition-transform duration-75"
+					style={{ transform: `translateX(${(usableWidth * progress) / 100}px)` }}
+				>
+					<Navigation className="w-5 h-5" />
+				</div>
+				<div
+					className={`absolute inset-0 flex items-center justify-center text-sm font-semibold pointer-events-none ${
+						progress > 45 || isCompleted ? "text-white" : "text-gray-500"
+					}`}
+				>
+					{isCompleted ? "Đã xác nhận đã đến nơi" : "Kéo sang phải để xác nhận"}
+				</div>
+			</div>
+
+			<button
+				onMouseDown={startHoldConfirm}
+				onMouseUp={cancelHoldConfirm}
+				onMouseLeave={cancelHoldConfirm}
+				onTouchStart={startHoldConfirm}
+				onTouchEnd={cancelHoldConfirm}
+				disabled={isCompleted}
+				className="mt-3 w-full rounded-xl border border-gray-200 bg-white text-gray-700 py-2.5 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+			>
+				Nhấn giữ 1 giây để xác nhận
+			</button>
 		</div>
 	);
 }
@@ -339,18 +439,6 @@ function IncidentReportModal({ open, note, onClose, onNoteChange, onConfirm }) {
 					</button>
 				</div>
 			</div>
-		</div>
-	);
-}
-
-function InfoRow({ label, value, icon }) {
-	return (
-		<div>
-			<p className="text-xs text-gray-500 uppercase tracking-wide mb-1">{label}</p>
-			<p className="text-sm text-gray-800 font-semibold inline-flex items-center gap-2">
-				{icon}
-				{value}
-			</p>
 		</div>
 	);
 }
