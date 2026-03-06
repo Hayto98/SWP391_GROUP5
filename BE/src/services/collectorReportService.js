@@ -7,7 +7,7 @@ const cloudinary = require('../config/cloudinary')
  * Upload a Buffer to Cloudinary and return secure_url.
  * @private
  */
-function uploadBufferToCloudinary(buffer, mimetype) {
+function uploadBufferToCloudinary(buffer) {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
       { folder: 'collector_completions', resource_type: 'image' },

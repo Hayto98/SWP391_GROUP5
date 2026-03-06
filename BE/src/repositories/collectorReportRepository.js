@@ -30,12 +30,14 @@ const db = require('../config/database')
  */
 async function findAssignedReports(collectorId, { wasteTypeId, limit, offset }) {
   const ASSIGNED_STATUS_ID = 3
+  const IN_PROGRESS_STATUS_ID = 6
   limit = Number.isInteger(Number(limit)) && Number(limit) > 0 ? Number(limit) : 10
   offset = Number.isInteger(Number(offset)) && Number(offset) >= 0 ? Number(offset) : 0
 
   let sql = `
       SELECT SQL_CALC_FOUND_ROWS
         wr.waste_report_id,
+        wr.description,
         wr.gps_lat      AS lat,
         wr.gps_lng      AS lng,
         wr.weight,
@@ -49,11 +51,11 @@ async function findAssignedReports(collectorId, { wasteTypeId, limit, offset }) 
         ON wr.waste_type_id = wt.waste_type_id
       INNER JOIN reportstatustype rst
         ON wr.report_status_type_id = rst.report_status_type_id
-      WHERE wr.report_status_type_id = ?
+      WHERE wr.report_status_type_id IN (?, ?)
         AND wr.assigned_collector_id = ?
     `
 
-  const params = [ASSIGNED_STATUS_ID, collectorId]
+  const params = [ASSIGNED_STATUS_ID, IN_PROGRESS_STATUS_ID, collectorId]
 
   if (wasteTypeId) {
     sql += ` AND wr.waste_type_id = ?`
@@ -96,6 +98,7 @@ async function findAssignedReports(collectorId, { wasteTypeId, limit, offset }) 
   // ── Map to clean DTO ────────────────────────────────────────────────
   const reports = rows.map((row) => ({
     reportId: row.waste_report_id,
+    description: row.description || '',
     location: {
       lat: row.lat !== null ? Number(row.lat) : null,
       lng: row.lng !== null ? Number(row.lng) : null

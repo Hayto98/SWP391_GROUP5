@@ -2,24 +2,42 @@ const wasteReportRepository = require('../repositories/wasteReportRepository')
 const ApiError = require('../errors/ApiError')
 const { v4: uuidv4 } = require('uuid')
 const cloudinary = require('../config/cloudinary')
+const sharp = require('sharp')
 
 // ==================== HELPERS ====================
 
 /**
+ * Compress an image Buffer using sharp before upload.
+ * Resizes to max 1200px width, converts to JPEG, quality 80%.
+ * Non-image files are passed through unchanged.
+ * @private
+ */
+async function compressImage(buffer, mimetype) {
+  if (!mimetype || !mimetype.startsWith('image/')) return buffer
+  try {
+    return await sharp(buffer).resize({ width: 1200, withoutEnlargement: true }).jpeg({ quality: 80 }).toBuffer()
+  } catch {
+    // If compression fails (e.g. unsupported format), upload the original
+    return buffer
+  }
+}
+
+/**
  * Upload a Buffer to Cloudinary and return the secure_url.
+ * Compresses the image first to reduce upload time and storage cost.
  * Uses upload_stream so we never write to disk.
  */
-function uploadBufferToCloudinary(buffer, mimetype) {
+async function uploadBufferToCloudinary(buffer, mimetype) {
+  const compressed = await compressImage(buffer, mimetype)
   return new Promise((resolve, reject) => {
-    const resourceType = mimetype.startsWith('image/') ? 'image' : 'auto'
     const stream = cloudinary.uploader.upload_stream(
-      { folder: 'waste_reports', resource_type: resourceType },
+      { folder: 'waste_reports', resource_type: 'image' },
       (error, result) => {
         if (error) return reject(new ApiError(500, 'Cloudinary upload failed: ' + error.message))
         resolve(result.secure_url)
       }
     )
-    stream.end(buffer)
+    stream.end(compressed)
   })
 }
 
@@ -28,7 +46,16 @@ function uploadBufferToCloudinary(buffer, mimetype) {
 /**
  * Validate và tạo mới một WasteReport — supports multipart/form-data with image upload.
  */
-async function createReport({ userAccountId, wasteTypeId, gpsLat, gpsLng, description, weight, fileBuffer, fileMimetype }) {
+async function createReport({
+  userAccountId,
+  wasteTypeId,
+  gpsLat,
+  gpsLng,
+  description,
+  weight,
+  fileBuffer,
+  fileMimetype
+}) {
   // ── Validation ──────────────────────────────────────────────
   const errors = []
 
@@ -108,7 +135,6 @@ async function createReport({ userAccountId, wasteTypeId, gpsLat, gpsLng, descri
     status: 'PENDING'
   }
 }
-
 
 // ==================== READ ====================
 
