@@ -28,6 +28,8 @@ import Orders from "@/pages/enterprise/orders/Orders";
 import CollectorDashboard from "@/pages/collector/dashboard/Dashboard";
 import CollectorTasks from "@/pages/collector/tasks/Tasks";
 import CollectorHistory from "@/pages/collector/history/History";
+import CollectorTaskDetail from "@/pages/collector/tasks/taskDetail";
+import CollectorTaskAccept from "@/pages/collector/tasks/taskAcept";
 
 import React from "react";
 import Homepage from "@/pages/homepage/Homepage";
@@ -97,6 +99,8 @@ function AppRoutes() {
             <Route path="/collector" element={<DashboardLayout />}>
               <Route index element={<CollectorDashboard />} />
               <Route path="tasks" element={<CollectorTasks />} />
+              <Route path="tasks/:taskId" element={<CollectorTaskDetail />} />
+              <Route path="tasks/:taskId/accept" element={<CollectorTaskAccept />} />
               <Route path="history" element={<CollectorHistory />} />
             </Route>
           </Route>
