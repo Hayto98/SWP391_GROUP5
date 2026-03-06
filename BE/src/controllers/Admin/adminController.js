@@ -9,7 +9,9 @@ async function getAllUsers(req, res, next) {
   try {
     const page = parseInt(req.query.page) || 1
     const limit = parseInt(req.query.limit) || 20
-    const result = await adminService.getAllUsers({ page, limit })
+    const keyword = req.query.keyword || ''
+    const role = req.query.role || ''
+    const result = await adminService.getAllUsers({ page, limit, keyword, role })
     res.status(200).json(result)
   } catch (error) {
     next(error)
@@ -49,7 +51,8 @@ async function createUser(req, res, next) {
  */
 async function updateUser(req, res, next) {
   try {
-    const user = await adminService.updateUser(req.params.id, req.body)
+    const adminId = req.user?.sub
+    const user = await adminService.updateUser(req.params.id, req.body, adminId)
     res.status(200).json(user)
   } catch (error) {
     next(error)

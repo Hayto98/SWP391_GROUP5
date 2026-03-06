@@ -27,6 +27,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
 import { Eye, EyeOff } from "lucide-react";
+import { createUser } from "@/services/adminService";
 
 const addUserSchema = z
   .object({
@@ -61,7 +62,7 @@ const addUserSchema = z
     path: ["confirmPassword"],
   });
 
-export function AddUserModal({ open, onOpenChange }) {
+export function AddUserModal({ open, onOpenChange, onSuccess }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -80,11 +81,19 @@ export function AddUserModal({ open, onOpenChange }) {
 
   const onSubmit = async (values) => {
     try {
-      // TODO: Call API to create user
-      console.log("Creating user:", values);
+      const payload = {
+        fullname: values.fullname.trim(),
+        email: values.email.trim(),
+        phone: values.phone.trim(),
+        password: values.password,
+        roleId: Number(values.roleId),
+      };
+
+      await createUser(payload);
       toast.success("Thêm người dùng thành công!");
       form.reset();
       onOpenChange(false);
+      onSuccess?.();
     } catch (error) {
       toast.error(error.message || "Thêm người dùng thất bại");
     }
@@ -185,9 +194,9 @@ export function AddUserModal({ open, onOpenChange }) {
                     <SelectContent>
                       <SelectGroup>
                         <SelectItem value="1">Quản trị viên</SelectItem>
-                        <SelectItem value="2">Cư dân</SelectItem>
-                        <SelectItem value="3">Doanh nghiệp</SelectItem>
-                        <SelectItem value="4">Người thu gom</SelectItem>
+                        <SelectItem value="2">Doanh nghiệp</SelectItem>
+                        <SelectItem value="3">Người thu gom</SelectItem>
+                        <SelectItem value="4">Cư dân</SelectItem>
                       </SelectGroup>
                     </SelectContent>
                   </Select>
