@@ -1,7 +1,8 @@
 import React from "react";
+import PendingReports from "./pending/PendingReports";
 
 function Reports() {
-  return <div>Quản lý báo cáo</div>;
+  return <PendingReports />;
 }
 
 export default Reports;
