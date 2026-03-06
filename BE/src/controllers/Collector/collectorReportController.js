@@ -20,7 +20,9 @@ async function getAssignedReports(req, res, next) {
 module.exports = {
   getAssignedReports,
   getReportById,
-  acceptReport
+  acceptReport,
+  submitResult,
+  completeReport
 }
 
 /**
@@ -50,6 +52,45 @@ async function acceptReport(req, res, next) {
     const { reportId } = req.params
 
     const result = await collectorReportService.acceptAssignedReport(collectorId, reportId)
+
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * POST /collector/reports/:reportId/result
+ * Collector submits the collection result — report remains IN_PROGRESS until complete.
+ */
+async function submitResult(req, res, next) {
+  try {
+    const collectorId = req.user.sub
+    const { reportId } = req.params
+    const { actualQuantity, note, file_uri } = req.body
+
+    const result = await collectorReportService.submitResult(collectorId, reportId, {
+      actualQuantity,
+      note,
+      file_uri
+    })
+
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * POST /collector/reports/:reportId/complete
+ * Completes the report process, recording points and changing status to COLLECTED.
+ */
+async function completeReport(req, res, next) {
+  try {
+    const collectorId = req.user.sub
+    const { reportId } = req.params
+
+    const result = await collectorReportService.completeReport(collectorId, reportId)
 
     res.status(200).json(result)
   } catch (error) {

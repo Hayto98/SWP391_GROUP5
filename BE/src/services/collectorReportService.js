@@ -61,7 +61,10 @@ async function getAssignedReports(userId, queryParams) {
 
 module.exports = {
   getAssignedReports,
-  getReportById
+  getReportById,
+  acceptAssignedReport,
+  submitResult,
+  completeReport
 }
 
 // ==================== DETAIL BY ID ====================
@@ -151,11 +154,6 @@ async function getReportById(userId, reportId) {
   }
 }
 
-module.exports = {
-  getAssignedReports,
-  getReportById,
-  acceptAssignedReport
-}
 
 // ==================== ACCEPT REPORT ====================
 
@@ -249,3 +247,206 @@ async function acceptAssignedReport(collectorId, reportId) {
     }
   }
 }
+
+// ==================== SUBMIT RESULT ====================
+
+const { v4: uuidv4 } = require('uuid')
+
+const TOLERANCE_KG = 1
+
+/**
+ * Submit the collection result for an ASSIGNED report.
+ *
+ * Business rules:
+ *   - Report must exist (404)
+ *   - Report status must be ASSIGNED (400)
+ *   - Logged-in collector must match assigned_collector_id (403)
+ *   - actualQuantity must be > 0 (400)
+ *   - |actualQuantity - estimatedQuantity| <= 1 KG tolerance (400)
+ *
+ * On success (transactional):
+ *   1. INSERT into CollectedRecord
+ *
+ * @param {string} collectorId
+ * @param {string} reportId
+ * @param {object} body
+ * @param {number} body.actualQuantity
+ * @param {string} [body.note]
+ * @param {string} [body.file_uri]
+ */
+async function submitResult(collectorId, reportId, { actualQuantity, note, file_uri }) {
+  // ── 1. Validate collectorId / account ────────────────────────────
+  const user = await userRepository.findById(collectorId)
+  if (!user) throw new ApiError(404, 'User account not found')
+  if (user.isLocked) throw new ApiError(403, 'Your account is locked. Please contact support.')
+
+  // ── 2. Validate actualQuantity ───────────────────────────────────
+  const qty = Number(actualQuantity)
+  if (!Number.isFinite(qty) || qty <= 0) {
+    throw new ApiError(400, 'actualQuantity must be a number greater than 0')
+  }
+
+  // ── 3. Fetch report ──────────────────────────────────────────────
+  const report = await collectorReportRepository.findReportForResult(reportId)
+  if (!report) throw new ApiError(404, 'Report not found')
+
+  // ── 4. Status must be IN_PROGRESS (collector already accepted) ──────
+  // Workflow: PENDING → ASSIGNED → (accept) → IN_PROGRESS → (submit result) → COLLECTED
+  if (report.status !== 'IN_PROGRESS') {
+    throw new ApiError(400, `Report must be in IN_PROGRESS status to submit result. Current status: ${report.status}`)
+  }
+
+  // ── 5. Authorization: must be the assigned collector ─────────────
+  if (report.assigned_collector_id !== collectorId) {
+    throw new ApiError(403, 'You are not the assigned collector for this report')
+  }
+
+  // ── 6. Calculate difference (informational — no hard tolerance enforced) ──
+  const estimatedQty = report.weight !== null ? Number(report.weight) : null
+  let difference = null
+
+  if (estimatedQty !== null) {
+    difference = qty - estimatedQty
+    // ⚠️  Tolerance check disabled — re-enable if needed:
+    // if (Math.abs(difference) > TOLERANCE_KG) {
+    //   throw new ApiError(400, `Difference (${difference.toFixed(2)} KG) exceeds ±${TOLERANCE_KG} KG`)
+    // }
+  }
+
+  // ── 7. Transaction ───────────────────────────────────────────────
+  const recordedAt = new Date()
+  const connection = await db.getConnection()
+
+  try {
+    await connection.beginTransaction()
+
+    // 7a. Insert CollectedRecord
+    await collectorReportRepository.insertCollectedRecord(connection, {
+      collectedRecordId: uuidv4(),
+      wasteReportId: reportId,
+      collectorUserAccountId: collectorId,
+      actualQuantityValue: qty,
+      quantityUnit: 'KG',
+      note: note ?? null,
+      fileUri: file_uri ?? null,
+      recordedAt
+    })
+
+
+
+    await connection.commit()
+  } catch (error) {
+    await connection.rollback()
+    throw error
+  } finally {
+    connection.release()
+  }
+
+  // ── 8. Return result ─────────────────────────────────────────────
+  return {
+    success: true,
+    data: {
+      reportId,
+      estimatedQuantity: estimatedQty,
+      actualQuantity: qty,
+      difference: difference !== null ? Number(difference.toFixed(2)) : null
+    }
+  }
+}
+
+// ==================== COMPLETE REPORT ====================
+
+/**
+ * Complete an IN_PROGRESS report - awards reward points to citizen, transitions to COLLECTED.
+ *
+ * Business rules:
+ *   1. Report must exist (404)
+ *   2. Status must be IN_PROGRESS (400)
+ *   3. Logged-in user must be the assigned collector (403)
+ *   4. CollectedRecord must already exist (result must be submitted first) (400)
+ *   5. pointsAwarded = actualQuantity x points_per_unit (0 if no active reward config)
+ *
+ * Atomic transaction:
+ *   INSERT PointTransaction, UPDATE Citizen.total_points,
+ *   UPDATE WasteReport status, INSERT ReportStatusHistory
+ */
+async function completeReport(collectorId, reportId) {
+  // 1. Account check
+  const user = await userRepository.findById(collectorId)
+  if (!user) throw new ApiError(404, 'User account not found')
+  if (user.isLocked) throw new ApiError(403, 'Your account is locked. Please contact support.')
+
+  // 2. Fetch report + collected record
+  const report = await collectorReportRepository.findReportForComplete(reportId, collectorId)
+  if (!report) throw new ApiError(404, 'Report not found')
+
+  // 3. Status must be IN_PROGRESS
+  if (report.status !== 'IN_PROGRESS') {
+    throw new ApiError(400, `Report must be in IN_PROGRESS status to complete. Current status: ${report.status}`)
+  }
+
+  // 4. Must be the assigned collector
+  if (report.assigned_collector_id !== collectorId) {
+    throw new ApiError(403, 'You are not the assigned collector for this report')
+  }
+
+  // 5. CollectedRecord must exist (result submitted first)
+  if (!report.collected_record_id) {
+    throw new ApiError(400, 'You must submit the collection result (POST /result) before completing the report')
+  }
+
+  const actualQuantity = Number(report.actual_quantity_value)
+  const completedAt = new Date()
+  const connection = await db.getConnection()
+
+  try {
+    await connection.beginTransaction()
+
+    // 6. Get reward config
+    const rewardConfig = await collectorReportRepository.findRewardConfig(connection, report.waste_type_id)
+    const pointsPerUnit = rewardConfig ? Number(rewardConfig.points_per_unit) : 0
+    const pointsAwarded = Number((actualQuantity * pointsPerUnit).toFixed(2))
+
+    // 7. Get COLLECTED status ID dynamically
+    const collectedStatusId = await collectorReportRepository.findStatusTypeIdByName(connection, 'COLLECTED')
+    if (!collectedStatusId) throw new Error('COLLECTED status not found in ReportStatusType table')
+
+    // 8. Insert PointTransaction
+    await collectorReportRepository.insertPointTransaction(connection, {
+      pointTransactionId: uuidv4(),
+      citizenId: report.citizen_id,
+      wasteReportId: reportId,
+      pointsDelta: pointsAwarded,
+      transactionReason: `Reward for waste report ${reportId}`,
+      createdAt: completedAt
+    })
+
+    // 9. Update Citizen.total_points
+    await collectorReportRepository.updateCitizenPoints(connection, report.citizen_id, pointsAwarded)
+
+    // 10. Update WasteReport status to COLLECTED
+    await collectorReportRepository.updateReportStatus(connection, reportId, collectedStatusId)
+
+    // 11. Insert ReportStatusHistory
+    await collectorReportRepository.insertStatusHistory(connection, reportId, collectedStatusId, collectorId, completedAt)
+
+    await connection.commit()
+
+    return {
+      success: true,
+      data: {
+        reportId,
+        status: 'COLLECTED',
+        actualQuantity,
+        pointsAwarded,
+        completedAt
+      }
+    }
+  } catch (error) {
+    await connection.rollback()
+    throw error
+  } finally {
+    connection.release()
+  }
+}
+

@@ -29,7 +29,7 @@ const db = require('../config/database')
  * @returns {{ reports: Array, total: number }}
  */
 async function findAssignedReports(collectorId, { wasteTypeId, limit, offset }) {
-    const ASSIGNED_STATUS_ID = 2
+    const ASSIGNED_STATUS_ID = 3
     limit = Number.isInteger(Number(limit)) && Number(limit) > 0 ? Number(limit) : 10
     offset = Number.isInteger(Number(offset)) && Number(offset) >= 0 ? Number(offset) : 0
 
@@ -122,7 +122,14 @@ module.exports = {
     findReportById,
     countActiveReports,
     updateReportStatus,
-    insertStatusHistory
+    insertStatusHistory,
+    findReportForResult,
+    findStatusTypeIdByName,
+    insertCollectedRecord,
+    findReportForComplete,
+    findRewardConfig,
+    insertPointTransaction,
+    updateCitizenPoints
 }
 
 // ==================== ACCEPT REPORT ====================
@@ -267,4 +274,185 @@ async function findCollectedRecord(reportId, collectorId) {
         [reportId, collectorId]
     )
     return rows[0] || null
+}
+
+// ==================== SUBMIT RESULT ====================
+
+/**
+ * Fetch fields required to validate the submit-result action.
+ * Returns: waste_report_id, assigned_collector_id, weight (estimated), status (name).
+ *
+ * @param {string} reportId
+ * @returns {object|null}
+ */
+async function findReportForResult(reportId) {
+    const [rows] = await db.execute(
+        `SELECT
+           wr.waste_report_id,
+           wr.assigned_collector_id,
+           wr.weight,
+           rst.status_name AS status
+         FROM wastereport wr
+         INNER JOIN reportstatustype rst
+           ON wr.report_status_type_id = rst.report_status_type_id
+         WHERE wr.waste_report_id = ?
+         LIMIT 1`,
+        [reportId]
+    )
+    return rows[0] || null
+}
+
+/**
+ * Lookup a ReportStatusType ID by its name — avoids hardcoding IDs.
+ *
+ * @param {object} connection - mysql2 connection
+ * @param {string} statusName - e.g. 'COLLECTED'
+ * @returns {number|null}
+ */
+async function findStatusTypeIdByName(connection, statusName) {
+    const [rows] = await connection.execute(
+        `SELECT report_status_type_id FROM reportstatustype WHERE status_name = ? LIMIT 1`,
+        [statusName]
+    )
+    return rows[0]?.report_status_type_id ?? null
+}
+
+/**
+ * Insert a new CollectedRecord row (inside a transaction).
+ *
+ * @param {object} connection - mysql2 connection
+ * @param {object} data
+ * @param {string} data.collectedRecordId
+ * @param {string} data.wasteReportId
+ * @param {string} data.collectorUserAccountId
+ * @param {number} data.actualQuantityValue
+ * @param {string} data.quantityUnit
+ * @param {string|null} data.note
+ * @param {string|null} data.fileUri
+ * @param {Date}   data.recordedAt
+ */
+async function insertCollectedRecord(connection, {
+    collectedRecordId,
+    wasteReportId,
+    collectorUserAccountId,
+    actualQuantityValue,
+    quantityUnit,
+    note,
+    fileUri,
+    recordedAt
+}) {
+    await connection.execute(
+        `INSERT INTO collectedrecord
+           (collected_record_id, waste_report_id, collector_user_account_id,
+            actual_quantity_value, quantity_unit, note, file_uri, recorded_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+            collectedRecordId,
+            wasteReportId,
+            collectorUserAccountId,
+            actualQuantityValue,
+            quantityUnit,
+            note ?? null,
+            fileUri ?? null,
+            recordedAt
+        ]
+    )
+}
+
+// ==================== COMPLETE REPORT ====================
+
+/**
+ * Fetch all data needed to validate and process the complete-report action.
+ * Joins WasteReport + current status + the collector's CollectedRecord (if any).
+ *
+ * @param {string} reportId
+ * @param {string} collectorId
+ * @returns {object|null}
+ */
+async function findReportForComplete(reportId, collectorId) {
+    const [rows] = await db.execute(
+        `SELECT
+           wr.waste_report_id,
+           wr.assigned_collector_id,
+           wr.waste_type_id,
+           wr.citizen_id,
+           rst.status_name        AS status,
+           cr.collected_record_id,
+           cr.actual_quantity_value
+         FROM wastereport wr
+         INNER JOIN reportstatustype rst
+           ON wr.report_status_type_id = rst.report_status_type_id
+         LEFT JOIN collectedrecord cr
+           ON cr.waste_report_id = wr.waste_report_id
+          AND cr.collector_user_account_id = ?
+         WHERE wr.waste_report_id = ?
+         LIMIT 1`,
+        [collectorId, reportId]
+    )
+    return rows[0] || null
+}
+
+/**
+ * Fetch active reward config for a waste type.
+ * Returns points_per_unit, or null if no active config exists.
+ *
+ * @param {object} connection - mysql2 connection
+ * @param {number} wasteTypeId
+ * @returns {object|null}
+ */
+async function findRewardConfig(connection, wasteTypeId) {
+    const [rows] = await connection.execute(
+        `SELECT points_per_unit
+         FROM rewardconfig
+         WHERE waste_type_id = ?
+           AND is_active = 1
+         LIMIT 1`,
+        [wasteTypeId]
+    )
+    return rows[0] || null
+}
+
+/**
+ * Insert a PointTransaction record (inside a transaction).
+ *
+ * @param {object} connection
+ * @param {object} data
+ * @param {string} data.pointTransactionId
+ * @param {string} data.citizenId
+ * @param {string} data.wasteReportId
+ * @param {number} data.pointsDelta
+ * @param {string} data.transactionReason
+ * @param {Date}   data.createdAt
+ */
+async function insertPointTransaction(connection, {
+    pointTransactionId,
+    citizenId,
+    wasteReportId,
+    pointsDelta,
+    transactionReason,
+    createdAt
+}) {
+    await connection.execute(
+        `INSERT INTO pointtransaction
+           (point_transaction_id, citizen_id, waste_report_id,
+            points_delta, transaction_reason, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [pointTransactionId, citizenId, wasteReportId, pointsDelta, transactionReason, createdAt]
+    )
+}
+
+/**
+ * Atomically add pointsDelta to Citizen.total_points (inside a transaction).
+ *
+ * @param {object} connection
+ * @param {string} citizenId
+ * @param {number} pointsDelta
+ */
+async function updateCitizenPoints(connection, citizenId, pointsDelta) {
+    await connection.execute(
+        `UPDATE citizen
+         SET total_points = total_points + ?
+         WHERE citizen_id = ?`,
+        [pointsDelta, citizenId]
+    )
 }

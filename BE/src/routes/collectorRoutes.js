@@ -15,5 +15,7 @@ router.use(requireRole(ROLES.COLLECTOR))
 router.get('/reports', collectorReportController.getAssignedReports)
 router.get('/reports/:reportId', collectorReportController.getReportById)
 router.patch('/reports/:reportId/accept', collectorReportController.acceptReport)
+router.post('/reports/:reportId/result', collectorReportController.submitResult)
+router.post('/reports/:reportId/complete', collectorReportController.completeReport)
 
 module.exports = router
