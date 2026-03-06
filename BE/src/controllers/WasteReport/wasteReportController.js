@@ -2,32 +2,36 @@ const wasteReportService = require('../../services/wasteReportService')
 
 /**
  * Tạo mới một báo cáo rác thải
- * POST /reports
+ * POST /reports  — multipart/form-data
  */
 async function createReport(req, res, next) {
   try {
     const userAccountId = req.user.sub
-    const { wasteTypeId, gpsLat, gpsLng, description, weight, fileUri } = req.body
+    const { wasteTypeId, gpsLat, gpsLng, description, weight } = req.body
+    const fileBuffer = req.file ? req.file.buffer : null
+    const fileMimetype = req.file ? req.file.mimetype : null
 
     const report = await wasteReportService.createReport({
       userAccountId,
       wasteTypeId,
-      gpsLat,
-      gpsLng,
+      gpsLat: parseFloat(gpsLat),
+      gpsLng: parseFloat(gpsLng),
       description,
-      weight,
-      fileUri
+      weight: weight ? parseFloat(weight) : null,
+      fileBuffer,
+      fileMimetype
     })
 
     res.status(201).json({
       success: true,
-      message: 'Tạo báo cáo rác thải thành công.',
+      message: 'Report created successfully',
       data: report
     })
   } catch (error) {
     next(error)
   }
 }
+
 
 /**
  * Lấy danh sách báo cáo rác của một User công dân (Citizen)

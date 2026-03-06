@@ -1,6 +1,24 @@
 const collectorReportRepository = require('../repositories/collectorReportRepository')
 const userRepository = require('../repositories/userRepository')
 const ApiError = require('../errors/ApiError')
+const cloudinary = require('../config/cloudinary')
+
+/**
+ * Upload a Buffer to Cloudinary and return secure_url.
+ * @private
+ */
+function uploadBufferToCloudinary(buffer, mimetype) {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: 'collector_completions', resource_type: 'image' },
+      (err, result) => {
+        if (err) return reject(new ApiError(500, 'Cloudinary upload failed: ' + err.message))
+        resolve(result.secure_url)
+      }
+    )
+    stream.end(buffer)
+  })
+}
 
 /**
  * Service: Get waste reports assigned to the current collector.
@@ -64,7 +82,8 @@ module.exports = {
   getReportById,
   acceptAssignedReport,
   submitResult,
-  completeReport
+  completeReport,
+  getCollectionResult
 }
 
 // ==================== DETAIL BY ID ====================
@@ -153,7 +172,6 @@ async function getReportById(userId, reportId) {
     }
   }
 }
-
 
 // ==================== ACCEPT REPORT ====================
 
@@ -252,8 +270,6 @@ async function acceptAssignedReport(collectorId, reportId) {
 
 const { v4: uuidv4 } = require('uuid')
 
-const TOLERANCE_KG = 1
-
 /**
  * Submit the collection result for an ASSIGNED report.
  *
@@ -273,8 +289,9 @@ const TOLERANCE_KG = 1
  * @param {number} body.actualQuantity
  * @param {string} [body.note]
  * @param {string} [body.file_uri]
+ * @param {object} [attachedFile]   multer file object (req.file)
  */
-async function submitResult(collectorId, reportId, { actualQuantity, note, file_uri }) {
+async function submitResult(collectorId, reportId, { actualQuantity, note, quantity_unit, file_uri }, attachedFile) {
   // ── 1. Validate collectorId / account ────────────────────────────
   const user = await userRepository.findById(collectorId)
   if (!user) throw new ApiError(404, 'User account not found')
@@ -313,6 +330,12 @@ async function submitResult(collectorId, reportId, { actualQuantity, note, file_
     // }
   }
 
+  // ── 6.5. Upload file if provided ─────────────────────────────────
+  let finalFileUri = file_uri ?? null
+  if (attachedFile && attachedFile.buffer) {
+    finalFileUri = await uploadBufferToCloudinary(attachedFile.buffer, attachedFile.mimetype)
+  }
+
   // ── 7. Transaction ───────────────────────────────────────────────
   const recordedAt = new Date()
   const connection = await db.getConnection()
@@ -326,13 +349,11 @@ async function submitResult(collectorId, reportId, { actualQuantity, note, file_
       wasteReportId: reportId,
       collectorUserAccountId: collectorId,
       actualQuantityValue: qty,
-      quantityUnit: 'KG',
+      quantityUnit: quantity_unit || 'KG',
       note: note ?? null,
-      fileUri: file_uri ?? null,
+      fileUri: finalFileUri,
       recordedAt
     })
-
-
 
     await connection.commit()
   } catch (error) {
@@ -357,96 +378,168 @@ async function submitResult(collectorId, reportId, { actualQuantity, note, file_
 // ==================== COMPLETE REPORT ====================
 
 /**
- * Complete an IN_PROGRESS report - awards reward points to citizen, transitions to COLLECTED.
+ * Complete an IN_PROGRESS report — single step:
+ *   1. Validate status + ownership
+ *   2. Upload images to Cloudinary
+ *   3. Transaction:
+ *      a. INSERT CollectedRecord
+ *      b. INSERT CompletionAttachment per image
+ *      c. UPDATE WasteReport status → COLLECTED (4)
+ *      d. INSERT ReportStatusHistory
  *
- * Business rules:
- *   1. Report must exist (404)
- *   2. Status must be IN_PROGRESS (400)
- *   3. Logged-in user must be the assigned collector (403)
- *   4. CollectedRecord must already exist (result must be submitted first) (400)
- *   5. pointsAwarded = actualQuantity x points_per_unit (0 if no active reward config)
- *
- * Atomic transaction:
- *   INSERT PointTransaction, UPDATE Citizen.total_points,
- *   UPDATE WasteReport status, INSERT ReportStatusHistory
+ * @param {string} collectorId
+ * @param {string} reportId
+ * @param {object} body  { actualQuantity, quantityUnit, note }
+ * @param {Array}  files  multer file objects (req.files)
  */
-async function completeReport(collectorId, reportId) {
+async function completeReport(collectorId, reportId, { actualQuantity, quantityUnit, note }, files) {
   // 1. Account check
   const user = await userRepository.findById(collectorId)
   if (!user) throw new ApiError(404, 'User account not found')
   if (user.isLocked) throw new ApiError(403, 'Your account is locked. Please contact support.')
 
-  // 2. Fetch report + collected record
+  // 2. Validate actualQuantity
+  const qty = Number(actualQuantity)
+  if (!Number.isFinite(qty) || qty <= 0) {
+    throw new ApiError(400, 'actualQuantity must be a number greater than 0')
+  }
+
+  // 3. Fetch report (with citizen_id and waste_type_id for points)
   const report = await collectorReportRepository.findReportForComplete(reportId, collectorId)
   if (!report) throw new ApiError(404, 'Report not found')
 
-  // 3. Status must be IN_PROGRESS
+  // 4. Status must be IN_PROGRESS
   if (report.status !== 'IN_PROGRESS') {
     throw new ApiError(400, `Report must be in IN_PROGRESS status to complete. Current status: ${report.status}`)
   }
 
-  // 4. Must be the assigned collector
+  // 5. Must be the assigned collector
   if (report.assigned_collector_id !== collectorId) {
     throw new ApiError(403, 'You are not the assigned collector for this report')
   }
 
-  // 5. CollectedRecord must exist (result submitted first)
-  if (!report.collected_record_id) {
-    throw new ApiError(400, 'You must submit the collection result (POST /result) before completing the report')
+  // 6. Upload images to Cloudinary (before transaction — avoid holding DB locks during HTTP calls)
+  const uploadedUrls = []
+  if (files && files.length > 0) {
+    for (const file of files) {
+      const url = await uploadBufferToCloudinary(file.buffer, file.mimetype)
+      uploadedUrls.push(url)
+    }
   }
 
-  const actualQuantity = Number(report.actual_quantity_value)
-  const completedAt = new Date()
+  // 7. Transaction
+  const recordedAt = new Date()
+  const collectedRecordId = uuidv4()
   const connection = await db.getConnection()
+
+  let pointsAwarded = 0
 
   try {
     await connection.beginTransaction()
 
-    // 6. Get reward config
-    const rewardConfig = await collectorReportRepository.findRewardConfig(connection, report.waste_type_id)
-    const pointsPerUnit = rewardConfig ? Number(rewardConfig.points_per_unit) : 0
-    const pointsAwarded = Number((actualQuantity * pointsPerUnit).toFixed(2))
-
-    // 7. Get COLLECTED status ID dynamically
+    // 7a. Look up COLLECTED status ID
     const collectedStatusId = await collectorReportRepository.findStatusTypeIdByName(connection, 'COLLECTED')
-    if (!collectedStatusId) throw new Error('COLLECTED status not found in ReportStatusType table')
+    if (!collectedStatusId) throw new Error('COLLECTED status type not found in ReportStatusType table')
 
-    // 8. Insert PointTransaction
-    await collectorReportRepository.insertPointTransaction(connection, {
-      pointTransactionId: uuidv4(),
-      citizenId: report.citizen_id,
+    // 7b. Insert CollectedRecord
+    await collectorReportRepository.insertCollectedRecord(connection, {
+      collectedRecordId,
       wasteReportId: reportId,
-      pointsDelta: pointsAwarded,
-      transactionReason: `Reward for waste report ${reportId}`,
-      createdAt: completedAt
+      collectorUserAccountId: collectorId,
+      actualQuantityValue: qty,
+      quantityUnit: quantityUnit || 'KG',
+      note: note ?? null,
+      fileUri: null,
+      recordedAt
     })
 
-    // 9. Update Citizen.total_points
-    await collectorReportRepository.updateCitizenPoints(connection, report.citizen_id, pointsAwarded)
+    // 7c. Insert CompletionAttachment for each uploaded image
+    for (const url of uploadedUrls) {
+      await collectorReportRepository.insertCompletionAttachment(connection, {
+        completionAttachmentId: uuidv4(),
+        collectedRecordId,
+        fileUri: url,
+        uploadedAt: recordedAt
+      })
+    }
 
-    // 10. Update WasteReport status to COLLECTED
+    // 7d. Update WasteReport status → COLLECTED
     await collectorReportRepository.updateReportStatus(connection, reportId, collectedStatusId)
 
-    // 11. Insert ReportStatusHistory
-    await collectorReportRepository.insertStatusHistory(connection, reportId, collectedStatusId, collectorId, completedAt)
+    // 7e. Insert ReportStatusHistory
+    await collectorReportRepository.insertStatusHistory(
+      connection,
+      reportId,
+      collectedStatusId,
+      collectorId,
+      recordedAt
+    )
+
+    // 7f. Calculate and award points
+    //     points = actualQuantity × pointsPerUnit (0 if no active reward config)
+    const rewardConfig = await collectorReportRepository.findRewardConfig(connection, report.waste_type_id)
+    if (rewardConfig) {
+      pointsAwarded = Number((qty * Number(rewardConfig.points_per_unit)).toFixed(2))
+
+      await collectorReportRepository.insertPointTransaction(connection, {
+        pointTransactionId: uuidv4(),
+        citizenId: report.citizen_id,
+        wasteReportId: reportId,
+        pointsDelta: pointsAwarded,
+        transactionReason: 'WASTE_COLLECTION_COMPLETED',
+        createdAt: recordedAt
+      })
+
+      await collectorReportRepository.updateCitizenPoints(connection, report.citizen_id, pointsAwarded)
+    }
 
     await connection.commit()
-
-    return {
-      success: true,
-      data: {
-        reportId,
-        status: 'COLLECTED',
-        actualQuantity,
-        pointsAwarded,
-        completedAt
-      }
-    }
   } catch (error) {
     await connection.rollback()
     throw error
   } finally {
     connection.release()
   }
+
+  return {
+    success: true,
+    data: {
+      reportId,
+      status: 'COMPLETED',
+      actualQuantity: qty,
+      pointsAwarded,
+      completedAt: recordedAt
+    }
+  }
 }
 
+// ==================== GET RESULT ====================
+
+/**
+ * Return the collected record and images for a completed report.
+ *
+ * @param {string} collectorId
+ * @param {string} reportId
+ */
+async function getCollectionResult(collectorId, reportId) {
+  const user = await userRepository.findById(collectorId)
+  if (!user) throw new ApiError(404, 'User account not found')
+  if (user.isLocked) throw new ApiError(403, 'Your account is locked. Please contact support.')
+
+  // Verify the report exists and belongs to this collector
+  const report = await collectorReportRepository.findReportForResult(reportId)
+  if (!report) throw new ApiError(404, 'Report not found')
+  if (report.assigned_collector_id !== collectorId) {
+    throw new ApiError(403, 'You do not have permission to view this result')
+  }
+
+  const result = await collectorReportRepository.findCollectionResult(reportId, collectorId)
+  if (!result) {
+    throw new ApiError(404, 'No collection result found for this report')
+  }
+
+  return {
+    success: true,
+    data: result
+  }
+}

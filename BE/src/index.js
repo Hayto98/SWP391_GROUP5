@@ -22,6 +22,7 @@ app.use(
   })
 )
 
+// Regular expression parsing for non-multipart requests
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 

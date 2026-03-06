@@ -1,13 +1,34 @@
 const wasteReportRepository = require('../repositories/wasteReportRepository')
 const ApiError = require('../errors/ApiError')
 const { v4: uuidv4 } = require('uuid')
+const cloudinary = require('../config/cloudinary')
+
+// ==================== HELPERS ====================
+
+/**
+ * Upload a Buffer to Cloudinary and return the secure_url.
+ * Uses upload_stream so we never write to disk.
+ */
+function uploadBufferToCloudinary(buffer, mimetype) {
+  return new Promise((resolve, reject) => {
+    const resourceType = mimetype.startsWith('image/') ? 'image' : 'auto'
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: 'waste_reports', resource_type: resourceType },
+      (error, result) => {
+        if (error) return reject(new ApiError(500, 'Cloudinary upload failed: ' + error.message))
+        resolve(result.secure_url)
+      }
+    )
+    stream.end(buffer)
+  })
+}
 
 // ==================== CREATE ====================
 
 /**
- * Validate và tạo mới một WasteReport
+ * Validate và tạo mới một WasteReport — supports multipart/form-data with image upload.
  */
-async function createReport({ userAccountId, wasteTypeId, gpsLat, gpsLng, description, weight, fileUri }) {
+async function createReport({ userAccountId, wasteTypeId, gpsLat, gpsLng, description, weight, fileBuffer, fileMimetype }) {
   // ── Validation ──────────────────────────────────────────────
   const errors = []
 
@@ -43,6 +64,12 @@ async function createReport({ userAccountId, wasteTypeId, gpsLat, gpsLng, descri
     throw new ApiError(403, 'Chỉ Citizen mới được tạo báo cáo rác thải.')
   }
 
+  // ── Upload image to Cloudinary (if provided) ─────────────────
+  let imageUrl = null
+  if (fileBuffer) {
+    imageUrl = await uploadBufferToCloudinary(fileBuffer, fileMimetype || 'image/jpeg')
+  }
+
   // ── Persist ─────────────────────────────────────────────────
   let created
   try {
@@ -56,12 +83,12 @@ async function createReport({ userAccountId, wasteTypeId, gpsLat, gpsLng, descri
       weight: weight ?? null
     })
 
-    // Nếu có fileUri → lưu vào ReportAttachment
-    if (fileUri) {
+    // Save Cloudinary URL into ReportAttachment
+    if (imageUrl) {
       await wasteReportRepository.createReportAttachment({
         reportAttachmentId: uuidv4(),
         wasteReportId: created.wasteReportId,
-        fileUri,
+        fileUri: imageUrl,
         uploadedAt: new Date()
       })
     }
@@ -76,17 +103,12 @@ async function createReport({ userAccountId, wasteTypeId, gpsLat, gpsLng, descri
   }
 
   return {
-    wasteReportId: created.wasteReportId,
-    citizenId,
-    wasteTypeId: Number(wasteTypeId),
-    gpsLat,
-    gpsLng,
-    description: description.trim(),
-    weight: weight ?? null,
-    attachments: fileUri ? [{ fileUri }] : [],
+    reportId: created.wasteReportId,
+    imageUrl,
     status: 'PENDING'
   }
 }
+
 
 // ==================== READ ====================
 

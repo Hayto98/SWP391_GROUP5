@@ -101,7 +101,7 @@ async function login({ email, password }) {
 
   const accessToken = tokenService.generateAccessToken(accessTokenPayload)
   const refreshToken = tokenService.generateRefreshToken(refreshTokenPayload, refreshTokenId)
-  
+
   const tokenHash = tokenService.hashToken(refreshToken)
   const refreshTokenExpiresAt = tokenService.calculateExpiryDate(process.env.REFRESH_TOKEN_EXPIRES_IN || '7d')
 

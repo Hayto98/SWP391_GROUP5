@@ -29,11 +29,11 @@ const db = require('../config/database')
  * @returns {{ reports: Array, total: number }}
  */
 async function findAssignedReports(collectorId, { wasteTypeId, limit, offset }) {
-    const ASSIGNED_STATUS_ID = 3
-    limit = Number.isInteger(Number(limit)) && Number(limit) > 0 ? Number(limit) : 10
-    offset = Number.isInteger(Number(offset)) && Number(offset) >= 0 ? Number(offset) : 0
+  const ASSIGNED_STATUS_ID = 3
+  limit = Number.isInteger(Number(limit)) && Number(limit) > 0 ? Number(limit) : 10
+  offset = Number.isInteger(Number(offset)) && Number(offset) >= 0 ? Number(offset) : 0
 
-    let sql = `
+  let sql = `
       SELECT SQL_CALC_FOUND_ROWS
         wr.waste_report_id,
         wr.gps_lat      AS lat,
@@ -53,153 +53,85 @@ async function findAssignedReports(collectorId, { wasteTypeId, limit, offset }) 
         AND wr.assigned_collector_id = ?
     `
 
-    const params = [ASSIGNED_STATUS_ID, collectorId]
+  const params = [ASSIGNED_STATUS_ID, collectorId]
 
-    if (wasteTypeId) {
-        sql += ` AND wr.waste_type_id = ?`
-        params.push(Number(wasteTypeId))
+  if (wasteTypeId) {
+    sql += ` AND wr.waste_type_id = ?`
+    params.push(Number(wasteTypeId))
+  }
+
+  // IMPORTANT: use ? placeholders for LIMIT/OFFSET — do NOT interpolate strings
+  sql += ` ORDER BY wr.created_at DESC LIMIT ? OFFSET ?`
+  params.push(limit, offset)
+
+  // Use db.query() for paginated query — db.execute() (server-side prepared stmt)
+  // rejects LIMIT/OFFSET params in MySQL 5.7 with "Incorrect arguments to mysqld_stmt_execute"
+  // db.query() uses client-side parameterization — still safe from SQL injection
+  const [rows] = await db.query(sql, params)
+
+  const [[{ totalCount }]] = await db.query('SELECT FOUND_ROWS() AS totalCount')
+  const total = Number(totalCount)
+
+  if (rows.length === 0) {
+    return { reports: [], total }
+  }
+
+  // ── Batch fetch images ──────────────────────────────────────────────
+  const reportIds = rows.map((r) => r.waste_report_id)
+  const placeholders = reportIds.map(() => '?').join(', ')
+
+  const [imageRows] = await db.execute(
+    `SELECT waste_report_id, file_uri FROM reportattachment WHERE waste_report_id IN (${placeholders})`,
+    reportIds
+  )
+
+  const imageMap = new Map()
+  for (const img of imageRows) {
+    if (!imageMap.has(img.waste_report_id)) {
+      imageMap.set(img.waste_report_id, [])
     }
+    imageMap.get(img.waste_report_id).push({ file_uri: img.file_uri })
+  }
 
-    // IMPORTANT: use ? placeholders for LIMIT/OFFSET — do NOT interpolate strings
-    sql += ` ORDER BY wr.created_at DESC LIMIT ? OFFSET ?`
-    params.push(limit, offset)
+  // ── Map to clean DTO ────────────────────────────────────────────────
+  const reports = rows.map((row) => ({
+    reportId: row.waste_report_id,
+    location: {
+      lat: row.lat !== null ? Number(row.lat) : null,
+      lng: row.lng !== null ? Number(row.lng) : null
+    },
+    wasteType: {
+      id: row.wasteTypeId,
+      name: row.wasteTypeName
+    },
+    weight: row.weight !== null ? Number(row.weight) : null,
+    unitType: row.unitType ?? null,
+    reportedAt: row.created_at,
+    status: row.status,
+    images: imageMap.get(row.waste_report_id) || []
+  }))
 
-    // Use db.query() for paginated query — db.execute() (server-side prepared stmt)
-    // rejects LIMIT/OFFSET params in MySQL 5.7 with "Incorrect arguments to mysqld_stmt_execute"
-    // db.query() uses client-side parameterization — still safe from SQL injection
-    const [rows] = await db.query(sql, params)
-
-    const [[{ totalCount }]] = await db.query('SELECT FOUND_ROWS() AS totalCount')
-    const total = Number(totalCount)
-
-    if (rows.length === 0) {
-        return { reports: [], total }
-    }
-
-    // ── Batch fetch images ──────────────────────────────────────────────
-    const reportIds = rows.map((r) => r.waste_report_id)
-    const placeholders = reportIds.map(() => '?').join(', ')
-
-    const [imageRows] = await db.execute(
-        `SELECT waste_report_id, file_uri FROM reportattachment WHERE waste_report_id IN (${placeholders})`,
-        reportIds
-    )
-
-    const imageMap = new Map()
-    for (const img of imageRows) {
-        if (!imageMap.has(img.waste_report_id)) {
-            imageMap.set(img.waste_report_id, [])
-        }
-        imageMap.get(img.waste_report_id).push({ file_uri: img.file_uri })
-    }
-
-    // ── Map to clean DTO ────────────────────────────────────────────────
-    const reports = rows.map((row) => ({
-        reportId: row.waste_report_id,
-        location: {
-            lat: row.lat !== null ? Number(row.lat) : null,
-            lng: row.lng !== null ? Number(row.lng) : null
-        },
-        wasteType: {
-            id: row.wasteTypeId,
-            name: row.wasteTypeName
-        },
-        weight: row.weight !== null ? Number(row.weight) : null,
-        unitType: row.unitType ?? null,
-        reportedAt: row.created_at,
-        status: row.status,
-        images: imageMap.get(row.waste_report_id) || []
-    }))
-
-    return { reports, total }
+  return { reports, total }
 }
 
 module.exports = {
-    findAssignedReports,
-    findReportForCollector,
-    findImagesByReportId,
-    findCollectedRecord,
-    findReportById,
-    countActiveReports,
-    updateReportStatus,
-    insertStatusHistory,
-    findReportForResult,
-    findStatusTypeIdByName,
-    insertCollectedRecord,
-    findReportForComplete,
-    findRewardConfig,
-    insertPointTransaction,
-    updateCitizenPoints
-}
-
-// ==================== ACCEPT REPORT ====================
-
-/**
- * Fetch a report's core fields needed for accept authorization.
- *
- * @param {string} reportId
- * @returns {object|null}
- */
-async function findReportById(reportId) {
-    const [rows] = await db.execute(
-        `SELECT waste_report_id, report_status_type_id, assigned_collector_id
-     FROM wastereport
-     WHERE waste_report_id = ?
-     LIMIT 1`,
-        [reportId]
-    )
-    return rows[0] || null
-}
-
-/**
- * Count active reports for a collector (status IN 3=ASSIGNED, 6=IN_PROGRESS).
- * Used for BR-42: max 10 active reports per collector.
- *
- * @param {string} collectorId
- * @returns {number}
- */
-async function countActiveReports(collectorId) {
-    const [rows] = await db.execute(
-        `SELECT COUNT(*) AS activeCount
-     FROM wastereport
-     WHERE assigned_collector_id = ?
-       AND report_status_type_id IN (3, 6)`,
-        [collectorId]
-    )
-    return Number(rows[0].activeCount)
-}
-
-/**
- * Update a report's status_type_id using a connection (for use inside transactions).
- *
- * @param {object} connection - mysql2 connection from pool
- * @param {string} reportId
- * @param {number} newStatusId
- */
-async function updateReportStatus(connection, reportId, newStatusId) {
-    await connection.execute(
-        `UPDATE wastereport SET report_status_type_id = ? WHERE waste_report_id = ?`,
-        [newStatusId, reportId]
-    )
-}
-
-/**
- * Insert a record into reportstatushistory using a connection (for use inside transactions).
- *
- * @param {object} connection - mysql2 connection from pool
- * @param {string} reportId
- * @param {number} statusId
- * @param {string} changedByUserId
- * @param {Date} changedAt
- */
-async function insertStatusHistory(connection, reportId, statusId, changedByUserId, changedAt) {
-    const { v4: uuidv4 } = require('uuid')
-    await connection.execute(
-        `INSERT INTO reportstatushistory
-       (report_status_history_id, waste_report_id, report_status_type_id, changed_by_user_account_id, changed_at)
-     VALUES (?, ?, ?, ?, ?)`,
-        [uuidv4(), reportId, statusId, changedByUserId, changedAt]
-    )
+  findAssignedReports,
+  findReportForCollector,
+  findImagesByReportId,
+  findCollectedRecord,
+  findReportById,
+  countActiveReports,
+  updateReportStatus,
+  insertStatusHistory,
+  findReportForResult,
+  findStatusTypeIdByName,
+  insertCollectedRecord,
+  insertCompletionAttachment,
+  findCollectionResult,
+  findReportForComplete,
+  findRewardConfig,
+  insertPointTransaction,
+  updateCitizenPoints
 }
 
 // ==================== DETAIL BY ID ====================
@@ -213,8 +145,7 @@ async function insertStatusHistory(connection, reportId, statusId, changedByUser
  * @returns {object|null}
  */
 async function findReportForCollector(reportId) {
-
-    const sql = `
+  const sql = `
     SELECT
       wr.waste_report_id,
       wr.assigned_collector_id,
@@ -241,9 +172,9 @@ async function findReportForCollector(reportId) {
     WHERE wr.waste_report_id = ?
     `
 
-    const [rows] = await db.execute(sql, [reportId])
+  const [rows] = await db.execute(sql, [reportId])
 
-    return rows[0] || null
+  return rows[0] || null
 }
 
 /**
@@ -253,8 +184,8 @@ async function findReportForCollector(reportId) {
  * @returns {Array<{ file_uri: string }>}
  */
 async function findImagesByReportId(reportId) {
-    const [rows] = await db.execute(`SELECT file_uri FROM ReportAttachment WHERE waste_report_id = ?`, [reportId])
-    return rows.map((r) => ({ file_uri: r.file_uri }))
+  const [rows] = await db.execute(`SELECT file_uri FROM ReportAttachment WHERE waste_report_id = ?`, [reportId])
+  return rows.map((r) => ({ file_uri: r.file_uri }))
 }
 
 /**
@@ -265,15 +196,85 @@ async function findImagesByReportId(reportId) {
  * @returns {object|null}
  */
 async function findCollectedRecord(reportId, collectorId) {
-    const [rows] = await db.execute(
-        `SELECT actual_quantity_value, quantity_unit, recorded_at
+  const [rows] = await db.execute(
+    `SELECT actual_quantity_value, quantity_unit, recorded_at
      FROM CollectedRecord
      WHERE waste_report_id = ?
        AND collector_user_account_id = ?
      LIMIT 1`,
-        [reportId, collectorId]
-    )
-    return rows[0] || null
+    [reportId, collectorId]
+  )
+  return rows[0] || null
+}
+
+// ==================== ACCEPT REPORT ====================
+
+/**
+ * Fetch a report's core fields needed for accept authorization.
+ *
+ * @param {string} reportId
+ * @returns {object|null}
+ */
+async function findReportById(reportId) {
+  const [rows] = await db.execute(
+    `SELECT waste_report_id, report_status_type_id, assigned_collector_id
+     FROM wastereport
+     WHERE waste_report_id = ?
+     LIMIT 1`,
+    [reportId]
+  )
+  return rows[0] || null
+}
+
+/**
+ * Count active reports for a collector (status IN 3=ASSIGNED, 6=IN_PROGRESS).
+ * Used for BR-42: max 10 active reports per collector.
+ *
+ * @param {string} collectorId
+ * @returns {number}
+ */
+async function countActiveReports(collectorId) {
+  const [rows] = await db.execute(
+    `SELECT COUNT(*) AS activeCount
+     FROM wastereport
+     WHERE assigned_collector_id = ?
+       AND report_status_type_id IN (3, 6)`,
+    [collectorId]
+  )
+  return Number(rows[0].activeCount)
+}
+
+/**
+ * Update a report's status_type_id using a connection (for use inside transactions).
+ *
+ * @param {object} connection - mysql2 connection from pool
+ * @param {string} reportId
+ * @param {number} newStatusId
+ */
+async function updateReportStatus(connection, reportId, newStatusId) {
+  await connection.execute(
+    `UPDATE wastereport SET report_status_type_id = ? WHERE waste_report_id = ?`,
+    [newStatusId, reportId]
+  )
+}
+
+/**
+ * Insert a record into reportstatushistory using a connection (for use inside transactions).
+ *
+ * @param {object} connection - mysql2 connection from pool
+ * @param {string} reportId
+ * @param {number} statusId
+ * @param {string} changedByUserId
+ * @param {Date} changedAt
+ */
+async function insertStatusHistory(connection, reportId, statusId, changedByUserId, changedAt) {
+  const { v4: uuidv4 } = require('uuid')
+  await connection.execute(
+    `INSERT INTO reportstatushistory
+       (report_status_history_id, waste_report_id, report_status_type_id, changed_by_user_account_id, changed_at)
+     VALUES (?, ?, ?, ?, ?)`,
+    [uuidv4(), reportId, statusId, changedByUserId, changedAt]
+  )
 }
 
 // ==================== SUBMIT RESULT ====================
@@ -286,20 +287,20 @@ async function findCollectedRecord(reportId, collectorId) {
  * @returns {object|null}
  */
 async function findReportForResult(reportId) {
-    const [rows] = await db.execute(
-        `SELECT
-           wr.waste_report_id,
-           wr.assigned_collector_id,
-           wr.weight,
-           rst.status_name AS status
-         FROM wastereport wr
-         INNER JOIN reportstatustype rst
-           ON wr.report_status_type_id = rst.report_status_type_id
-         WHERE wr.waste_report_id = ?
-         LIMIT 1`,
-        [reportId]
-    )
-    return rows[0] || null
+  const [rows] = await db.execute(
+    `SELECT
+       wr.waste_report_id,
+       wr.assigned_collector_id,
+       wr.weight,
+       rst.status_name AS status
+     FROM wastereport wr
+     INNER JOIN reportstatustype rst
+       ON wr.report_status_type_id = rst.report_status_type_id
+     WHERE wr.waste_report_id = ?
+     LIMIT 1`,
+    [reportId]
+  )
+  return rows[0] || null
 }
 
 /**
@@ -310,11 +311,11 @@ async function findReportForResult(reportId) {
  * @returns {number|null}
  */
 async function findStatusTypeIdByName(connection, statusName) {
-    const [rows] = await connection.execute(
-        `SELECT report_status_type_id FROM reportstatustype WHERE status_name = ? LIMIT 1`,
-        [statusName]
-    )
-    return rows[0]?.report_status_type_id ?? null
+  const [rows] = await connection.execute(
+    `SELECT report_status_type_id FROM reportstatustype WHERE status_name = ? LIMIT 1`,
+    [statusName]
+  )
+  return rows[0]?.report_status_type_id ?? null
 }
 
 /**
@@ -332,31 +333,31 @@ async function findStatusTypeIdByName(connection, statusName) {
  * @param {Date}   data.recordedAt
  */
 async function insertCollectedRecord(connection, {
-    collectedRecordId,
-    wasteReportId,
-    collectorUserAccountId,
-    actualQuantityValue,
-    quantityUnit,
-    note,
-    fileUri,
-    recordedAt
+  collectedRecordId,
+  wasteReportId,
+  collectorUserAccountId,
+  actualQuantityValue,
+  quantityUnit,
+  note,
+  fileUri,
+  recordedAt
 }) {
-    await connection.execute(
-        `INSERT INTO collectedrecord
-           (collected_record_id, waste_report_id, collector_user_account_id,
-            actual_quantity_value, quantity_unit, note, file_uri, recorded_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-            collectedRecordId,
-            wasteReportId,
-            collectorUserAccountId,
-            actualQuantityValue,
-            quantityUnit,
-            note ?? null,
-            fileUri ?? null,
-            recordedAt
-        ]
-    )
+  await connection.execute(
+    `INSERT INTO collectedrecord
+       (collected_record_id, waste_report_id, collector_user_account_id,
+        actual_quantity_value, quantity_unit, note, file_uri, recorded_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      collectedRecordId,
+      wasteReportId,
+      collectorUserAccountId,
+      actualQuantityValue,
+      quantityUnit,
+      note ?? null,
+      fileUri ?? null,
+      recordedAt
+    ]
+  )
 }
 
 // ==================== COMPLETE REPORT ====================
@@ -370,26 +371,26 @@ async function insertCollectedRecord(connection, {
  * @returns {object|null}
  */
 async function findReportForComplete(reportId, collectorId) {
-    const [rows] = await db.execute(
-        `SELECT
-           wr.waste_report_id,
-           wr.assigned_collector_id,
-           wr.waste_type_id,
-           wr.citizen_id,
-           rst.status_name        AS status,
-           cr.collected_record_id,
-           cr.actual_quantity_value
-         FROM wastereport wr
-         INNER JOIN reportstatustype rst
-           ON wr.report_status_type_id = rst.report_status_type_id
-         LEFT JOIN collectedrecord cr
-           ON cr.waste_report_id = wr.waste_report_id
-          AND cr.collector_user_account_id = ?
-         WHERE wr.waste_report_id = ?
-         LIMIT 1`,
-        [collectorId, reportId]
-    )
-    return rows[0] || null
+  const [rows] = await db.execute(
+    `SELECT
+       wr.waste_report_id,
+       wr.assigned_collector_id,
+       wr.waste_type_id,
+       wr.citizen_id,
+       rst.status_name        AS status,
+       cr.collected_record_id,
+       cr.actual_quantity_value
+     FROM wastereport wr
+     INNER JOIN reportstatustype rst
+       ON wr.report_status_type_id = rst.report_status_type_id
+     LEFT JOIN collectedrecord cr
+       ON cr.waste_report_id = wr.waste_report_id
+      AND cr.collector_user_account_id = ?
+     WHERE wr.waste_report_id = ?
+     LIMIT 1`,
+    [collectorId, reportId]
+  )
+  return rows[0] || null
 }
 
 /**
@@ -401,15 +402,15 @@ async function findReportForComplete(reportId, collectorId) {
  * @returns {object|null}
  */
 async function findRewardConfig(connection, wasteTypeId) {
-    const [rows] = await connection.execute(
-        `SELECT points_per_unit
-         FROM rewardconfig
-         WHERE waste_type_id = ?
-           AND is_active = 1
-         LIMIT 1`,
-        [wasteTypeId]
-    )
-    return rows[0] || null
+  const [rows] = await connection.execute(
+    `SELECT points_per_unit
+     FROM rewardconfig
+     WHERE waste_type_id = ?
+       AND is_active = 1
+     LIMIT 1`,
+    [wasteTypeId]
+  )
+  return rows[0] || null
 }
 
 /**
@@ -425,20 +426,20 @@ async function findRewardConfig(connection, wasteTypeId) {
  * @param {Date}   data.createdAt
  */
 async function insertPointTransaction(connection, {
-    pointTransactionId,
-    citizenId,
-    wasteReportId,
-    pointsDelta,
-    transactionReason,
-    createdAt
+  pointTransactionId,
+  citizenId,
+  wasteReportId,
+  pointsDelta,
+  transactionReason,
+  createdAt
 }) {
-    await connection.execute(
-        `INSERT INTO pointtransaction
-           (point_transaction_id, citizen_id, waste_report_id,
-            points_delta, transaction_reason, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [pointTransactionId, citizenId, wasteReportId, pointsDelta, transactionReason, createdAt]
-    )
+  await connection.execute(
+    `INSERT INTO pointtransaction
+       (point_transaction_id, citizen_id, waste_report_id,
+        points_delta, transaction_reason, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [pointTransactionId, citizenId, wasteReportId, pointsDelta, transactionReason, createdAt]
+  )
 }
 
 /**
@@ -449,10 +450,74 @@ async function insertPointTransaction(connection, {
  * @param {number} pointsDelta
  */
 async function updateCitizenPoints(connection, citizenId, pointsDelta) {
-    await connection.execute(
-        `UPDATE citizen
-         SET total_points = total_points + ?
-         WHERE citizen_id = ?`,
-        [pointsDelta, citizenId]
-    )
+  await connection.execute(
+    `UPDATE citizen
+     SET total_points = total_points + ?
+     WHERE citizen_id = ?`,
+    [pointsDelta, citizenId]
+  )
+}
+
+// ==================== COMPLETION ATTACHMENT ====================
+
+/**
+ * Insert a CompletionAttachment row (inside a transaction).
+ *
+ * @param {object} connection
+ * @param {object} data
+ * @param {string} data.completionAttachmentId
+ * @param {string} data.collectedRecordId
+ * @param {string} data.fileUri
+ * @param {Date}   data.uploadedAt
+ */
+async function insertCompletionAttachment(connection, {
+  completionAttachmentId,
+  collectedRecordId,
+  fileUri,
+  uploadedAt
+}) {
+  await connection.execute(
+    `INSERT INTO completionattachment
+       (completion_attachment_id, collected_record_id, file_uri, uploaded_at)
+     VALUES (?, ?, ?, ?)`,
+    [completionAttachmentId, collectedRecordId, fileUri, uploadedAt]
+  )
+}
+
+/**
+ * Fetch the collection result (collectedrecord + completionattachment images).
+ *
+ * @param {string} reportId
+ * @param {string} collectorId
+ * @returns {object|null}
+ */
+async function findCollectionResult(reportId, collectorId) {
+  const [rows] = await db.execute(
+    `SELECT
+       cr.collected_record_id,
+       cr.actual_quantity_value,
+       cr.quantity_unit,
+       cr.note,
+       cr.recorded_at,
+       GROUP_CONCAT(ca.file_uri SEPARATOR '|||') AS image_uris
+     FROM collectedrecord cr
+     LEFT JOIN completionattachment ca
+       ON ca.collected_record_id = cr.collected_record_id
+     WHERE cr.waste_report_id = ?
+       AND cr.collector_user_account_id = ?
+     GROUP BY cr.collected_record_id
+     LIMIT 1`,
+    [reportId, collectorId]
+  )
+  if (!rows[0]) return null
+
+  const row = rows[0]
+  return {
+    recordId: row.collected_record_id,
+    actualQuantity: Number(row.actual_quantity_value),
+    unit: row.quantity_unit,
+    note: row.note ?? null,
+    recordedAt: row.recorded_at,
+    images: row.image_uris ? row.image_uris.split('|||') : []
+  }
 }
