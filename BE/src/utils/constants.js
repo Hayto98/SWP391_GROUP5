@@ -1,10 +1,16 @@
 const ROLES = {
   ADMIN: 1,
+<<<<<<< HEAD
 
   CITIZEN: 4,
   COLLECTOR: 3,
   ENTERPRISE: 2
 
+=======
+  ENTERPRISE: 2,
+  COLLECTOR: 3,
+  CITIZEN: 4
+>>>>>>> 545b70fc66f5c455157b9cc0f6534429a295248d
 }
 
 const USER_STATUS = {

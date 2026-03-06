@@ -36,7 +36,7 @@ async function createReport({ userAccountId, wasteTypeId, gpsLat, gpsLng, descri
   }
 
   // ── Resolve citizenId from userAccountId ─────────────────────
-  const citizenId = await wasteReportRepository.findCitizenIdByUserAccountId(userAccountId)
+  const citizenId = await wasteReportRepository.ensureCitizenIdByUserAccountId(userAccountId)
   if (!citizenId) {
     throw new ApiError(403, 'Chỉ Citizen mới được tạo báo cáo rác thải.')
   }
@@ -99,7 +99,7 @@ async function getMyReports(userAccountId, queryParams) {
   const offset = (page - 1) * limit
 
   // Identify citizen ID from userAccountId
-  const citizenId = await wasteReportRepository.findCitizenIdByUserAccountId(userAccountId)
+  const citizenId = await wasteReportRepository.ensureCitizenIdByUserAccountId(userAccountId)
   if (!citizenId) {
     throw new ApiError(404, 'Mã định danh công dân không hợp lệ hoặc chưa được khởi tạo. User không phải là Citizen.')
   }
@@ -130,7 +130,7 @@ async function getMyReports(userAccountId, queryParams) {
  */
 async function getReportById(reportId, userAccountId) {
   // 1. Identify citizen ID from userAccountId
-  const citizenId = await wasteReportRepository.findCitizenIdByUserAccountId(userAccountId)
+  const citizenId = await wasteReportRepository.ensureCitizenIdByUserAccountId(userAccountId)
   if (!citizenId) {
     throw new ApiError(404, 'Mã định danh công dân không hợp lệ hoặc chưa được khởi tạo. User không phải là Citizen.')
   }
@@ -163,7 +163,7 @@ async function getReportById(reportId, userAccountId) {
  */
 async function updateReport(reportId, userAccountId, updateData) {
   // 1. Check if user is citizen
-  const citizenId = await wasteReportRepository.findCitizenIdByUserAccountId(userAccountId)
+  const citizenId = await wasteReportRepository.ensureCitizenIdByUserAccountId(userAccountId)
   if (!citizenId) {
     throw new ApiError(404, 'Mã định danh công dân không hợp lệ hoặc chưa được khởi tạo. User không phải là Citizen.')
   }
@@ -183,8 +183,51 @@ async function updateReport(reportId, userAccountId, updateData) {
     throw new ApiError(400, 'Bạn chỉ có thể cập nhật thông tin khi báo cáo đang ở trạng thái chờ xử lý (OPEN).')
   }
 
+  const normalizedData = {}
+
+  const nextWasteTypeId = updateData?.waste_type_id ?? updateData?.wasteTypeId
+  if (nextWasteTypeId !== undefined) {
+    normalizedData.waste_type_id = nextWasteTypeId
+  }
+
+  const nextGpsLat = updateData?.gps_lat ?? updateData?.gpsLat
+  if (nextGpsLat !== undefined) {
+    normalizedData.gps_lat = Number(nextGpsLat)
+  }
+
+  const nextGpsLng = updateData?.gps_lng ?? updateData?.gpsLng
+  if (nextGpsLng !== undefined) {
+    normalizedData.gps_lng = Number(nextGpsLng)
+  }
+
+  const rawDescription = updateData?.description
+  const weightKgRaw = updateData?.weight_kg ?? updateData?.weightKg ?? updateData?.kg
+  const parsedWeightKg = weightKgRaw !== undefined ? Number(weightKgRaw) : undefined
+
+  let normalizedDescription =
+    rawDescription !== undefined && rawDescription !== null ? String(rawDescription).trim() : undefined
+
+  if (parsedWeightKg !== undefined && Number.isFinite(parsedWeightKg) && parsedWeightKg > 0) {
+    normalizedDescription = normalizedDescription
+      ? `${normalizedDescription} (Khối lượng: ${parsedWeightKg} kg)`
+      : `Khối lượng: ${parsedWeightKg} kg`
+  }
+
+  if (normalizedDescription !== undefined) {
+    normalizedData.description = normalizedDescription
+  }
+
+  if (
+    normalizedData.waste_type_id === undefined &&
+    normalizedData.gps_lat === undefined &&
+    normalizedData.gps_lng === undefined &&
+    normalizedData.description === undefined
+  ) {
+    throw new ApiError(400, 'No valid fields provided for update')
+  }
+
   // 3. Update the record
-  await wasteReportRepository.updateReportById(reportId, updateData)
+  await wasteReportRepository.updateReportById(reportId, normalizedData)
 
   // 4. Fetch and return the updated version
   const updatedReport = await wasteReportRepository.findReportById(reportId)
@@ -201,7 +244,7 @@ async function updateReport(reportId, userAccountId, updateData) {
  */
 async function deleteReport(reportId, userAccountId) {
   // 1. Check if user is citizen
-  const citizenId = await wasteReportRepository.findCitizenIdByUserAccountId(userAccountId)
+  const citizenId = await wasteReportRepository.ensureCitizenIdByUserAccountId(userAccountId)
   if (!citizenId) {
     throw new ApiError(404, 'Mã định danh công dân không hợp lệ hoặc chưa được khởi tạo. User không phải là Citizen.')
   }

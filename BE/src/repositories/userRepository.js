@@ -356,7 +356,6 @@ async function updateLastLogin(userAccountId) {
 // ==================== DELETE (Soft) ====================
 
 async function softDeleteUser(userAccountId) {
-
   await db.execute('UPDATE UserAccount SET is_locked = 1, ban_reason = ? WHERE user_account_id = ?', [
     SOFT_DELETED_REASON,
     userAccountId

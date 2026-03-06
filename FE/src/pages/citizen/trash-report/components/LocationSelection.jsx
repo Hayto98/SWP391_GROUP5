@@ -1,5 +1,5 @@
 import { CardHeader } from "@/components/ui/card";
-import { Home, Building2, MapPin, X, MapPinOffIcon } from "lucide-react";
+import { X, MapPinOffIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   MapContainer,
@@ -10,7 +10,7 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 // Fix default marker icon
@@ -24,21 +24,6 @@ L.Icon.Default.mergeOptions({
     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
 
-// TODO: Thay bằng dữ liệu từ API tài khoản người dùng
-const SAVED_LOCATIONS = {
-  "nha-rieng": {
-    lat: 10.7769,
-    lng: 106.7009,
-    name: "Nhà riêng (Quận 1, TP.HCM)",
-  },
-  "van-phong": {
-    lat: 10.7895,
-    lng: 106.7156,
-    name: "Văn phòng (Quận Bình Thạnh, TP.HCM)",
-  },
-  "nha-noi": { lat: 10.8231, lng: 106.6297, name: "Nhà nội (Quận 12, TP.HCM)" },
-};
-
 // LocationPicker component - must be inside MapContainer
 function LocationPicker({ onChange }) {
   useMapEvents({
@@ -49,26 +34,10 @@ function LocationPicker({ onChange }) {
   return null;
 }
 
-function LocationSelection({
-  locationType,
-  setLocationType,
-  marker,
-  markersByType,
-  onMapClick,
-  onDeleteMarker,
-}) {
+function LocationSelection({ marker, onMapClick, onDeleteMarker }) {
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [mapCenter, setMapCenter] = useState([10.7769, 106.7009]);
   const [mapRef, setMapRef] = useState(null);
-
-  // Khi đổi loại vị trí, fly đến địa chỉ đã lưu trong tài khoản và đặt marker
-  useEffect(() => {
-    const saved = SAVED_LOCATIONS[locationType];
-    if (mapRef && saved) {
-      mapRef.flyTo([saved.lat, saved.lng], 17);
-      onMapClick?.({ lat: saved.lat, lng: saved.lng });
-    }
-  }, [locationType, mapRef]);
 
   const getUserLocation = () => {
     setIsLoadingLocation(true);
@@ -119,29 +88,7 @@ function LocationSelection({
         </div>
       </CardHeader>
 
-      {/* Location Type Selection */}
       <div className="space-y-4">
-        <div>
-          <div className="flex gap-2 flex-wrap">
-            {[
-              { key: "nha-rieng", label: "Nhà riêng", Icon: Home },
-              { key: "van-phong", label: "Văn phòng", Icon: Building2 },
-              { key: "nha-noi", label: "Nhà nội", Icon: MapPin },
-            ].map(({ key, label, Icon }) => (
-              <Button
-                key={key}
-                variant={locationType === key ? "default" : "outline"}
-                size="sm"
-                onClick={() => setLocationType(key)}
-                className="gap-2 relative"
-              >
-                <Icon className="size-4" />
-                {label}
-              </Button>
-            ))}
-          </div>
-        </div>
-
         {/* Map Section */}
         <div className="relative border rounded-lg overflow-hidden h-80">
           <Button
@@ -167,10 +114,6 @@ function LocationSelection({
               <Marker key={marker.id} position={marker.position}>
                 <Popup>
                   <div className="space-y-2 text-sm">
-                    <p className="font-semibold capitalize">
-                      {marker.type.replace("-", " ")}
-                    </p>
-
                     <p className="text-xs text-muted-foreground">
                       Vị trí: {marker.name}
                     </p>
@@ -209,9 +152,7 @@ function LocationSelection({
                   <MapPinOffIcon />
                 </button>
                 <div className="text-start">
-                  <p className="font-medium text-sm capitalize">
-                    {marker.type.replace("-", " ")}
-                  </p>
+                  <p className="font-medium text-sm">Điểm thu gom đã chọn</p>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-xs text-muted-foreground">
                       {marker.name}

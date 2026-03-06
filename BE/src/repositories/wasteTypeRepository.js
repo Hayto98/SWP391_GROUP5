@@ -1,6 +1,4 @@
 const db = require('../config/database')
-
-
 // ==================== CREATE ====================
 
 /**
@@ -370,7 +368,6 @@ async function countActiveReports(wasteTypeId) {
   const [rows] = await db.execute(query, [wasteTypeId])
   return rows[0].count
 }
-
 /**
  * Lấy danh sách WasteType đang active kèm RewardConfig active
  */

@@ -50,7 +50,6 @@ function formatUserResponse(user) {
 // ==================== READ ====================
 
 /**
-
  * TASK 1: Get all users with advanced filtering and pagination
  * GET /admin/users
  *
@@ -118,7 +117,6 @@ async function getAllUsers({ page = 1, limit = 20, role, isLocked, emailVerified
       total
     }
   }
-
 }
 
 /**
@@ -158,6 +156,7 @@ async function getUserById(userAccountId) {
  * - Default: failed_login_count = 0
  */
 async function createUser(data) {
+<<<<<<< HEAD
 
   const { fullname, email, phone, password, role } = data
 
@@ -186,6 +185,19 @@ async function createUser(data) {
   if (!roleId) {
     throw new ApiError(400, 'Invalid role. Must be one of: ADMIN, ENTERPRISE, COLLECTOR, CITIZEN')
 
+=======
+  const { fullname, email, phone, password, roleId } = data
+  const normalizedRoleId = Number(roleId)
+
+  // Validate required fields
+  if (!fullname || !email || !phone || !password || !roleId) {
+    throw new ApiError(400, 'fullname, email, phone, password and roleId are required')
+  }
+
+  // Validate role
+  if (!Number.isInteger(normalizedRoleId) || !Object.values(ROLES).includes(normalizedRoleId)) {
+    throw new ApiError(400, 'Invalid role specified')
+>>>>>>> 545b70fc66f5c455157b9cc0f6534429a295248d
   }
 
   // Check email uniqueness
@@ -205,6 +217,7 @@ async function createUser(data) {
   const passwordHash = await bcrypt.hash(password, saltRounds)
   const createdAt = new Date()
 
+<<<<<<< HEAD
 
   // Create user with proper defaults
   await userRepository.createUser({
@@ -216,12 +229,36 @@ async function createUser(data) {
     roleId,
     createdAt
   })
+=======
+  try {
+    await userRepository.createUser({
+      userAccountId,
+      fullname,
+      email,
+      phone,
+      passwordHash,
+      roleId: normalizedRoleId,
+      createdAt
+    })
+  } catch (error) {
+    if (error.code === 'ER_NO_REFERENCED_ROW_2') {
+      throw new ApiError(400, 'Provided roleId does not exist')
+    }
+
+    if (error.code === 'ER_DUP_ENTRY') {
+      throw new ApiError(409, 'Email or phone number already exists')
+    }
+
+    throw error
+  }
+>>>>>>> 545b70fc66f5c455157b9cc0f6534429a295248d
 
 
   // Update email_verified and other defaults (if not already set by createUser)
   // This would require a migration or an extra update, but during creation we can assume defaults
 
   return {
+<<<<<<< HEAD
 
     success: true,
     message: 'User created successfully',
@@ -237,12 +274,21 @@ async function createUser(data) {
       createdAt
     }
 
+=======
+    userAccountId,
+    fullname,
+    email,
+    phone,
+    roleId: normalizedRoleId,
+    createdAt
+>>>>>>> 545b70fc66f5c455157b9cc0f6534429a295248d
   }
 }
 
 // ==================== UPDATE ====================
 
 /**
+<<<<<<< HEAD
 
  * TASK 3: Update user details (name, phone, role, lock status)
  * PUT /admin/users/:id
@@ -281,11 +327,33 @@ async function updateUser(targetUserId, data, adminId) {
     // BR-A04: Cannot demote the last admin
     if (targetUser.roleId === ROLES.ADMIN && newRoleId !== ROLES.ADMIN) {
 
+=======
+ * Update user details (fullname, phone, roleId, isLocked, banReason)
+ */
+async function updateUser(userAccountId, data, adminId) {
+  const user = await userRepository.findById(userAccountId)
+  if (!user) {
+    throw new ApiError(404, 'User not found')
+  }
+
+  const { fullname, phone, roleId, isLocked, banReason } = data
+
+  // Validate roleId if provided
+  if (roleId !== undefined) {
+    if (!Object.values(ROLES).includes(roleId)) {
+      throw new ApiError(400, 'Invalid role specified')
+    }
+    if (adminId && userAccountId === adminId) {
+      throw new ApiError(403, 'You cannot change your own role')
+    }
+    if (user.roleId === ROLES.ADMIN && roleId !== ROLES.ADMIN) {
+>>>>>>> 545b70fc66f5c455157b9cc0f6534429a295248d
       const adminCount = await userRepository.countByRole(ROLES.ADMIN)
       if (adminCount <= 1) {
         throw new ApiError(409, 'Cannot demote the last administrator')
       }
     }
+<<<<<<< HEAD
 
 
     await userRepository.updateRole(targetUserId, newRoleId)
@@ -336,6 +404,32 @@ async function updateUser(targetUserId, data, adminId) {
     data: formatUserResponse(updatedUser)
   }
 
+=======
+  }
+
+  // Validate isLocked if provided
+  if (isLocked !== undefined && isLocked && adminId && userAccountId === adminId) {
+    throw new ApiError(403, 'You cannot lock your own account')
+  }
+  if (isLocked !== undefined && isLocked && user.roleId === ROLES.ADMIN) {
+    const adminCount = await userRepository.countByRole(ROLES.ADMIN)
+    if (adminCount <= 1) {
+      throw new ApiError(409, 'Cannot lock the last administrator')
+    }
+  }
+
+  const safeData = {}
+  if (fullname !== undefined) safeData.fullname = fullname
+  if (phone !== undefined) safeData.phone = phone
+  if (roleId !== undefined) safeData.roleId = roleId
+  if (isLocked !== undefined) safeData.isLocked = isLocked
+  if (banReason !== undefined) safeData.banReason = banReason
+
+  if (Object.keys(safeData).length === 0) return user
+
+  await userRepository.update(userAccountId, safeData)
+  return await userRepository.findById(userAccountId)
+>>>>>>> 545b70fc66f5c455157b9cc0f6534429a295248d
 }
 
 /**

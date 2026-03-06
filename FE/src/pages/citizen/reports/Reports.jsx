@@ -1,7 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -17,20 +16,10 @@ import {
 } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import {
-  Plus,
-  Eye,
-  Edit,
-  MapPin,
-  Calendar,
-  X,
-  CircleAlert,
-} from "lucide-react";
+import { Eye, Edit, MapPin, Calendar, Loader2, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { TiGift } from "react-icons/ti";
-import { useNavigate } from "react-router-dom";
 import {
   Table,
   TableBody,
@@ -40,128 +29,214 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import ReportDetailDialog from "./ReportDetailDialog";
+import {
+  getMyReports,
+  getReportById,
+  updateReportById,
+  deleteReportById,
+} from "@/services/wasteReportService";
+import { toast } from "sonner";
+import { reverseGeocode } from "@/services/geocodingService";
+import { getWasteTypeById, getWasteTypes } from "@/services/wasteService";
+import EditReportDialog from "./EditReportDialog";
 
-const fakeReports = [
-  {
-    id: "REP-8829",
-    title: "Rác tái chế (Recyclable)",
-    date: "24/11/2023",
-    location: "123 Elm Street, District 1",
-    latitude: 10.7769,
-    longitude: 106.7009,
-    status: "completed",
-    statusText: "ĐÃ THU GOM",
-    progress: [
-      { step: "Reported", label: "Reported", completed: true },
-      {
-        step: "Enterprise Accepted",
-        label: "Enterprise Accepted",
-        completed: true,
-      },
-      {
-        step: "Collector Assigned",
-        label: "Collector Assigned",
-        completed: true,
-      },
-      { step: "Collected", label: "Collected", completed: true },
-    ],
-    trashTypes: [
-      { type: "Nhựa", weight: 15, points: 750 },
-      { type: "Giấy", weight: 8, points: 240 },
-    ],
-    totalPoints: 990,
-    description: "Rác tái chế từ văn phòng, đã phân loại sẵn",
-    citizenImages: [
-      "https://images.unsplash.com/photo-1586504801223-7b0f83f1d7b9?w=400",
-    ],
-    collectorImages: [
-      "https://images.unsplash.com/photo-1607457561458-e84c03fb37e7?w=400",
-    ],
-    collector: {
-      name: "Nguyễn Văn Thuận",
-      phone: "050 123 4567",
-      avatar: "https://i.pravatar.cc/150?img=12",
-      estimatedTime: "14:30 - Hôm nay",
+const progressTemplate = {
+  OPEN: [
+    { step: "Reported", label: "Reported", completed: true },
+    {
+      step: "Enterprise Accepted",
+      label: "Enterprise Accepted",
+      completed: false,
     },
-  },
-  {
-    id: "REP-8830",
-    title: "Rác hữu cơ (Organic)",
-    date: "26/11/2023",
-    location: "456 Pine Ave, District 3",
-    latitude: 10.7951,
-    longitude: 106.7208,
-    status: "processing",
-    statusText: "ĐANG XỬ LÝ",
-    progress: [
-      { step: "Reported", label: "Reported", completed: true },
-      {
-        step: "Enterprise Accepted",
-        label: "Enterprise Accepted",
-        completed: true,
-      },
-      {
-        step: "Collector Assigned",
-        label: "Collector Assigned",
-        completed: false,
-      },
-      { step: "Collected", label: "Collected", completed: false },
-    ],
-    trashTypes: [{ type: "Kim loại", weight: 20, points: 1600 }],
-    totalPoints: 1600,
-    description: "Rác kim loại từ nhà xưởng",
-    citizenImages: [
-      "https://images.unsplash.com/photo-1581783898377-1c85bf937427?w=400",
-    ],
+    {
+      step: "Collector Assigned",
+      label: "Collector Assigned",
+      completed: false,
+    },
+    { step: "Collected", label: "Collected", completed: false },
+  ],
+  ASSIGNED: [
+    { step: "Reported", label: "Reported", completed: true },
+    {
+      step: "Enterprise Accepted",
+      label: "Enterprise Accepted",
+      completed: true,
+    },
+    {
+      step: "Collector Assigned",
+      label: "Collector Assigned",
+      completed: true,
+    },
+    { step: "Collected", label: "Collected", completed: false },
+  ],
+  IN_PROGRESS: [
+    { step: "Reported", label: "Reported", completed: true },
+    {
+      step: "Enterprise Accepted",
+      label: "Enterprise Accepted",
+      completed: true,
+    },
+    {
+      step: "Collector Assigned",
+      label: "Collector Assigned",
+      completed: true,
+    },
+    { step: "Collected", label: "Collected", completed: false },
+  ],
+  COLLECTED: [
+    { step: "Reported", label: "Reported", completed: true },
+    {
+      step: "Enterprise Accepted",
+      label: "Enterprise Accepted",
+      completed: true,
+    },
+    {
+      step: "Collector Assigned",
+      label: "Collector Assigned",
+      completed: true,
+    },
+    { step: "Collected", label: "Collected", completed: true },
+  ],
+};
+
+function normalizeStatus(status) {
+  if (status === "COLLECTED") return "completed";
+  if (status === "ASSIGNED" || status === "IN_PROGRESS") return "processing";
+  return "pending";
+}
+
+function statusTextFromApi(status) {
+  if (status === "COLLECTED") return "ĐÃ THU GOM";
+  if (status === "ASSIGNED" || status === "IN_PROGRESS") return "ĐANG XỬ LÝ";
+  return "CHỜ DUYỆT";
+}
+
+function mapReport(report) {
+  const lat = Number(report?.location?.lat || 0);
+  const lng = Number(report?.location?.lng || 0);
+  const rawStatus = report?.status || "OPEN";
+  const normalizedWeightKg =
+    report?.weightKg !== undefined && report?.weightKg !== null
+      ? Number(report.weightKg)
+      : null;
+
+  return {
+    id: report.wasteReportId,
+    wasteTypeId: report?.wasteType?.id || null,
+    title: report?.wasteType?.name || "-",
+    unitType: report?.wasteType?.unitType || "-",
+    date: report?.createdAt
+      ? format(new Date(report.createdAt), "dd/MM/yyyy", { locale: vi })
+      : "-",
+    createdAt: report?.createdAt,
+    location: `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+    latitude: lat,
+    longitude: lng,
+    status: normalizeStatus(rawStatus),
+    statusText: statusTextFromApi(rawStatus),
+    progress: progressTemplate[rawStatus] || progressTemplate.OPEN,
+    trashTypes: [],
+    totalPoints: 0,
+    description: report?.description || "",
+    weightKg:
+      Number.isFinite(normalizedWeightKg) && normalizedWeightKg > 0
+        ? normalizedWeightKg
+        : null,
+    citizenImages: (report.attachments || []).map((item) => item.fileUri),
     collectorImages: [],
-    collector: null,
-  },
-  {
-    id: "REP-8835",
-    title: "Rác không tái chế",
-    date: "28/11/2023",
-    location: "789 Oak Rd, District 5",
-    latitude: 10.7625,
-    longitude: 106.6822,
-    status: "pending",
-    statusText: "CHỜ DUYỆT",
-    progress: [
-      { step: "Reported", label: "Reported", completed: true },
-      {
-        step: "Enterprise Accepted",
-        label: "Enterprise Accepted",
-        completed: false,
-      },
-      {
-        step: "Collector Assigned",
-        label: "Collector Assigned",
-        completed: false,
-      },
-      { step: "Collected", label: "Collected", completed: false },
-    ],
-    trashTypes: [
-      { type: "Thủy tinh", weight: 10, points: 400 },
-      { type: "Vải", weight: 5, points: 125 },
-    ],
-    totalPoints: 525,
-    description: "Rác cồng kềnh, cần hỗ trợ khuân vác",
-    citizenImages: [
-      "https://images.unsplash.com/photo-1604187351574-c75ca79f5807?w=400",
-    ],
-    collectorImages: [],
-    collector: null,
-  },
-];
+    collector: report.assignedCollector
+      ? {
+          name: report.assignedCollector.fullname,
+          phone: report.assignedCollector.phone,
+          avatar: report.assignedCollector.avatar,
+          estimatedTime: "Đang cập nhật",
+        }
+      : null,
+    wasteTypeDetail: null,
+  };
+}
+
+async function mapReportWithLocation(report) {
+  const mapped = mapReport(report);
+  const locationName = await reverseGeocode(mapped.latitude, mapped.longitude);
+  return {
+    ...mapped,
+    location: locationName,
+  };
+}
 
 function Reports() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState();
   const [selectedReport, setSelectedReport] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editTargetReport, setEditTargetReport] = useState(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [deletingReportId, setDeletingReportId] = useState(null);
+  const [wasteTypes, setWasteTypes] = useState([]);
+  const [reports, setReports] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleViewReport = (report) => {
+  const fetchReports = async () => {
+    setLoading(true);
+    try {
+      const response = await getMyReports({ page: 1, limit: 100 });
+      const reportsWithLocation = await Promise.all(
+        (response?.data || []).map((report) => mapReportWithLocation(report)),
+      );
+
+      setReports(reportsWithLocation);
+    } catch (error) {
+      toast.error(error.message || "Không thể tải danh sách báo cáo");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchReports();
+
+    const fetchWasteTypeOptions = async () => {
+      try {
+        const data = await getWasteTypes();
+        setWasteTypes(data);
+      } catch {
+        setWasteTypes([]);
+      }
+    };
+
+    fetchWasteTypeOptions();
+  }, []);
+
+  const handleViewReport = async (report) => {
     setSelectedReport(report);
     setIsModalOpen(true);
+
+    setDetailLoading(true);
+    try {
+      const response = await getReportById(report.id);
+      const detailData = response?.data || {};
+      const detailedReport = await mapReportWithLocation(detailData);
+
+      if (detailData?.wasteType?.id) {
+        try {
+          const wasteTypeResponse = await getWasteTypeById(
+            detailData.wasteType.id,
+          );
+          detailedReport.wasteTypeDetail = wasteTypeResponse?.data || null;
+        } catch {
+          detailedReport.wasteTypeDetail = null;
+        }
+      }
+
+      setSelectedReport(detailedReport);
+    } catch (error) {
+      toast.error(error.message || "Không thể tải chi tiết báo cáo");
+    } finally {
+      setDetailLoading(false);
+    }
   };
 
   const getStatusColor = (status) => {
@@ -176,6 +251,71 @@ function Reports() {
         return "bg-gray-100 text-gray-700 border-gray-200";
     }
   };
+
+  const handleOpenEdit = async (report) => {
+    setEditTargetReport(report);
+    setIsEditModalOpen(true);
+
+    try {
+      const response = await getReportById(report.id);
+      const detailData = response?.data || {};
+      const detailedReport = await mapReportWithLocation(detailData);
+      setEditTargetReport(detailedReport);
+    } catch {
+      // Fallback to row data if detail fetch fails.
+    }
+  };
+
+  const handleEditSubmit = async (payload) => {
+    if (!editTargetReport?.id) return;
+
+    setEditSaving(true);
+    try {
+      await updateReportById(editTargetReport.id, payload);
+      toast.success("Cập nhật báo cáo thành công");
+      setIsEditModalOpen(false);
+      setEditTargetReport(null);
+      await fetchReports();
+    } catch (error) {
+      toast.error(error.message || "Cập nhật báo cáo thất bại");
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handleDeleteReport = async (report) => {
+    const confirmed = window.confirm("Bạn có chắc muốn xóa báo cáo này?");
+    if (!confirmed) return;
+
+    setDeletingReportId(report.id);
+    try {
+      await deleteReportById(report.id);
+      toast.success("Xóa báo cáo thành công");
+      await fetchReports();
+    } catch (error) {
+      toast.error(error.message || "Xóa báo cáo thất bại");
+    } finally {
+      setDeletingReportId(null);
+    }
+  };
+
+  const filteredReports = useMemo(() => {
+    return reports.filter((report) => {
+      if (statusFilter !== "all" && report.status !== statusFilter)
+        return false;
+
+      if (dateFilter) {
+        const reportDate = new Date(report.createdAt);
+        const isSameDay =
+          reportDate.getFullYear() === dateFilter.getFullYear() &&
+          reportDate.getMonth() === dateFilter.getMonth() &&
+          reportDate.getDate() === dateFilter.getDate();
+        if (!isSameDay) return false;
+      }
+
+      return true;
+    });
+  }, [reports, statusFilter, dateFilter]);
 
   return (
     <div className="space-y-6">
@@ -245,7 +385,7 @@ function Reports() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-30">Mã báo cáo</TableHead>
+                <TableHead className="max-w-10">Mã báo cáo</TableHead>
                 <TableHead>Loại rác</TableHead>
                 <TableHead>Ngày gửi</TableHead>
                 <TableHead>Địa điểm</TableHead>
@@ -254,74 +394,117 @@ function Reports() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {fakeReports.map((report) => (
-                <TableRow key={report.id}>
-                  <TableCell className="font-medium text-cyan-600">
-                    {report.id}
-                  </TableCell>
-                  <TableCell>{report.title}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1 text-sm">
-                      <Calendar className="size-3 text-muted-foreground" />
-                      {report.date}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1 text-sm">
-                      <MapPin className="size-3 text-muted-foreground" />
-                      {report.location}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span
-                      className={`text-xs px-3 py-1 rounded-full border font-medium inline-block ${getStatusColor(
-                        report.status,
-                      )}`}
-                    >
-                      {report.statusText}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="gap-1"
-                        onClick={() => handleViewReport(report)}
-                      >
-                        <Eye className="size-3" />
-                        Xem
-                      </Button>
-                      {report.status === "pending" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="gap-1 text-cyan-600 border-cyan-300 hover:bg-cyan-50"
-                        >
-                          <Edit className="size-3" />
-                          Sửa
-                        </Button>
-                      )}
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-32 text-center">
+                    <div className="inline-flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="size-4 animate-spin" />
+                      Đang tải dữ liệu...
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : filteredReports.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={6}
+                    className="h-32 text-center text-muted-foreground"
+                  >
+                    Không có báo cáo nào
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredReports.map((report) => (
+                  <TableRow key={report.id}>
+                    <TableCell className="font-medium text-cyan-600 truncate max-w-25">
+                      {report.id}
+                    </TableCell>
+                    <TableCell>{report.title}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1 text-sm">
+                        <Calendar className="size-3 text-muted-foreground" />
+                        {report.date}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div
+                        className="flex items-center gap-1 text-sm max-w-85"
+                        title={report.location}
+                      >
+                        <MapPin className="size-3 text-muted-foreground" />
+                        <span className="truncate">{report.location}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        className={`text-xs px-3 py-1 rounded-full border font-medium inline-block ${getStatusColor(
+                          report.status,
+                        )}`}
+                      >
+                        {report.statusText}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1"
+                          onClick={() => handleViewReport(report)}
+                        >
+                          <Eye className="size-3" />
+                          Xem
+                        </Button>
+                        {report.status === "pending" && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-1 text-cyan-600 border-cyan-300 hover:bg-cyan-50"
+                              onClick={() => handleOpenEdit(report)}
+                            >
+                              <Edit className="size-3" />
+                              Sửa
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-1 text-red-600 border-red-300 hover:bg-red-50"
+                              onClick={() => handleDeleteReport(report)}
+                              disabled={deletingReportId === report.id}
+                            >
+                              <Trash2 className="size-3" />
+                              {deletingReportId === report.id
+                                ? "Đang xoá..."
+                                : "Xoá"}
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
-
-      {/* Load More */}
-      <div className="flex justify-center pt-4">
-        <Button variant="outline">Xem thêm báo cáo cũ hơn</Button>
-      </div>
 
       {/* Detail Modal */}
       <ReportDetailDialog
         isOpen={isModalOpen}
         onClose={setIsModalOpen}
         report={selectedReport}
+        loading={detailLoading}
         getStatusColor={getStatusColor}
+      />
+
+      <EditReportDialog
+        open={isEditModalOpen}
+        onOpenChange={setIsEditModalOpen}
+        report={editTargetReport}
+        onSubmit={handleEditSubmit}
+        saving={editSaving}
+        wasteTypes={wasteTypes}
       />
     </div>
   );
