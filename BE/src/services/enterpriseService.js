@@ -173,7 +173,7 @@ async function inactiveWasteType(wasteTypeId) {
 /**
  * Get all WasteTypes (with optional filtering)
  */
-async function getAllWasteTypes({ isActive, page = 1, limit = 20 } = {}) {
+async function getAllWasteTypes({ isActive, page = 1, limit = 20, unitType, includeInactiveReward } = {}) {
   const pageNum = Math.max(1, parseInt(page) || 1)
   const limitNum = Math.max(1, Math.min(100, parseInt(limit) || 20))
   const offset = (pageNum - 1) * limitNum
@@ -183,18 +183,46 @@ async function getAllWasteTypes({ isActive, page = 1, limit = 20 } = {}) {
     filters.isActive = isActive === 'true' || isActive === true
   }
 
-  const result = await wasteTypeRepository.findAll({
+  // Validate unitType if provided
+  if (unitType !== undefined && unitType !== null && unitType !== '') {
+    const normalized = String(unitType).toUpperCase()
+    if (!VALID_UNIT_TYPES.includes(normalized)) {
+      throw new ApiError(400, `unitType must be one of: ${VALID_UNIT_TYPES.join(', ')}`)
+    }
+    filters.unitType = normalized
+  }
+
+  // includeInactiveReward default false
+  const includeInactive = includeInactiveReward === 'true' || includeInactiveReward === true
+
+  const result = await wasteTypeRepository.findAllWithRewardConfig({
     isActive: filters.isActive,
+    unitType: filters.unitType,
+    includeInactiveReward: includeInactive,
     limit: limitNum,
     offset
   })
 
-  // Remove createdAt and updatedAt from response
-  const filteredData = result.data.map(({ createdAt, updatedAt, ...rest }) => rest)
+  // Map response to expected shape and include pagination
+  const mapped = result.data.map((wt) => ({
+    wasteTypeId: wt.wasteTypeId,
+    wasteTypeName: wt.wasteTypeName,
+    unitType: wt.unitType,
+    isActive: wt.isActive,
+    // createdAt intentionally omitted per API spec
+    rewardConfig: wt.rewardConfig
+      ? {
+          rewardConfigId: wt.rewardConfig.rewardConfigId,
+          pointsPerUnit: wt.rewardConfig.pointsPerUnit,
+          description: wt.rewardConfig.description,
+          isActive: wt.rewardConfig.isActive
+        }
+      : null
+  }))
 
   return {
     success: true,
-    data: filteredData,
+    data: mapped,
     pagination: {
       page: pageNum,
       limit: limitNum,
@@ -208,17 +236,28 @@ async function getAllWasteTypes({ isActive, page = 1, limit = 20 } = {}) {
  * Get WasteType by ID
  */
 async function getWasteTypeById(wasteTypeId) {
-  const wasteType = await wasteTypeRepository.findById(wasteTypeId)
+  // include inactive reward configs? default false — follow same behavior as list
+  const wasteType = await wasteTypeRepository.findByIdWithRewardConfig(wasteTypeId, { includeInactiveReward: false })
   if (!wasteType) {
     throw new ApiError(404, 'WasteType không tồn tại')
   }
 
-  // Remove createdAt and updatedAt from response
-  const { createdAt, updatedAt, ...filteredData } = wasteType
-
   return {
     success: true,
-    data: filteredData
+    data: {
+      wasteTypeId: wasteType.wasteTypeId,
+      wasteTypeName: wasteType.wasteTypeName,
+      unitType: wasteType.unitType,
+      isActive: wasteType.isActive,
+      rewardConfig: wasteType.rewardConfig
+        ? {
+            rewardConfigId: wasteType.rewardConfig.rewardConfigId,
+            pointsPerUnit: wasteType.rewardConfig.pointsPerUnit,
+            description: wasteType.rewardConfig.description,
+            isActive: wasteType.rewardConfig.isActive
+          }
+        : null
+    }
   }
 }
 

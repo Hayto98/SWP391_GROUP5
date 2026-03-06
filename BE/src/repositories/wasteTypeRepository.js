@@ -1,5 +1,4 @@
 const db = require('../config/database')
-const { v4: uuidv4 } = require('uuid')
 
 // ==================== CREATE ====================
 
@@ -11,14 +10,15 @@ const { v4: uuidv4 } = require('uuid')
  * @returns {Object} - wasteType mới tạo
  */
 async function createWasteType({ wasteTypeName, unitType }) {
-  const wasteTypeId = uuidv4()
   const createdAt = new Date()
 
-  await db.execute(
-    `INSERT INTO WasteType (waste_type_id, waste_type_name, unit_type, is_active)
-     VALUES (?, ?, ?, 1)`,
-    [wasteTypeId, wasteTypeName, unitType]
+  const [result] = await db.execute(
+    `INSERT INTO WasteType (waste_type_name, unit_type, is_active)
+     VALUES (?, ?, 1)`,
+    [wasteTypeName, unitType]
   )
+
+  const wasteTypeId = result.insertId
 
   return {
     wasteTypeId,
@@ -131,6 +131,121 @@ async function findAll({ isActive, limit = 20, offset = 0 } = {}) {
   return { data, total }
 }
 
+/**
+ * Lấy tất cả WasteType kèm RewardConfig (LEFT JOIN)
+ * includeInactiveReward: nếu false -> chỉ lấy RewardConfig is_active = 1
+ */
+async function findAllWithRewardConfig({
+  isActive,
+  unitType,
+  includeInactiveReward = false,
+  limit = 20,
+  offset = 0
+} = {}) {
+  // Embed LIMIT/OFFSET as literals to avoid mysql2 prepared-statement type errors
+  const limitInt = Math.max(1, parseInt(limit, 10) || 20)
+  const offsetInt = Math.max(0, parseInt(offset, 10) || 0)
+
+  // Build JOIN clause
+  const joinCondition = includeInactiveReward
+    ? `ON wt.waste_type_id = rc.waste_type_id`
+    : `ON wt.waste_type_id = rc.waste_type_id AND rc.is_active = 1`
+
+  let whereClause = `WHERE 1=1`
+  const params = []
+
+  if (isActive !== undefined) {
+    whereClause += ` AND wt.is_active = ?`
+    params.push(isActive ? 1 : 0)
+  }
+
+  if (unitType !== undefined && unitType !== null && unitType !== '') {
+    whereClause += ` AND wt.unit_type = ?`
+    params.push(unitType)
+  }
+
+  const dataQuery = `
+    SELECT
+      wt.waste_type_id,
+      wt.waste_type_name,
+      wt.unit_type,
+      wt.is_active,
+      rc.reward_config_id,
+      rc.points_per_unit,
+      rc.description,
+      rc.is_active AS rc_is_active
+    FROM WasteType wt
+    LEFT JOIN RewardConfig rc ${joinCondition}
+    ${whereClause}
+    ORDER BY wt.waste_type_name ASC
+    LIMIT ${limitInt} OFFSET ${offsetInt}
+  `
+
+  const countQuery = `
+    SELECT COUNT(*) AS totalCount
+    FROM WasteType wt
+    ${whereClause}
+  `
+
+  const [rows] = await db.execute(dataQuery, params)
+  const [countRows] = await db.execute(countQuery, params)
+  const total = countRows[0].totalCount
+
+  const data = rows.map((row) => ({
+    wasteTypeId: row.waste_type_id,
+    wasteTypeName: row.waste_type_name,
+    unitType: row.unit_type,
+    isActive: row.is_active === 1,
+    rewardConfig: row.reward_config_id
+      ? {
+          rewardConfigId: row.reward_config_id,
+          pointsPerUnit: row.points_per_unit,
+          description: row.description,
+          isActive: row.rc_is_active === 1
+        }
+      : null
+  }))
+
+  return { data, total }
+}
+/**
+ * Lấy một WasteType theo ID kèm RewardConfig (LEFT JOIN)
+ */
+async function findByIdWithRewardConfig(wasteTypeId, { includeInactiveReward = false } = {}) {
+  let query = `SELECT
+                 wt.waste_type_id, wt.waste_type_name, wt.unit_type, wt.is_active,
+                 rc.reward_config_id, rc.points_per_unit, rc.description, rc.is_active AS rc_is_active
+               FROM WasteType wt
+               LEFT JOIN RewardConfig rc ON wt.waste_type_id = rc.waste_type_id`
+
+  if (!includeInactiveReward) {
+    query += ` AND rc.is_active = 1`
+  }
+
+  query += ` WHERE wt.waste_type_id = ? LIMIT 1`
+
+  const params = [wasteTypeId]
+
+  const [rows] = await db.execute(query, params)
+  if (rows.length === 0) return null
+
+  const row = rows[0]
+  return {
+    wasteTypeId: row.waste_type_id,
+    wasteTypeName: row.waste_type_name,
+    unitType: row.unit_type,
+    isActive: row.is_active === 1,
+    rewardConfig: row.reward_config_id
+      ? {
+          rewardConfigId: row.reward_config_id,
+          pointsPerUnit: row.points_per_unit,
+          description: row.description,
+          isActive: row.rc_is_active === 1
+        }
+      : null
+  }
+}
+
 // ==================== UPDATE ====================
 
 /**
@@ -235,6 +350,8 @@ module.exports = {
   findByName,
   findByNameExcludeId,
   findAll,
+  findAllWithRewardConfig,
+  findByIdWithRewardConfig,
   updateWasteType,
   setInactive,
   hasActiveReports,
