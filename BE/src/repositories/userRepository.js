@@ -15,7 +15,6 @@ async function findByEmail(email) {
             is_locked AS isLocked,
             email_verified AS emailVerified,
             failed_login_count AS failedLoginCount,
-
             last_login_at AS lastLoginAt,
             ban_reason AS banReason,
             created_at AS createdAt
@@ -39,7 +38,6 @@ async function findByPhone(phone) {
             is_locked AS isLocked,
             email_verified AS emailVerified,
             failed_login_count AS failedLoginCount,
-
             last_login_at AS lastLoginAt,
             ban_reason AS banReason,
             created_at AS createdAt
@@ -64,7 +62,6 @@ async function findById(userAccountId) {
             is_locked AS isLocked,
             email_verified AS emailVerified,
             failed_login_count AS failedLoginCount,
-
             last_login_at AS lastLoginAt,
             ban_reason AS banReason,
             created_at AS createdAt
@@ -105,7 +102,6 @@ async function findAll({ limit = 20, offset = 0, keyword, roleId } = {}) {
             is_locked AS isLocked,
             email_verified AS emailVerified,
             failed_login_count AS failedLoginCount,
-
             last_login_at AS lastLoginAt,
             ban_reason AS banReason,
             created_at AS createdAt
@@ -135,126 +131,6 @@ async function countAll({ keyword, roleId } = {}) {
 
   const whereClause = conditions.join(' AND ')
   const [rows] = await db.execute(`SELECT COUNT(*) as total FROM UserAccount WHERE ${whereClause}`, params)
-  return rows[0].total
-}
-
-/**
- * Find users with advanced filtering
- * @param {Object} filters - Filter criteria
- * @param {number} filters.roleId - Filter by role_id
- * @param {boolean} filters.isLocked - Filter by lock status
- * @param {boolean} filters.emailVerified - Filter by email verification status
- * @param {string} filters.keyword - Search in fullname or email
- * @param {number} limit - Pagination limit
- * @param {number} offset - Pagination offset
- * @returns {Promise<Array>} Filtered users
- */
-async function findWithFilters(filters = {}, limit = 20, offset = 0) {
-  let whereConditions = ['(ban_reason IS NULL OR ban_reason != ?)']
-  const params = [SOFT_DELETED_REASON]
-
-  // Filter by role
-  if (filters.roleId !== undefined && filters.roleId !== null) {
-    whereConditions.push('role_id = ?')
-    params.push(filters.roleId)
-  }
-
-  // Filter by lock status
-  if (filters.isLocked !== undefined && filters.isLocked !== null) {
-    whereConditions.push('is_locked = ?')
-    params.push(filters.isLocked ? 1 : 0)
-  }
-
-  // Filter by email verification status
-  if (filters.emailVerified !== undefined && filters.emailVerified !== null) {
-    whereConditions.push('email_verified = ?')
-    params.push(filters.emailVerified ? 1 : 0)
-  }
-
-  // Search by keyword in fullname or email
-  if (filters.keyword) {
-    whereConditions.push('(fullname LIKE ? OR email LIKE ?)')
-    const searchTerm = `%${filters.keyword}%`
-    params.push(searchTerm, searchTerm)
-  }
-
-  // Filter by date range if provided
-  if (filters.createdAtFrom) {
-    whereConditions.push('created_at >= ?')
-    params.push(filters.createdAtFrom)
-  }
-  if (filters.createdAtTo) {
-    whereConditions.push('created_at <= ?')
-    params.push(filters.createdAtTo)
-  }
-
-  params.push(String(limit), String(offset))
-
-  const whereClause = whereConditions.join(' AND ')
-  const [rows] = await db.execute(
-    `SELECT user_account_id AS userAccountId,
-            fullname,
-            email,
-            phone,
-            role_id AS roleId,
-            is_locked AS isLocked,
-            email_verified AS emailVerified,
-            failed_login_count AS failedLoginCount,
-            created_at AS createdAt,
-            last_login_at AS lastLoginAt
-       FROM UserAccount
-      WHERE ${whereClause}
-      ORDER BY created_at DESC
-      LIMIT ? OFFSET ?`,
-    params
-  )
-  return rows
-}
-
-/**
- * Count users with advanced filtering
- * @param {Object} filters - Same filter criteria as findWithFilters
- * @returns {Promise<number>} Total count matching filters
- */
-async function countWithFilters(filters = {}) {
-  let whereConditions = ['(ban_reason IS NULL OR ban_reason != ?)']
-  const params = [SOFT_DELETED_REASON]
-
-  if (filters.roleId !== undefined && filters.roleId !== null) {
-    whereConditions.push('role_id = ?')
-    params.push(filters.roleId)
-  }
-
-  if (filters.isLocked !== undefined && filters.isLocked !== null) {
-    whereConditions.push('is_locked = ?')
-    params.push(filters.isLocked ? 1 : 0)
-  }
-
-  if (filters.emailVerified !== undefined && filters.emailVerified !== null) {
-    whereConditions.push('email_verified = ?')
-    params.push(filters.emailVerified ? 1 : 0)
-  }
-
-  if (filters.keyword) {
-    whereConditions.push('(fullname LIKE ? OR email LIKE ?)')
-    const searchTerm = `%${filters.keyword}%`
-    params.push(searchTerm, searchTerm)
-  }
-
-  if (filters.createdAtFrom) {
-    whereConditions.push('created_at >= ?')
-    params.push(filters.createdAtFrom)
-  }
-  if (filters.createdAtTo) {
-    whereConditions.push('created_at <= ?')
-    params.push(filters.createdAtTo)
-  }
-
-  const whereClause = whereConditions.join(' AND ')
-  const [rows] = await db.execute(
-    `SELECT COUNT(*) as total FROM UserAccount WHERE ${whereClause}`,
-    params
-  )
   return rows[0].total
 }
 
@@ -378,8 +254,6 @@ module.exports = {
   findById,
   findAll,
   countAll,
-  findWithFilters,
-  countWithFilters,
   createUser,
   update,
   updateRole,
