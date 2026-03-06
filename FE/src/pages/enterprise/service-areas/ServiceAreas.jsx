@@ -1,6 +1,5 @@
 import React, { useMemo } from "react";
 import "./serviceAreas.css";
-import EnterpriseLayout from "../overview/EnterpriseLayout";
 import { useServiceAreas } from "@/hooks/useServiceAreas";
 import { FaPlus, FaTimes, FaChevronLeft, FaChevronRight, FaMapMarkerAlt } from "react-icons/fa";
 
@@ -78,8 +77,7 @@ export default function ServiceAreas() {
   }, [page, totalPages]);
 
   return (
-    <EnterpriseLayout>
-      <div className="sa">
+    <div className="sa">
         <div className="sa-head">
           <div>
             <div className="sa-breadcrumb">Hệ thống / Quản lý Khu vực Phục vụ</div>
@@ -190,6 +188,5 @@ export default function ServiceAreas() {
           <StatCard icon={<span className="sa-ico orange" />} title="Khu vực đang tạm dừng" value={data?.stats?.pausedAreas ?? 0} />
         </div>
       </div>
-    </EnterpriseLayout>
   );
 }

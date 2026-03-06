@@ -1,6 +1,5 @@
 import React from "react";
 import "./acceptWasteConfig.css";
-import EnterpriseLayout from "../../overview/EnterpriseLayout";
 import { useAcceptWasteConfig } from "@/hooks/useAcceptWasteConfig";
 import {
   FaCheck,
@@ -30,8 +29,7 @@ export default function AcceptWasteConfig() {
   if (!data) return null;
 
   return (
-    <EnterpriseLayout>
-      <div className="awc">
+    <div className="awc">
         <div className="awc-top">
           <div className="awc-top__left">
             <div className="awc-titleSmall">RecycleAdmin</div>
@@ -131,6 +129,5 @@ export default function AcceptWasteConfig() {
           </div>
         </div>
       </div>
-    </EnterpriseLayout>
   );
 }

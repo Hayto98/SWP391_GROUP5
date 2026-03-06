@@ -1,6 +1,5 @@
 import React, { useMemo } from "react";
 import "./collectionAnalytics.css";
-import EnterpriseLayout from "../../overview/EnterpriseLayout";
 import { useCollectionAnalytics } from "../../../../hooks/useCollectionAnalytics";
 import { FaDownload, FaChevronDown, FaSearch } from "react-icons/fa";
 
@@ -135,8 +134,7 @@ export default function CollectionAnalytics() {
   const statuses = data.filters.status;
 
   return (
-    <EnterpriseLayout>
-      <div className="ca">
+    <div className="ca">
         <div className="ca-head">
           <div>
             <h1>Báo cáo Khối lượng Thu gom &amp; Tái chế</h1>
@@ -309,6 +307,5 @@ export default function CollectionAnalytics() {
 
         <div className="ca-bottomNote">RECYCLEANALYTICS v2.4.1 © 2024</div>
       </div>
-    </EnterpriseLayout>
   );
 }

@@ -25,6 +25,53 @@
     font-weight:800;
     margin: 6px 4px 10px;
   }
+
+  .da-selectedContext{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin: 0 4px 12px;
+    padding:10px 12px;
+    border:1px solid #bbf7d0;
+    background:#f0fdf4;
+    border-radius:12px;
+    font-size:13px;
+    font-weight:800;
+  }
+
+  .da-selectedSource{
+    color:#166534;
+    font-weight:700;
+  }
+
+  .da-empty{
+    max-width:720px;
+    margin: 24px auto;
+    background:#fff;
+    border:1px solid var(--border);
+    border-radius:14px;
+    box-shadow: var(--shadow);
+    padding:20px;
+  }
+
+  .da-empty h2{
+    margin:0;
+    font-size:20px;
+    font-weight:900;
+  }
+
+  .da-empty p{
+    margin:10px 0 0;
+    color: var(--muted);
+    font-size:14px;
+    font-weight:700;
+    line-height:1.45;
+  }
+
+  .da-emptyActions{
+    margin-top:16px;
+  }
   
   .da-head{
     display:flex;
@@ -264,6 +311,59 @@
     box-shadow: var(--shadow);
     padding:12px;
   }
+
+  .da-history{
+    background: var(--card);
+    border:1px solid var(--border);
+    border-radius:14px;
+    box-shadow: var(--shadow);
+    padding:12px;
+  }
+
+  .da-historyHead{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+  }
+
+  .da-historyEmpty{
+    margin-top:10px;
+    color: var(--muted);
+    font-size:13px;
+    font-weight:700;
+    padding:10px;
+    border:1px dashed #cbd5e1;
+    border-radius:10px;
+    background:#f8fafc;
+  }
+
+  .da-historyList{
+    margin-top:10px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+
+  .da-historyItem{
+    border:1px solid #dcfce7;
+    background:#f0fdf4;
+    border-radius:10px;
+    padding:10px;
+  }
+
+  .da-historyTitle{
+    font-size:13px;
+    font-weight:900;
+    color:#14532d;
+  }
+
+  .da-historyMeta{
+    margin-top:4px;
+    font-size:12px;
+    font-weight:700;
+    color:#166534;
+  }
   .da-miniHead{
     display:flex;
     align-items:center;
@@ -340,6 +440,8 @@
     .da-grid{grid-template-columns: 1fr;}
   }
   @media (max-width: 820px){
+    .da-selectedContext{flex-direction:column; align-items:flex-start;}
+    .da-historyHead{flex-direction:column; align-items:flex-start;}
     .da-tr{grid-template-columns: 1fr; gap:6px;}
     .da-actionCell{justify-content:flex-start;}
   }

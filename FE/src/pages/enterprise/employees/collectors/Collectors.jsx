@@ -1,6 +1,5 @@
 import React from "react";
 import "./collectors.css";
-import EnterpriseLayout from "../../overview/EnterpriseLayout";
 import { useCollectors } from "../../../../hooks/useCollectors";
 import { FaPlus, FaSearch, FaFilter, FaPen, FaEye } from "react-icons/fa";
 
@@ -58,8 +57,7 @@ export default function Collectors() {
   const taskPercent = (tasks) => Math.min(100, Math.max(0, (tasks / 6) * 100));
 
   return (
-    <EnterpriseLayout>
-      <div className="ce">
+    <div className="ce">
         <div className="ce-head">
           <div>
             <h1>Quản lý Nhân viên Thu gom</h1>
@@ -209,7 +207,7 @@ export default function Collectors() {
             </>
           )}
         </div>
+
       </div>
-    </EnterpriseLayout>
   );
 }

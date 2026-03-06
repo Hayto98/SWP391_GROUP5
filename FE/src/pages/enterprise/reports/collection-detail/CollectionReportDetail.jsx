@@ -1,9 +1,8 @@
 import React, { useMemo, useState } from "react";
 import "./collectionReportDetail.css";
-import { useParams } from "react-router-dom";
-import EnterpriseLayout from "../../overview/EnterpriseLayout";
+import { useNavigate, useParams } from "react-router-dom";
 import { useCollectionReportDetail } from "../../../../hooks/useCollectionReportDetail";
-import { FaSearch, FaDownload, FaCheck, FaMapMarkerAlt, FaStar } from "react-icons/fa";
+import { FaSearch, FaMapMarkerAlt, FaStar } from "react-icons/fa";
 import { GoogleMap, Marker, useJsApiLoader } from "@react-google-maps/api";
 
 const StatBox = ({ label, value, tone }) => (
@@ -15,12 +14,10 @@ const StatBox = ({ label, value, tone }) => (
 
 const Badge = ({ children, tone }) => <span className={`crd-badge crd-badge-${tone}`}>{children}</span>;
 
-const MapBlock = ({ lat, lng }) => {
-  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
-  const { isLoaded } = useJsApiLoader({ googleMapsApiKey: apiKey });
-  const center = useMemo(() => ({ lat, lng }), [lat, lng]);
+const LoadedMapBlock = ({ apiKey, center }) => {
+  const { isLoaded, loadError } = useJsApiLoader({ googleMapsApiKey: apiKey });
 
-  if (!apiKey) return <div className="crd-mapFallback">Thiếu VITE_GOOGLE_MAPS_API_KEY</div>;
+  if (loadError) return <div className="crd-mapFallback">Không thể tải bản đồ</div>;
   if (!isLoaded) return <div className="crd-mapFallback">Đang tải bản đồ...</div>;
 
   return (
@@ -30,9 +27,18 @@ const MapBlock = ({ lat, lng }) => {
   );
 };
 
-export default function CollectionReportDetail() {
+const MapBlock = ({ lat, lng }) => {
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
+  const center = useMemo(() => ({ lat, lng }), [lat, lng]);
+
+  if (!apiKey) return <div className="crd-mapFallback">Thiếu VITE_GOOGLE_MAPS_API_KEY</div>;
+  return <LoadedMapBlock apiKey={apiKey} center={center} />;
+};
+
+export default function CollectionReportDetail({ reportId: reportIdProp, isPopup = false }) {
+  const navigate = useNavigate();
   const params = useParams();
-  const reportId = params?.id || "RP-8829";
+  const reportId = reportIdProp || params?.id || "RP-8829";
   const { data, loading, error } = useCollectionReportDetail(reportId);
 
   const [citizenImg, setCitizenImg] = useState("");
@@ -44,28 +50,51 @@ export default function CollectionReportDetail() {
 
   const citizenUrl = citizenImg || data.images.citizen;
   const collectorUrl = collectorImg || data.images.collector;
+  const routeReportId = String(data.id || reportId).replace(/^#/, "");
 
   return (
-    <EnterpriseLayout>
-      <div className="crd">
-        <div className="crd-topbar">
-          <div className="crd-searchWrap">
-            <FaSearch className="crd-searchIcon" />
-            <input className="crd-search" placeholder={data.searchHint} />
-          </div>
+    <div className={`crd ${isPopup ? "crd-popup" : ""}`}>
+        {!isPopup && (
+          <div className="crd-topbar">
+            <div className="crd-searchWrap">
+              <FaSearch className="crd-searchIcon" />
+              <input className="crd-search" placeholder={data.searchHint} />
+            </div>
 
-          <div className="crd-topActions">
-            <button className="crd-btnGhost" type="button">
-              <FaDownload /> Xuất báo cáo
-            </button>
-            <button className="crd-btnPrimary" type="button">
-              <FaCheck /> Phê duyệt đối soát
-            </button>
+            <div className="crd-topActions">
+              <button
+                className="crd-btnGhost"
+                type="button"
+                onClick={() => navigate("/enterprise/reports")}
+              >
+                Danh sách chờ xử lý
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="crd-head">
-          <div className="crd-breadcrumb">Báo cáo / Chi tiết báo cáo thu gom</div>
+          {!isPopup && (
+            <div className="crd-breadcrumb">
+              <button
+                type="button"
+                className="crd-breadcrumbLink"
+                onClick={() => navigate("/enterprise/reports")}
+              >
+                Báo cáo
+              </button>
+              <span> / </span>
+              <button
+                type="button"
+                className="crd-breadcrumbLink"
+                onClick={() => navigate(`/enterprise/reports/detail/${routeReportId}`)}
+              >
+                Chi tiết báo cáo
+              </button>
+              <span> / </span>
+              <span>Chi tiết thu gom</span>
+            </div>
+          )}
           <h1>Chi tiết báo cáo thu gom</h1>
           <p>Quản lý và đối soát dữ liệu thu gom rác tái chế từ người dùng</p>
         </div>
@@ -211,6 +240,5 @@ export default function CollectionReportDetail() {
 
         <div className="crd-footer">© 2023 Recycle Enterprise System</div>
       </div>
-    </EnterpriseLayout>
   );
 }

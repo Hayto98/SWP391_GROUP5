@@ -47,29 +47,6 @@ export default function ComplaintsEscalation() {
 
   return (
     <div className="cex-shell">
-      <aside className="cex-side">
-        <div className="cex-brand">
-          <div className="cex-brandName">Recycling Ent.</div>
-          <div className="cex-brandSub">OPERATIONAL STAFF</div>
-        </div>
-
-        <nav className="cex-nav">
-          <a className="cex-item" href="#" onClick={(e) => e.preventDefault()}>Dashboard</a>
-          <a className="cex-item" href="#" onClick={(e) => e.preventDefault()}>Lịch thu gom</a>
-          <a className="cex-item" href="#" onClick={(e) => e.preventDefault()}>Báo cáo</a>
-          <a className="cex-item is-active" href="#" onClick={(e) => e.preventDefault()}>Khiếu nại</a>
-          <a className="cex-item" href="#" onClick={(e) => e.preventDefault()}>Cài đặt</a>
-        </nav>
-
-        <div className="cex-user">
-          <div className="cex-ava">NV</div>
-          <div>
-            <div className="cex-userName">Nguyễn Văn A</div>
-            <div className="cex-userRole">ID: STAFF-882</div>
-          </div>
-        </div>
-      </aside>
-
       <main className="cex-main">
         <div className="cex-topbar">
           <div className="cex-searchWrap">

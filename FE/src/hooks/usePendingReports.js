@@ -56,8 +56,11 @@ export function usePendingReports() {
           const nextTotal = Math.max(0, (prev.result.total || 0) - 1);
           return { ...prev, summary: { pending: nextTotal }, result: { ...prev.result, total: nextTotal, rows: nextRows } };
         });
+        return { ok: true };
       } catch (e) {
-        setError(e?.message || "Thao tác thất bại");
+        const message = e?.message || "Thao tác thất bại";
+        setError(message);
+        return { ok: false, error: message };
       } finally {
         setActing("");
       }

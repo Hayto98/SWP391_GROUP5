@@ -19,6 +19,15 @@
     color: var(--text);
     font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   }
+
+  .crd.crd-popup{
+    min-height: auto;
+    padding: 10px;
+  }
+
+  .crd.crd-popup .crd-footer{
+    display:none;
+  }
   
   .crd-topbar{
     display:flex;
@@ -81,6 +90,18 @@
   
   .crd-head{margin: 12px 4px 12px;}
   .crd-breadcrumb{color: var(--muted); font-weight:900; font-size:12px;}
+  .crd-breadcrumbLink{
+    border:none;
+    background:transparent;
+    color: var(--muted);
+    padding:0;
+    font: inherit;
+    font-weight:900;
+    cursor:pointer;
+    text-decoration:underline;
+    text-underline-offset:2px;
+  }
+  .crd-breadcrumbLink:hover{color:#166534;}
   .crd-head h1{margin:6px 0 0; font-size:20px; font-weight:900;}
   .crd-head p{margin:6px 0 0; color: var(--muted); font-size:12px; font-weight:800;}
   
@@ -247,7 +268,6 @@
   }
   .crd-cMetaItem svg{color:#f59e0b;}
   
-  .crd-progressCard{}
   .crd-steps{
     display:grid;
     grid-template-columns: repeat(3, 1fr);

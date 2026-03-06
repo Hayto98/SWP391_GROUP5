@@ -1,6 +1,5 @@
 import React from "react";
 import "./progressTracking.css";
-import EnterpriseLayout from "../../overview/EnterpriseLayout";
 import { useProgressTracking } from "@/hooks/useProgressTracking";
 import { FaHistory, FaSyncAlt, FaChevronDown, FaExclamationTriangle } from "react-icons/fa";
 
@@ -52,8 +51,7 @@ export default function ProgressTracking() {
   if (!data) return null;
 
   return (
-    <EnterpriseLayout>
-      <div className="pt">
+    <div className="pt">
         <div className="pt-headRow">
           <div>
             <div className="pt-live">● TRỰC TIẾP</div>
@@ -201,6 +199,5 @@ export default function ProgressTracking() {
           <div>LẦN CẬP NHẬT CUỐI: 14:22:10</div>
         </div>
       </div>
-    </EnterpriseLayout>
   );
 }

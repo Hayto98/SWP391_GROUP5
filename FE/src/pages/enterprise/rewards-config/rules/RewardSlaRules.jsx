@@ -1,6 +1,5 @@
 import React from "react";
 import "./rewardSlaRules.css";
-import AdminPortalLayout from "@/layouts/AdminPortalLayout";
 import { useRewardSlaRules } from "../../../../hooks/useRewardSlaRules";
 import {
   FaSave,
@@ -45,8 +44,7 @@ export default function RewardSlaRules() {
   if (!draft) return null;
 
   return (
-    <AdminPortalLayout>
-      <div className="rs">
+    <div className="rs">
         <div className="rs-breadcrumb">Hệ thống / Quy tắc điểm thưởng</div>
 
         <div className="rs-head">
@@ -239,6 +237,5 @@ export default function RewardSlaRules() {
           <div>CẬP NHẬT CUỐI: {draft.updatedAt}</div>
         </div>
       </div>
-    </AdminPortalLayout>
   );
 }

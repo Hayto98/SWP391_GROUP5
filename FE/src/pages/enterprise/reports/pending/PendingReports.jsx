@@ -1,14 +1,27 @@
-import React, { useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import "./pendingReports.css";
-import EnterpriseLayout from "../../overview/EnterpriseLayout";
+import { useNavigate } from "react-router-dom";
 import { usePendingReports } from "@/hooks/usePendingReports";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  assignTaskToCollector,
+  getDispatchAssign,
+} from "@/services/dispatchAssign.service";
+import {
+  recordReportAssignment,
+  getAllReportAssignmentHistory,
+} from "@/services/reportAssignmentHistory.service";
+import { toast } from "sonner";
 import {
   FaSearch,
   FaBell,
   FaUserCircle,
   FaDownload,
+  FaHistory,
   FaChevronLeft,
   FaChevronRight,
+  FaMapMarkerAlt,
+  FaClock,
 } from "react-icons/fa";
 
 const Select = ({ value, onChange, options }) => (
@@ -47,7 +60,21 @@ const ActionBtn = ({ tone, children, onClick, disabled }) => (
   </button>
 );
 
+const CollectorAvatar = ({ name }) => {
+  const parts = String(name || "").split(" ").filter(Boolean);
+  const seed = (parts[0]?.[0] || "") + (parts[parts.length - 1]?.[0] || "");
+  return <div className="pr-assignAvatar">{seed.toUpperCase()}</div>;
+};
+
+const ProgressBar = ({ percent }) => (
+  <div className="pr-assignProgress">
+    <div className="pr-assignProgressFill" style={{ width: `${percent}%` }} />
+  </div>
+);
+
 export default function PendingReports() {
+  const navigate = useNavigate();
+
   const {
     data,
     loading,
@@ -76,6 +103,16 @@ export default function PendingReports() {
   const total = data?.result?.total || 0;
   const rows = data?.result?.rows || [];
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const toReportId = (code) => String(code || "").replace(/^#/, "");
+
+  const [isAssignPopupOpen, setAssignPopupOpen] = useState(false);
+  const [assigningReportCode, setAssigningReportCode] = useState("");
+  const [assignData, setAssignData] = useState(null);
+  const [assignLoading, setAssignLoading] = useState(false);
+  const [assignError, setAssignError] = useState("");
+  const [assigningCollectorId, setAssigningCollectorId] = useState("");
+  const [isHistoryPopupOpen, setHistoryPopupOpen] = useState(false);
+  const [assignmentHistoryRows, setAssignmentHistoryRows] = useState([]);
 
   const pages = useMemo(() => {
     const arr = [];
@@ -109,9 +146,123 @@ export default function PendingReports() {
   const weights = useMemo(() => data?.filters?.weights || ["Tất cả"], [data]);
   const sorts = useMemo(() => data?.filters?.sorts || ["Hết hạn SLA"], [data]);
 
+  const assigningReportId = useMemo(
+    () => toReportId(assigningReportCode),
+    [assigningReportCode],
+  );
+  const selectedReport = assignData?.selectedReport;
+  const collectors = assignData?.collectors || [];
+
+  const refreshAssignmentHistory = useCallback(() => {
+    setAssignmentHistoryRows(getAllReportAssignmentHistory());
+  }, []);
+
+  const resetAssignPopup = useCallback(() => {
+    setAssignData(null);
+    setAssignLoading(false);
+    setAssignError("");
+    setAssigningCollectorId("");
+    setAssigningReportCode("");
+  }, []);
+
+  const handleAssignPopupOpen = useCallback((code) => {
+    setAssigningReportCode(code);
+    setAssignPopupOpen(true);
+  }, []);
+
+  const handleAssignPopupChange = useCallback(
+    (open) => {
+      setAssignPopupOpen(open);
+      if (!open) {
+        resetAssignPopup();
+      }
+    },
+    [resetAssignPopup],
+  );
+
+  useEffect(() => {
+    if (!isAssignPopupOpen || !assigningReportId) return;
+
+    let cancelled = false;
+
+    const loadAssignData = async () => {
+      setAssignLoading(true);
+      setAssignError("");
+      try {
+        const res = await getDispatchAssign(assigningReportId);
+        if (cancelled) return;
+        setAssignData(res);
+      } catch (e) {
+        if (cancelled) return;
+        setAssignError(e?.message || "Không tải được danh sách collector");
+      } finally {
+        if (!cancelled) {
+          setAssignLoading(false);
+        }
+      }
+    };
+
+    loadAssignData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAssignPopupOpen, assigningReportId]);
+
+  useEffect(() => {
+    if (!isHistoryPopupOpen) return;
+    refreshAssignmentHistory();
+  }, [isHistoryPopupOpen, refreshAssignmentHistory]);
+
+  const handleAssignCollector = useCallback(
+    async (collector) => {
+      if (!assigningReportId || !collector?.id) return;
+
+      setAssigningCollectorId(collector.id);
+      setAssignError("");
+      try {
+        await assignTaskToCollector({
+          reportId: assigningReportId,
+          collectorId: collector.id,
+        });
+
+        recordReportAssignment({
+          reportId: assigningReportId,
+          collectorId: collector.id,
+          collectorName: collector.name,
+        });
+
+        const actionResult = await doAction(assigningReportCode, "accept");
+        if (!actionResult?.ok) {
+          throw new Error(actionResult?.error || "Cập nhật trạng thái báo cáo thất bại");
+        }
+
+        const reportCodeText = assigningReportCode || `#${assigningReportId}`;
+        toast.success(
+          `Nhân viên ${collector.name} vừa được gán cho báo cáo ${reportCodeText}.`,
+          {
+            description: `Mã nhân viên: ${collector.id}`,
+          },
+        );
+        refreshAssignmentHistory();
+        handleAssignPopupChange(false);
+      } catch (e) {
+        setAssignError(e?.message || "Gán collector thất bại");
+      } finally {
+        setAssigningCollectorId("");
+      }
+    },
+    [
+      assigningReportCode,
+      assigningReportId,
+      doAction,
+      handleAssignPopupChange,
+      refreshAssignmentHistory,
+    ],
+  );
+
   return (
-    <EnterpriseLayout>
-      <div className="pr">
+    <div className="pr">
         <div className="pr-topbar">
           <div className="pr-searchWrap">
             <FaSearch className="pr-searchIcon" />
@@ -142,14 +293,27 @@ export default function PendingReports() {
             </p>
           </div>
 
-          <button
-            className="pr-export"
-            type="button"
-            onClick={exportExcel}
-            disabled={exporting}
-          >
-            <FaDownload /> {exporting ? "Đang xuất..." : "Xuất báo cáo (Excel)"}
-          </button>
+          <div className="pr-headActions">
+            <button
+              className="pr-historyBtn"
+              type="button"
+              onClick={() => {
+                refreshAssignmentHistory();
+                setHistoryPopupOpen(true);
+              }}
+            >
+              <FaHistory /> Lịch sử
+            </button>
+
+            <button
+              className="pr-export"
+              type="button"
+              onClick={exportExcel}
+              disabled={exporting}
+            >
+              <FaDownload /> {exporting ? "Đang xuất..." : "Xuất báo cáo (Excel)"}
+            </button>
+          </div>
         </div>
 
         <div className="pr-filtersRow">
@@ -190,7 +354,19 @@ export default function PendingReports() {
 
                 {rows.map((r) => (
                   <div className="pr-tr" key={r.code}>
-                    <div className="pr-mono pr-strong">{r.code}</div>
+                    <div>
+                      <button
+                        type="button"
+                        className="pr-codeBtn pr-mono pr-strong"
+                        onClick={() =>
+                          navigate(`/enterprise/reports/detail/${toReportId(r.code)}`, {
+                            state: { selectedFrom: "pending-list" },
+                          })
+                        }
+                      >
+                        {r.code}
+                      </button>
+                    </div>
                     <div>
                       <div className="pr-strong">{r.ward}</div>
                       <div className="pr-sub">{r.district}</div>
@@ -203,6 +379,17 @@ export default function PendingReports() {
                       <Sla tone={r.sla.tone} text={r.sla.text} />
                     </div>
                     <div className="pr-actions">
+                      <ActionBtn
+                        tone="ghost"
+                        disabled={acting === r.code}
+                        onClick={() =>
+                          navigate(`/enterprise/reports/detail/${toReportId(r.code)}`, {
+                            state: { selectedFrom: "pending-list" },
+                          })
+                        }
+                      >
+                        Chi tiết
+                      </ActionBtn>
                       {r.actions.includes("contact") && (
                         <ActionBtn
                           tone="warn"
@@ -212,15 +399,13 @@ export default function PendingReports() {
                           {acting === r.code ? "..." : "Cần liên hệ"}
                         </ActionBtn>
                       )}
-                      {r.actions.includes("accept") && (
-                        <ActionBtn
-                          tone="ok"
-                          disabled={acting === r.code}
-                          onClick={() => doAction(r.code, "accept")}
-                        >
-                          {acting === r.code ? "..." : "Chấp nhận"}
-                        </ActionBtn>
-                      )}
+                      <ActionBtn
+                        tone="ok"
+                        disabled={acting === r.code}
+                        onClick={() => handleAssignPopupOpen(r.code)}
+                      >
+                        Gán
+                      </ActionBtn>
                       <ActionBtn
                         tone="ghost"
                         disabled={acting === r.code}
@@ -301,7 +486,137 @@ export default function PendingReports() {
             </button>
           </div>
         </div>
+
+        <Dialog open={isAssignPopupOpen} onOpenChange={handleAssignPopupChange}>
+          <DialogContent
+            className="max-w-none p-0"
+            style={{ width: "94vw", maxWidth: 980, maxHeight: "86vh", overflow: "auto" }}
+          >
+            <div className="pr-assignDialog">
+              <div className="pr-assignHead">
+                <div>
+                  <h2>Gán collector cho báo cáo #{assigningReportId || "-"}</h2>
+                  <p>Chọn collector phù hợp dựa trên khoảng cách và tải công việc.</p>
+                </div>
+                <button
+                  type="button"
+                  className="pr-action pr-action-ghost"
+                  onClick={() => navigate(`/enterprise/reports/detail/${assigningReportId}`)}
+                  disabled={!assigningReportId}
+                >
+                  Xem chi tiết
+                </button>
+              </div>
+
+              {assignLoading && <div className="pr-assignState">Đang tải danh sách collector...</div>}
+              {!assignLoading && assignError && (
+                <div className="pr-assignState pr-assignError">Lỗi: {assignError}</div>
+              )}
+
+              {!assignLoading && !assignError && selectedReport && (
+                <>
+                  <div className="pr-assignReport">
+                    <div className="pr-assignReportTitle">
+                      Báo cáo #{selectedReport.id} • {selectedReport.status}
+                    </div>
+                    <div className="pr-assignReportMeta">
+                      <FaMapMarkerAlt />
+                      <span>{selectedReport.address}</span>
+                    </div>
+                    <div className="pr-assignReportMeta">
+                      <FaClock />
+                      <span>{selectedReport.weightEstimate}</span>
+                    </div>
+                  </div>
+
+                  {!collectors.length ? (
+                    <div className="pr-assignState">Hiện chưa có collector khả dụng.</div>
+                  ) : (
+                    <div className="pr-assignList">
+                      <div className="pr-assignRow pr-assignRowHead">
+                        <div>COLLECTOR</div>
+                        <div>KHOẢNG CÁCH</div>
+                        <div>TẢI CÔNG VIỆC</div>
+                        <div>THAO TÁC</div>
+                      </div>
+
+                      {collectors.map((collector) => (
+                        <div className="pr-assignRow" key={collector.id}>
+                          <div className="pr-assignCollector">
+                            <CollectorAvatar name={collector.name} />
+                            <div>
+                              <div className="pr-strong">{collector.name}</div>
+                              <div className="pr-sub">{collector.id} • {collector.status}</div>
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="pr-strong">{collector.distanceKm.toFixed(1)} km</div>
+                            <div className="pr-sub">{collector.etaText}</div>
+                          </div>
+
+                          <div>
+                            <div className="pr-sub">
+                              {collector.tasks}/{collector.maxTasks} tasks • {collector.loadPercent}%
+                            </div>
+                            <ProgressBar percent={collector.loadPercent} />
+                          </div>
+
+                          <div>
+                            <button
+                              type="button"
+                              className="pr-action pr-action-ok"
+                              disabled={!collector.canAssign || assigningCollectorId === collector.id}
+                              onClick={() => handleAssignCollector(collector)}
+                            >
+                              {assigningCollectorId === collector.id ? "..." : "Gán"}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isHistoryPopupOpen} onOpenChange={setHistoryPopupOpen}>
+          <DialogContent
+            className="max-w-none p-0"
+            style={{ width: "92vw", maxWidth: 960, maxHeight: "86vh", overflow: "auto" }}
+          >
+            <div className="pr-historyDialog">
+              <div className="pr-historyHead">
+                <h2>Toàn bộ lịch sử đã gán report</h2>
+                <p>Tổng số lần gán: {assignmentHistoryRows.length}</p>
+              </div>
+
+              {!assignmentHistoryRows.length ? (
+                <div className="pr-historyEmpty">Chưa có lịch sử gán report nào.</div>
+              ) : (
+                <div className="pr-historyTable">
+                  <div className="pr-historyTr pr-historyTh">
+                    <div>THỜI ĐIỂM</div>
+                    <div>BÁO CÁO</div>
+                    <div>NHÂN VIÊN COLLECTOR</div>
+                    <div>MÃ NHÂN VIÊN</div>
+                  </div>
+
+                  {assignmentHistoryRows.map((item) => (
+                    <div className="pr-historyTr" key={item.id}>
+                      <div>{item.assignedAtText || item.assignedAt || "-"}</div>
+                      <div className="pr-strong">#{item.reportId}</div>
+                      <div>{item.collectorName || "-"}</div>
+                      <div>{item.collectorId || "-"}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
-    </EnterpriseLayout>
   );
 }

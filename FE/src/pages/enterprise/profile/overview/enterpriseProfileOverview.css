@@ -28,7 +28,7 @@
   .ep-topBtn{width:34px;height:34px;border-radius:10px;border:1px solid var(--ep-border);background:#fff;}
   .ep-userDot{width:30px;height:30px;border-radius:999px;background:#fde68a;display:flex;align-items:center;justify-content:center;font-weight:900;}
   
-  .ep-body{display:grid;grid-template-columns: 260px 1fr;gap:16px;padding:16px;}
+  .ep-body{display:block;padding:16px;}
   .ep-side{
     background:#fff;border:1px solid var(--ep-border);border-radius:var(--ep-radius);
     padding:12px;box-shadow:var(--ep-shadow);height: fit-content;

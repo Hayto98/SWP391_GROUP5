@@ -12,8 +12,7 @@
   .cex-shell{
     min-height:100vh;
     background: var(--cx-bg);
-    display:grid;
-    grid-template-columns: 230px 1fr;
+    display:block;
     font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     color: var(--cx-text);
   }

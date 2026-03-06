@@ -1,13 +1,7 @@
-import React, { useState } from "react";
+import React from "react";
 import "./enterpriseProfileOverview.css";
 import { useEnterpriseProfile } from "../../../../hooks/useEnterpriseProfile";
 import { FaBuilding, FaShieldAlt, FaCheckCircle, FaChevronRight } from "react-icons/fa";
-
-const SideItem = ({ active, label, onClick }) => (
-  <button type="button" className={`ep-sideItem ${active ? "is-active" : ""}`} onClick={onClick}>
-    {label}
-  </button>
-);
 
 const CardTitle = ({ icon, title, right }) => (
   <div className="ep-cardHead">
@@ -32,7 +26,6 @@ const Toggle = ({ checked, onChange, disabled }) => (
 
 export default function EnterpriseProfileOverview() {
   const { data, loading, error, toggling2FA, toggle2FA } = useEnterpriseProfile();
-  const [active, setActive] = useState("general");
 
   if (loading) return <div style={{ padding: 16 }}>Đang tải...</div>;
   if (error) return <div style={{ padding: 16, color: "#991b1b" }}>Lỗi: {error}</div>;
@@ -64,29 +57,6 @@ export default function EnterpriseProfileOverview() {
       </div>
 
       <div className="ep-body">
-        <aside className="ep-side">
-          <div className="ep-sideHeader">
-            <div className="ep-sideLogo">
-              <div className="ep-sideLogoIcon">📄</div>
-            </div>
-            <div>
-              <div className="ep-sideName">{data.company.name}</div>
-              <div className="ep-sideSub">
-                <span className="ep-verifyDot" />
-                {data.company.verifiedText}
-              </div>
-            </div>
-          </div>
-
-          <div className="ep-sideMenu">
-            {data.sidebar.items.map((it) => (
-              <SideItem key={it.key} active={active === it.key} label={it.label} onClick={() => setActive(it.key)} />
-            ))}
-          </div>
-
-          <button className="ep-sideCta" type="button">{data.sidebar.cta}</button>
-        </aside>
-
         <main className="ep-main">
           <div className="ep-hero">
             <div className="ep-heroLeft">

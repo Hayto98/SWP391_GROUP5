@@ -19,13 +19,36 @@ import { navByRole } from "@/config/sidebarConfig";
 export default function DashboardLayout() {
   const { pathname } = useLocation();
 
+  const getMatchScore = (url) => {
+    if (!url) return -1;
+    if (pathname === url) return url.length + 1000;
+    if (pathname.startsWith(`${url}/`)) return url.length;
+    return -1;
+  };
+
+  const findBestMatch = (items, best = { title: null, score: -1 }) => {
+    for (const item of items || []) {
+      const score = getMatchScore(item.url);
+      if (score > best.score) {
+        best = { title: item.title, score };
+      }
+
+      if (item.items?.length) {
+        best = findBestMatch(item.items, best);
+      }
+    }
+
+    return best;
+  };
+
   // Tìm title từ navByRole dựa trên pathname
   const getCurrentTitle = () => {
+    let best = { title: null, score: -1 };
     for (const role in navByRole) {
-      const item = navByRole[role].find((navItem) => navItem.url === pathname);
-      if (item) return item.title;
+      best = findBestMatch(navByRole[role], best);
     }
-    return "Dashboard";
+
+    return best.title || "Dashboard";
   };
 
   return (

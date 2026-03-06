@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { assignTaskToCollector, getDispatchAssign } from "../services/dispatchAssign.service";
+import { recordReportAssignment } from "../services/reportAssignmentHistory.service";
 
 export function useDispatchAssign(reportId) {
   const [data, setData] = useState(null);
@@ -30,6 +31,13 @@ export function useDispatchAssign(reportId) {
     setError("");
     try {
       await assignTaskToCollector({ reportId: data.selectedReport.id, collectorId });
+      const collector = (data.collectors || []).find((item) => item.id === collectorId);
+      const assignmentEntry = recordReportAssignment({
+        reportId: data.selectedReport.id,
+        collectorId,
+        collectorName: collector?.name,
+      });
+
       setData((prev) => {
         if (!prev) return prev;
         return {
@@ -37,8 +45,11 @@ export function useDispatchAssign(reportId) {
           collectors: prev.collectors.map((c) => (c.id === collectorId ? { ...c, tasks: c.tasks + 1, loadPercent: Math.min(100, c.loadPercent + 20) } : c)),
         };
       });
+
+      return { ok: true, assignmentEntry };
     } catch (e) {
       setError(e?.message || "Gán task thất bại");
+      return { ok: false, error: e?.message || "Gán task thất bại" };
     } finally {
       setAssigningId("");
     }
