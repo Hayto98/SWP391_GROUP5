@@ -281,15 +281,22 @@ async function updateWasteType(wasteTypeId, { wasteTypeName, unitType }) {
 }
 
 /**
- * Soft delete (inactive) WasteType
+ * Set WasteType active status
  */
-async function setInactive(wasteTypeId) {
+async function setActiveStatus(wasteTypeId, isActive) {
   const [result] = await db.execute(
-    `UPDATE WasteType SET is_active = 0 WHERE waste_type_id = ?`,
-    [wasteTypeId]
+    `UPDATE WasteType SET is_active = ? WHERE waste_type_id = ?`,
+    [isActive ? 1 : 0, wasteTypeId]
   )
 
   return result.affectedRows > 0
+}
+
+/**
+ * Soft delete (inactive) WasteType - deprecated, use setActiveStatus
+ */
+async function setInactive(wasteTypeId) {
+  return setActiveStatus(wasteTypeId, false)
 }
 
 // ==================== BUSINESS RULE CHECKS ====================
@@ -353,6 +360,7 @@ module.exports = {
   findAllWithRewardConfig,
   findByIdWithRewardConfig,
   updateWasteType,
+  setActiveStatus,
   setInactive,
   hasActiveReports,
   countActiveReports

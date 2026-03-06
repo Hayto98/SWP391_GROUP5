@@ -51,11 +51,13 @@ async function updateWasteType(req, res, next) {
 }
 
 /**
- * BE-8: PATCH /enterprise/waste-types/:wasteTypeId/inactive - Inactive WasteType
+ * BE-8: PATCH /enterprise/waste-types/:wasteTypeId/status - Toggle WasteType Active Status
  */
-async function inactiveWasteType(req, res, next) {
+async function toggleWasteTypeStatus(req, res, next) {
   try {
-    const result = await enterpriseService.inactiveWasteType(req.params.wasteTypeId)
+    const wasteTypeId = Number(req.params.wasteTypeId)
+    const { isActive } = req.body
+    const result = await enterpriseService.toggleWasteTypeStatus(wasteTypeId, isActive)
     res.status(200).json(result)
   } catch (error) {
     next(error)
@@ -130,7 +132,7 @@ module.exports = {
   getAllWasteTypes,
   getWasteTypeById,
   updateWasteType,
-  inactiveWasteType,
+  toggleWasteTypeStatus,
 
   // RewardConfig
   createRewardConfig,

@@ -128,44 +128,47 @@ async function updateWasteType(wasteTypeId, { wasteTypeName, unitType }) {
 }
 
 /**
- * BE-8: Inactive WasteType (Soft Delete)
- * PATCH /enterprise/waste-types/:wasteTypeId/inactive
+ * BE-8: Toggle WasteType Active Status
+ * PATCH /enterprise/waste-types/:wasteTypeId/status
  *
  * Business Rules:
- * - wasteType tồn tại
- * - Không được inactive nếu có report đang OPEN / ACCEPTED / ASSIGNED
- * - Update is_active = false
- * - Đồng thời inactive RewardConfig liên quan
+ * - wasteType phải tồn tại
+ * - Nếu set isActive = false → kiểm tra có report OPEN/ACCEPTED/ASSIGNED không
+ * - Nếu hợp lệ → update is_active = isActive
+ * - Nếu set isActive = false → đồng thời inactive RewardConfig
+ * - Nếu set isActive = true → không tự động active RewardConfig
  */
-async function inactiveWasteType(wasteTypeId) {
+async function toggleWasteTypeStatus(wasteTypeId, isActive) {
+  // Validate isActive is boolean
+  if (typeof isActive !== 'boolean') {
+    throw new ApiError(400, 'isActive must be a boolean (true/false)')
+  }
+
   // Check existence
   const existingType = await wasteTypeRepository.findById(wasteTypeId)
   if (!existingType) {
     throw new ApiError(404, 'WasteType không tồn tại')
   }
 
-  // Check if already inactive
-  if (!existingType.isActive) {
-    throw new ApiError(400, 'WasteType đã inactive từ trước')
+  // If deactivating, check for active reports
+  if (isActive === false) {
+    const activeReportCount = await wasteTypeRepository.countActiveReports(wasteTypeId)
+    if (activeReportCount > 0) {
+      throw new ApiError(400, 'Cannot deactivate WasteType because there are active reports')
+    }
+
+    // Inactive related RewardConfig
+    await rewardConfigRepository.setInactiveByWasteTypeId(wasteTypeId)
   }
 
-  // Check for active reports
-  const activeReportCount = await wasteTypeRepository.countActiveReports(wasteTypeId)
-  if (activeReportCount > 0) {
-    throw new ApiError(400, `Không thể inactive WasteType khi có ${activeReportCount} report(s) đang OPEN / ACCEPTED / ASSIGNED`)
-  }
-
-  // Inactive WasteType
-  await wasteTypeRepository.setInactive(wasteTypeId)
-
-  // Inactive related RewardConfig
-  await rewardConfigRepository.setInactiveByWasteTypeId(wasteTypeId)
+  // Update WasteType active status
+  await wasteTypeRepository.setActiveStatus(wasteTypeId, isActive)
 
   return {
     success: true,
     data: {
       wasteTypeId: wasteTypeId,
-      isActive: false
+      isActive: isActive
     }
   }
 }
@@ -476,7 +479,7 @@ module.exports = {
   // WasteType
   createWasteType,
   updateWasteType,
-  inactiveWasteType,
+  toggleWasteTypeStatus,
   getAllWasteTypes,
   getWasteTypeById,
 

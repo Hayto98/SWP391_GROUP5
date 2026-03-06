@@ -40,10 +40,10 @@
     router.put('/waste-types/:wasteTypeId', enterpriseController.updateWasteType)
 
     /**
-     * BE-8: PATCH /enterprise/waste-types/:wasteTypeId/inactive - Inactive WasteType (Soft Delete)
-     * Request body: {}
+     * BE-8: PATCH /enterprise/waste-types/:wasteTypeId/status - Toggle WasteType Active Status
+     * Request body: { isActive: true/false }
      */
-    router.patch('/waste-types/:wasteTypeId/inactive', enterpriseController.inactiveWasteType)
+    router.patch('/waste-types/:wasteTypeId/status', enterpriseController.toggleWasteTypeStatus)
 
     // ==================== REWARD CONFIG ROUTES ====================
 
