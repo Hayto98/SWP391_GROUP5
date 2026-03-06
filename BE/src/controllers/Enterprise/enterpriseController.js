@@ -64,6 +64,19 @@ async function toggleWasteTypeStatus(req, res, next) {
   }
 }
 
+/**
+ * BE-12: DELETE /enterprise/waste-types/:wasteTypeId - Soft delete WasteType
+ */
+async function deleteWasteType(req, res, next) {
+  try {
+    const wasteTypeId = Number(req.params.wasteTypeId)
+    const result = await enterpriseService.deleteWasteType(wasteTypeId)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
 // ==================== REWARD CONFIG CONTROLLERS ====================
 
 /**
@@ -71,7 +84,15 @@ async function toggleWasteTypeStatus(req, res, next) {
  */
 async function createRewardConfig(req, res, next) {
   try {
-    const result = await enterpriseService.createRewardConfig(req.body)
+    // Accept both camelCase and snake_case input keys
+    const payload = {
+      wasteTypeId: req.body.wasteTypeId || req.body.waste_type_id,
+      pointsPerUnit: req.body.pointsPerUnit || req.body.points_per_unit,
+      description: req.body.description,
+      allowedVariancePercent: req.body.allowedVariancePercent || req.body.allowed_variance_percent
+    }
+
+    const result = await enterpriseService.createRewardConfig(payload)
     res.status(201).json(result)
   } catch (error) {
     next(error)
@@ -119,7 +140,13 @@ async function getRewardConfigByWasteTypeId(req, res, next) {
  */
 async function updateRewardConfig(req, res, next) {
   try {
-    const result = await enterpriseService.updateRewardConfig(req.params.rewardConfigId, req.body)
+    const payload = {
+      pointsPerUnit: req.body.pointsPerUnit || req.body.points_per_unit,
+      description: req.body.description,
+      allowedVariancePercent: req.body.allowedVariancePercent || req.body.allowed_variance_percent
+    }
+
+    const result = await enterpriseService.updateRewardConfig(req.params.rewardConfigId, payload)
     res.status(200).json(result)
   } catch (error) {
     next(error)
@@ -133,6 +160,7 @@ module.exports = {
   getWasteTypeById,
   updateWasteType,
   toggleWasteTypeStatus,
+  deleteWasteType,
 
   // RewardConfig
   createRewardConfig,

@@ -218,6 +218,7 @@ async function getAllWasteTypes({ isActive, page = 1, limit = 20, unitType, incl
           rewardConfigId: wt.rewardConfig.rewardConfigId,
           pointsPerUnit: wt.rewardConfig.pointsPerUnit,
           description: wt.rewardConfig.description,
+          allowedVariancePercent: wt.rewardConfig.allowedVariancePercent,
           isActive: wt.rewardConfig.isActive
         }
       : null
@@ -245,6 +246,11 @@ async function getWasteTypeById(wasteTypeId) {
     throw new ApiError(404, 'WasteType không tồn tại')
   }
 
+  // If the waste type was soft-deleted, treat as not found for public GET
+  if (wasteType.isDeleted) {
+    throw new ApiError(404, 'WasteType không tồn tại')
+  }
+
   return {
     success: true,
     data: {
@@ -257,10 +263,33 @@ async function getWasteTypeById(wasteTypeId) {
             rewardConfigId: wasteType.rewardConfig.rewardConfigId,
             pointsPerUnit: wasteType.rewardConfig.pointsPerUnit,
             description: wasteType.rewardConfig.description,
+            allowedVariancePercent: wasteType.rewardConfig.allowedVariancePercent,
             isActive: wasteType.rewardConfig.isActive
           }
         : null
     }
+  }
+}
+
+/**
+ * BE-12: Soft delete WasteType
+ */
+async function deleteWasteType(wasteTypeId) {
+  const existingType = await wasteTypeRepository.findById(wasteTypeId)
+  if (!existingType) {
+    throw new ApiError(404, 'WasteType không tồn tại')
+  }
+
+  if (existingType.isDeleted) {
+    throw new ApiError(400, 'WasteType đã bị xóa trước đó')
+  }
+
+  // Soft delete marker only; do NOT change RewardConfig
+  await wasteTypeRepository.setSoftDelete(wasteTypeId)
+
+  return {
+    success: true,
+    message: 'WasteType đã được xóa'
   }
 }
 
@@ -276,7 +305,7 @@ async function getWasteTypeById(wasteTypeId) {
  * - is_active = true
  * - Phù hợp BR-18, BR-58
  */
-async function createRewardConfig({ wasteTypeId, pointsPerUnit, description }) {
+async function createRewardConfig({ wasteTypeId, pointsPerUnit, description, allowedVariancePercent }) {
   // Validate required fields
   if (!wasteTypeId) {
     throw new ApiError(400, 'wasteTypeId is required')
@@ -313,7 +342,8 @@ async function createRewardConfig({ wasteTypeId, pointsPerUnit, description }) {
   const result = await rewardConfigRepository.createRewardConfig({
     wasteTypeId,
     pointsPerUnit: points,
-    description: description || null
+    description: description || null,
+    allowedVariancePercent: allowedVariancePercent !== undefined ? Number(allowedVariancePercent) : undefined
   })
 
   return {
@@ -323,6 +353,7 @@ async function createRewardConfig({ wasteTypeId, pointsPerUnit, description }) {
       waste_type_id: result.wasteTypeId,
       points_per_unit: result.pointsPerUnit,
       description: result.description,
+      allowed_variance_percent: result.allowedVariancePercent,
       is_active: result.isActive === 1 || result.isActive === true,
       created_at: result.createdAt
     }
@@ -339,7 +370,7 @@ async function createRewardConfig({ wasteTypeId, pointsPerUnit, description }) {
  * - Không cho update nếu wasteType đang inactive
  * - Không cho update nếu rewardConfig đang inactive
  */
-async function updateRewardConfig(rewardConfigId, { pointsPerUnit, description }) {
+async function updateRewardConfig(rewardConfigId, { pointsPerUnit, description, allowedVariancePercent }) {
   // Check existence
   const existingConfig = await rewardConfigRepository.findById(rewardConfigId)
   if (!existingConfig) {
@@ -372,6 +403,14 @@ async function updateRewardConfig(rewardConfigId, { pointsPerUnit, description }
     updateData.description = description
   }
 
+  if (allowedVariancePercent !== undefined) {
+    const val = Number(allowedVariancePercent)
+    if (isNaN(val) || val < 0) {
+      throw new ApiError(400, 'allowedVariancePercent must be a non-negative integer')
+    }
+    updateData.allowedVariancePercent = val
+  }
+
   // Perform update
   const result = await rewardConfigRepository.updateRewardConfig(rewardConfigId, updateData)
 
@@ -384,6 +423,7 @@ async function updateRewardConfig(rewardConfigId, { pointsPerUnit, description }
     data: {
       reward_config_id: result.rewardConfigId,
       points_per_unit: result.pointsPerUnit,
+      allowed_variance_percent: result.allowedVariancePercent,
       updated_at: result.updatedAt
     }
   }
@@ -415,6 +455,7 @@ async function getAllRewardConfigs({ isActive, page = 1, limit = 20 } = {}) {
     unit_type: r.unitType,
     points_per_unit: r.pointsPerUnit,
     description: r.description,
+    allowed_variance_percent: r.allowedVariancePercent,
     is_active: r.isActive === 1 || r.isActive === true,
     created_at: r.createdAt
   }))
@@ -447,6 +488,7 @@ async function getRewardConfigById(rewardConfigId) {
       waste_type_id: config.wasteTypeId,
       points_per_unit: config.pointsPerUnit,
       description: config.description,
+      allowed_variance_percent: config.allowedVariancePercent,
       is_active: config.isActive === 1 || config.isActive === true,
       created_at: config.createdAt
     }
@@ -469,6 +511,7 @@ async function getRewardConfigByWasteTypeId(wasteTypeId) {
       waste_type_id: config.wasteTypeId,
       points_per_unit: config.pointsPerUnit,
       description: config.description,
+      allowed_variance_percent: config.allowedVariancePercent,
       is_active: config.isActive === 1 || config.isActive === true,
       created_at: config.createdAt
     }
@@ -482,6 +525,7 @@ module.exports = {
   toggleWasteTypeStatus,
   getAllWasteTypes,
   getWasteTypeById,
+  deleteWasteType,
 
   // RewardConfig
   createRewardConfig,

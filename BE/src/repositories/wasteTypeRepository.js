@@ -36,7 +36,7 @@ async function createWasteType({ wasteTypeName, unitType }) {
  */
 async function findById(wasteTypeId) {
   const [rows] = await db.execute(
-    `SELECT waste_type_id, waste_type_name, unit_type, is_active
+    `SELECT waste_type_id, waste_type_name, unit_type, is_active, IFNULL(is_deleted,0) AS is_deleted
      FROM WasteType
      WHERE waste_type_id = ?`,
     [wasteTypeId]
@@ -50,6 +50,7 @@ async function findById(wasteTypeId) {
     wasteTypeName: row.waste_type_name,
     unitType: row.unit_type,
     isActive: row.is_active === 1,
+    isDeleted: row.is_deleted === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   }
@@ -106,7 +107,7 @@ async function findByNameExcludeId(wasteTypeName, excludeWasteTypeId) {
  */
 async function findAll({ isActive, limit = 20, offset = 0 } = {}) {
   let query = `SELECT SQL_CALC_FOUND_ROWS waste_type_id, waste_type_name, unit_type, is_active
-               FROM WasteType WHERE 1=1`
+               FROM WasteType WHERE 1=1 AND IFNULL(is_deleted,0) = 0`
   const params = []
 
   if (isActive !== undefined) {
@@ -152,6 +153,8 @@ async function findAllWithRewardConfig({
     : `ON wt.waste_type_id = rc.waste_type_id AND rc.is_active = 1`
 
   let whereClause = `WHERE 1=1`
+  // Exclude soft-deleted rows by default
+  whereClause += ` AND wt.is_deleted = 0`
   const params = []
 
   if (isActive !== undefined) {
@@ -171,9 +174,10 @@ async function findAllWithRewardConfig({
       wt.unit_type,
       wt.is_active,
       rc.reward_config_id,
-      rc.points_per_unit,
-      rc.description,
-      rc.is_active AS rc_is_active
+        rc.points_per_unit,
+        rc.description,
+        rc.allowed_variance_percent,
+        rc.is_active AS rc_is_active
     FROM WasteType wt
     LEFT JOIN RewardConfig rc ${joinCondition}
     ${whereClause}
@@ -201,6 +205,7 @@ async function findAllWithRewardConfig({
           rewardConfigId: row.reward_config_id,
           pointsPerUnit: row.points_per_unit,
           description: row.description,
+          allowedVariancePercent: row.allowed_variance_percent,
           isActive: row.rc_is_active === 1
         }
       : null
@@ -213,8 +218,8 @@ async function findAllWithRewardConfig({
  */
 async function findByIdWithRewardConfig(wasteTypeId, { includeInactiveReward = false } = {}) {
   let query = `SELECT
-                 wt.waste_type_id, wt.waste_type_name, wt.unit_type, wt.is_active,
-                 rc.reward_config_id, rc.points_per_unit, rc.description, rc.is_active AS rc_is_active
+                 wt.waste_type_id, wt.waste_type_name, wt.unit_type, wt.is_active, IFNULL(wt.is_deleted,0) AS is_deleted,
+                 rc.reward_config_id, rc.points_per_unit, rc.description, rc.allowed_variance_percent, rc.is_active AS rc_is_active
                FROM WasteType wt
                LEFT JOIN RewardConfig rc ON wt.waste_type_id = rc.waste_type_id`
 
@@ -235,11 +240,13 @@ async function findByIdWithRewardConfig(wasteTypeId, { includeInactiveReward = f
     wasteTypeName: row.waste_type_name,
     unitType: row.unit_type,
     isActive: row.is_active === 1,
+    isDeleted: row.is_deleted === 1,
     rewardConfig: row.reward_config_id
       ? {
           rewardConfigId: row.reward_config_id,
           pointsPerUnit: row.points_per_unit,
           description: row.description,
+          allowedVariancePercent: row.allowed_variance_percent,
           isActive: row.rc_is_active === 1
         }
       : null
@@ -287,6 +294,18 @@ async function setActiveStatus(wasteTypeId, isActive) {
   const [result] = await db.execute(
     `UPDATE WasteType SET is_active = ? WHERE waste_type_id = ?`,
     [isActive ? 1 : 0, wasteTypeId]
+  )
+
+  return result.affectedRows > 0
+}
+
+/**
+ * Soft delete marker for WasteType
+ */
+async function setSoftDelete(wasteTypeId) {
+  const [result] = await db.execute(
+    `UPDATE WasteType SET is_deleted = 1 WHERE waste_type_id = ?`,
+    [wasteTypeId]
   )
 
   return result.affectedRows > 0
@@ -362,6 +381,7 @@ module.exports = {
   updateWasteType,
   setActiveStatus,
   setInactive,
+  setSoftDelete,
   hasActiveReports,
   countActiveReports
 }

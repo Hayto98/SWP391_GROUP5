@@ -44,6 +44,11 @@
      * Request body: { isActive: true/false }
      */
     router.patch('/waste-types/:wasteTypeId/status', enterpriseController.toggleWasteTypeStatus)
+    
+    /**
+     * BE-12: DELETE /enterprise/waste-types/:wasteTypeId - Soft delete WasteType
+     */
+    router.delete('/waste-types/:wasteTypeId', enterpriseController.deleteWasteType)
 
     // ==================== REWARD CONFIG ROUTES ====================
 

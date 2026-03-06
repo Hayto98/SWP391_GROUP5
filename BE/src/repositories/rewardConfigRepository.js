@@ -11,14 +11,14 @@ const { v4: uuidv4 } = require('uuid')
  * @param {string} [params.description] - Mô tả
  * @returns {Object} - rewardConfig mới tạo
  */
-async function createRewardConfig({ wasteTypeId, pointsPerUnit, description = null }) {
+async function createRewardConfig({ wasteTypeId, pointsPerUnit, description = null, allowedVariancePercent = 10 }) {
   const rewardConfigId = uuidv4()
   const createdAt = new Date()
 
   await db.execute(
-    `INSERT INTO RewardConfig (reward_config_id, waste_type_id, points_per_unit, description, is_active)
-     VALUES (?, ?, ?, ?, 1)`,
-    [rewardConfigId, wasteTypeId, pointsPerUnit, description]
+    `INSERT INTO RewardConfig (reward_config_id, waste_type_id, points_per_unit, description, allowed_variance_percent, is_active)
+     VALUES (?, ?, ?, ?, ?, 1)`,
+    [rewardConfigId, wasteTypeId, pointsPerUnit, description, allowedVariancePercent]
   )
 
   return {
@@ -26,6 +26,7 @@ async function createRewardConfig({ wasteTypeId, pointsPerUnit, description = nu
     wasteTypeId,
     pointsPerUnit,
     description,
+    allowedVariancePercent,
     isActive: true,
     createdAt
   }
@@ -38,7 +39,7 @@ async function createRewardConfig({ wasteTypeId, pointsPerUnit, description = nu
  */
 async function findById(rewardConfigId) {
   const [rows] = await db.execute(
-    `SELECT reward_config_id, waste_type_id, points_per_unit, description, is_active
+    `SELECT reward_config_id, waste_type_id, points_per_unit, description, allowed_variance_percent, is_active
      FROM RewardConfig
      WHERE reward_config_id = ?`,
     [rewardConfigId]
@@ -52,6 +53,7 @@ async function findById(rewardConfigId) {
     wasteTypeId: row.waste_type_id,
     pointsPerUnit: row.points_per_unit,
     description: row.description,
+    allowedVariancePercent: row.allowed_variance_percent,
     isActive: row.is_active === 1,
     createdAt: null,
     updatedAt: null
@@ -63,7 +65,7 @@ async function findById(rewardConfigId) {
  */
 async function findByWasteTypeId(wasteTypeId) {
   const [rows] = await db.execute(
-    `SELECT reward_config_id, waste_type_id, points_per_unit, description, is_active
+    `SELECT reward_config_id, waste_type_id, points_per_unit, description, allowed_variance_percent, is_active
      FROM RewardConfig
      WHERE waste_type_id = ?`,
     [wasteTypeId]
@@ -77,6 +79,7 @@ async function findByWasteTypeId(wasteTypeId) {
     wasteTypeId: row.waste_type_id,
     pointsPerUnit: row.points_per_unit,
     description: row.description,
+    allowedVariancePercent: row.allowed_variance_percent,
     isActive: row.is_active === 1,
     createdAt: null,
     updatedAt: null
@@ -89,7 +92,7 @@ async function findByWasteTypeId(wasteTypeId) {
 async function findAll({ isActive, limit = 20, offset = 0 } = {}) {
   let query = `SELECT SQL_CALC_FOUND_ROWS 
                  rc.reward_config_id, rc.waste_type_id, rc.points_per_unit, rc.description, 
-                 rc.is_active,
+                 rc.allowed_variance_percent, rc.is_active,
                  wt.waste_type_name, wt.unit_type
                FROM RewardConfig rc
                JOIN WasteType wt ON rc.waste_type_id = wt.waste_type_id
@@ -115,6 +118,7 @@ async function findAll({ isActive, limit = 20, offset = 0 } = {}) {
     unitType: row.unit_type,
     pointsPerUnit: row.points_per_unit,
     description: row.description,
+    allowedVariancePercent: row.allowed_variance_percent,
     isActive: row.is_active === 1,
     createdAt: null,
     updatedAt: null
@@ -128,7 +132,7 @@ async function findAll({ isActive, limit = 20, offset = 0 } = {}) {
 /**
  * Cập nhật RewardConfig
  */
-async function updateRewardConfig(rewardConfigId, { pointsPerUnit, description }) {
+async function updateRewardConfig(rewardConfigId, { pointsPerUnit, description, allowedVariancePercent }) {
   const fields = []
   const values = []
 
@@ -140,6 +144,11 @@ async function updateRewardConfig(rewardConfigId, { pointsPerUnit, description }
   if (description !== undefined) {
     fields.push('description = ?')
     values.push(description)
+  }
+
+  if (allowedVariancePercent !== undefined) {
+    fields.push('allowed_variance_percent = ?')
+    values.push(allowedVariancePercent)
   }
 
   if (fields.length === 0) {
