@@ -4,15 +4,75 @@ const { v4: uuidv4 } = require('uuid')
 // ==================== CREATE ====================
 
 /**
- * Tạo mới một WasteReport
+ * Tạo mới một WasteReport + ghi vào ReportStatusHistory (PENDING).
+ *
+ * waste_type_id is INT (not UUID). Validates wasteType exists and is active.
+ * Uses transaction — rolls back on any error.
+ *
+ * @param {object} params
+ * @param {string} params.citizenId                - citizen_id (UUID)
+ * @param {string} params.citizenUserAccountId     - user_account_id of citizen (for history)
+ * @param {number} params.wasteTypeId              - waste_type_id (INT)
+ * @param {number} params.gpsLat
+ * @param {number} params.gpsLng
+ * @param {string} params.description
+ * @param {number|null} params.weight
+ * @returns {{ wasteReportId: string, status: 'PENDING' }}
  */
-async function createReport({ wasteReportId, citizenId, wasteTypeId, gpsLat, gpsLng, description, createdAt }) {
-  await db.execute(
-    `INSERT INTO WasteReport
-      (waste_report_id, citizen_id, waste_type_id, ai_suggested_waste_type_id, is_duplicate, gps_lat, gps_lng, description, created_at)
-     VALUES (?, ?, ?, NULL, 0, ?, ?, ?, ?)`,
-    [wasteReportId, citizenId, wasteTypeId, gpsLat, gpsLng, description, createdAt]
+async function createReport({ citizenId, citizenUserAccountId, wasteTypeId, gpsLat, gpsLng, description, weight }) {
+  const PENDING_STATUS_ID = 1
+
+  // ── 1. Validate wasteType (outside transaction — read-only) ────────
+  const [wasteTypeRows] = await db.execute(
+    `SELECT waste_type_id FROM WasteType WHERE waste_type_id = ? AND is_active = 1 LIMIT 1`,
+    [wasteTypeId]
   )
+
+  if (wasteTypeRows.length === 0) {
+    const error = new Error('wasteTypeId không tồn tại hoặc không còn hoạt động.')
+    error.code = 'INVALID_WASTE_TYPE'
+    throw error
+  }
+
+  // ── 2. Generate IDs and timestamp ─────────────────────────────────
+  const wasteReportId = uuidv4()
+  const statusHistoryId = uuidv4()
+  const createdAt = new Date()
+
+  // ── 3. Transaction: insert report + history ────────────────────────
+  const connection = await db.getConnection()
+
+  try {
+    await connection.beginTransaction()
+
+    await connection.execute(
+      `INSERT INTO WasteReport
+        (waste_report_id, citizen_id, waste_type_id, report_status_type_id,
+         assigned_collector_id, gps_lat, gps_lng, description, weight, created_at)
+       VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
+      [wasteReportId, citizenId, wasteTypeId, PENDING_STATUS_ID, gpsLat, gpsLng, description, weight ?? null, createdAt]
+    )
+
+    await connection.execute(
+      `INSERT INTO ReportStatusHistory
+        (report_status_history_id, waste_report_id, report_status_type_id,
+         changed_by_user_account_id, changed_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [statusHistoryId, wasteReportId, PENDING_STATUS_ID, citizenUserAccountId, createdAt]
+    )
+
+    await connection.commit()
+  } catch (error) {
+    await connection.rollback()
+    throw error
+  } finally {
+    connection.release()
+  }
+
+  return {
+    wasteReportId,
+    status: 'PENDING'
+  }
 }
 
 /**

@@ -7,7 +7,7 @@ const { v4: uuidv4 } = require('uuid')
 /**
  * Validate và tạo mới một WasteReport
  */
-async function createReport({ userAccountId, wasteTypeId, gpsLat, gpsLng, description, fileUri }) {
+async function createReport({ userAccountId, wasteTypeId, gpsLat, gpsLng, description, weight, fileUri }) {
   // ── Validation ──────────────────────────────────────────────
   const errors = []
 
@@ -15,8 +15,10 @@ async function createReport({ userAccountId, wasteTypeId, gpsLat, gpsLng, descri
     throw new ApiError(401, 'Unauthorized')
   }
 
-  if (!wasteTypeId) {
+  if (wasteTypeId === undefined || wasteTypeId === null) {
     errors.push('wasteTypeId is required')
+  } else if (!Number.isInteger(Number(wasteTypeId)) || Number(wasteTypeId) <= 0) {
+    errors.push('wasteTypeId must be a positive integer')
   }
 
   if (gpsLat === undefined || gpsLat === null || typeof gpsLat !== 'number' || Number.isNaN(gpsLat)) {
@@ -42,30 +44,31 @@ async function createReport({ userAccountId, wasteTypeId, gpsLat, gpsLng, descri
   }
 
   // ── Persist ─────────────────────────────────────────────────
-  const wasteReportId = uuidv4()
-  const createdAt = new Date()
-
+  let created
   try {
-    await wasteReportRepository.createReport({
-      wasteReportId,
+    created = await wasteReportRepository.createReport({
       citizenId,
-      wasteTypeId,
+      citizenUserAccountId: userAccountId,
+      wasteTypeId: Number(wasteTypeId),
       gpsLat,
       gpsLng,
       description: description.trim(),
-      createdAt
+      weight: weight ?? null
     })
 
     // Nếu có fileUri → lưu vào ReportAttachment
     if (fileUri) {
       await wasteReportRepository.createReportAttachment({
         reportAttachmentId: uuidv4(),
-        wasteReportId,
+        wasteReportId: created.wasteReportId,
         fileUri,
-        uploadedAt: createdAt
+        uploadedAt: new Date()
       })
     }
   } catch (error) {
+    if (error.code === 'INVALID_WASTE_TYPE') {
+      throw new ApiError(400, error.message)
+    }
     if (error.code === 'ER_NO_REFERENCED_ROW_2') {
       throw new ApiError(400, 'wasteTypeId không tồn tại.')
     }
@@ -73,15 +76,15 @@ async function createReport({ userAccountId, wasteTypeId, gpsLat, gpsLng, descri
   }
 
   return {
-    wasteReportId,
+    wasteReportId: created.wasteReportId,
     citizenId,
-    wasteTypeId,
+    wasteTypeId: Number(wasteTypeId),
     gpsLat,
     gpsLng,
     description: description.trim(),
+    weight: weight ?? null,
     attachments: fileUri ? [{ fileUri }] : [],
-    status: 'OPEN',
-    createdAt
+    status: 'PENDING'
   }
 }
 

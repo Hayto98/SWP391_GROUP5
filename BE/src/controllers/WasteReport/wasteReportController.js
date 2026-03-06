@@ -7,7 +7,7 @@ const wasteReportService = require('../../services/wasteReportService')
 async function createReport(req, res, next) {
   try {
     const userAccountId = req.user.sub
-    const { wasteTypeId, gpsLat, gpsLng, description, fileUri } = req.body
+    const { wasteTypeId, gpsLat, gpsLng, description, weight, fileUri } = req.body
 
     const report = await wasteReportService.createReport({
       userAccountId,
@@ -15,6 +15,7 @@ async function createReport(req, res, next) {
       gpsLat,
       gpsLng,
       description,
+      weight,
       fileUri
     })
 
