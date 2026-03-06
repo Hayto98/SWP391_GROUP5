@@ -8,7 +8,9 @@ const adminService = require('../../services/adminService')
  */
 async function getAllUsers(req, res, next) {
   try {
-    const result = await adminService.getAllUsers(req.query)
+    const page = parseInt(req.query.page) || 1
+    const limit = parseInt(req.query.limit) || 20
+    const result = await adminService.getAllUsers({ page, limit })
     res.status(200).json(result)
   } catch (error) {
     next(error)
@@ -50,9 +52,8 @@ async function createUser(req, res, next) {
  */
 async function updateUser(req, res, next) {
   try {
-    const adminId = req.user.sub // Current admin's ID from JWT
-    const result = await adminService.updateUser(req.params.id, req.body, adminId)
-    res.status(200).json(result)
+    const user = await adminService.updateUser(req.params.id, req.body)
+    res.status(200).json(user)
   } catch (error) {
     next(error)
   }

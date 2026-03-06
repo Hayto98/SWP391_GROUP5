@@ -50,6 +50,7 @@ function formatUserResponse(user) {
 // ==================== READ ====================
 
 /**
+
  * TASK 1: Get all users with advanced filtering and pagination
  * GET /admin/users
  *
@@ -117,6 +118,7 @@ async function getAllUsers({ page = 1, limit = 20, role, isLocked, emailVerified
       total
     }
   }
+
 }
 
 /**
@@ -156,6 +158,7 @@ async function getUserById(userAccountId) {
  * - Default: failed_login_count = 0
  */
 async function createUser(data) {
+
   const { fullname, email, phone, password, role } = data
 
   // Validate required fields
@@ -182,6 +185,7 @@ async function createUser(data) {
   const roleId = getRoleIdFromName(role)
   if (!roleId) {
     throw new ApiError(400, 'Invalid role. Must be one of: ADMIN, ENTERPRISE, COLLECTOR, CITIZEN')
+
   }
 
   // Check email uniqueness
@@ -190,16 +194,17 @@ async function createUser(data) {
     throw new ApiError(409, 'Email is already registered')
   }
 
-  // Validate phone if provided
-  if (phone && !/^\d{10,}$/.test(phone.replace(/\D/g, ''))) {
-    throw new ApiError(400, 'Invalid phone number')
+  // Check phone uniqueness
+  const existingUserByPhone = await userRepository.findByPhone(phone)
+  if (existingUserByPhone) {
+    throw new ApiError(409, 'Phone number is already registered')
   }
 
-  // Hash password
   const userAccountId = uuidv4()
   const saltRounds = Number(process.env.BCRYPT_SALT_ROUNDS || DEFAULT_SALT_ROUNDS)
   const passwordHash = await bcrypt.hash(password, saltRounds)
   const createdAt = new Date()
+
 
   // Create user with proper defaults
   await userRepository.createUser({
@@ -212,10 +217,12 @@ async function createUser(data) {
     createdAt
   })
 
+
   // Update email_verified and other defaults (if not already set by createUser)
   // This would require a migration or an extra update, but during creation we can assume defaults
 
   return {
+
     success: true,
     message: 'User created successfully',
     data: {
@@ -229,12 +236,14 @@ async function createUser(data) {
       failedLoginCount: 0,
       createdAt
     }
+
   }
 }
 
 // ==================== UPDATE ====================
 
 /**
+
  * TASK 3: Update user details (name, phone, role, lock status)
  * PUT /admin/users/:id
  *
@@ -271,11 +280,13 @@ async function updateUser(targetUserId, data, adminId) {
 
     // BR-A04: Cannot demote the last admin
     if (targetUser.roleId === ROLES.ADMIN && newRoleId !== ROLES.ADMIN) {
+
       const adminCount = await userRepository.countByRole(ROLES.ADMIN)
       if (adminCount <= 1) {
         throw new ApiError(409, 'Cannot demote the last administrator')
       }
     }
+
 
     await userRepository.updateRole(targetUserId, newRoleId)
   }
@@ -324,6 +335,7 @@ async function updateUser(targetUserId, data, adminId) {
     message: 'User updated successfully',
     data: formatUserResponse(updatedUser)
   }
+
 }
 
 /**
