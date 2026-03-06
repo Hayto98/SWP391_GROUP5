@@ -219,7 +219,7 @@ async function updateFailedLoginCount(userAccountId, count) {
 }
 
 async function updateLastLogin(userAccountId) {
-  await db.execute('UPDATE USERACCOUNT SET last_login_at = ?, failed_login_count = 0 WHERE user_account_id = ?', [
+  await db.execute('UPDATE UserAccount SET last_login_at = ?, failed_login_count = 0 WHERE user_account_id = ?', [
     new Date(),
     userAccountId
   ])
@@ -228,7 +228,7 @@ async function updateLastLogin(userAccountId) {
 // ==================== DELETE (Soft) ====================
 
 async function softDeleteUser(userAccountId) {
-  await db.execute('UPDATE USERACCOUNT SET is_locked = 1, ban_reason = ? WHERE user_account_id = ?', [
+  await db.execute('UPDATE UserAccount SET is_locked = 1, ban_reason = ? WHERE user_account_id = ?', [
     SOFT_DELETED_REASON,
     userAccountId
   ])
@@ -245,7 +245,8 @@ async function countByRole(roleId) {
 }
 
 async function findAvailableCollectors() {
-  const [rows] = await db.execute(`
+  const [rows] = await db.execute(
+    `
     SELECT
       ua.user_account_id AS userAccountId,
       ua.fullname,
@@ -264,8 +265,10 @@ async function findAvailableCollectors() {
     WHERE ua.role_id = ? AND ua.is_locked = 0
     HAVING currentAssignedCount < 10
     ORDER BY currentAssignedCount ASC
-  `, [ROLES.COLLECTOR]);
-  return rows;
+  `,
+    [ROLES.COLLECTOR]
+  )
+  return rows
 }
 
 module.exports = {
@@ -281,11 +284,6 @@ module.exports = {
   updateFailedLoginCount,
   updateLastLogin,
   softDeleteUser,
-<<<<<<< HEAD
   countByRole,
   findAvailableCollectors
 }
-=======
-  countByRole
-}
->>>>>>> a0f26bd04b4e5095fe96d71ba517a31bc1dca001

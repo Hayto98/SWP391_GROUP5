@@ -7,28 +7,37 @@ function getUserAccountIdFromRequest(req) {
 
 /**
  * Tạo mới một báo cáo rác thải
- * POST /reports
+ * POST /reports  — multipart/form-data
  */
 async function createReport(req, res, next) {
   try {
+<<<<<<< HEAD
+    const userAccountId = req.user.sub
+    const { wasteTypeId, gpsLat, gpsLng, description, weight } = req.body
+    const fileBuffer = req.file ? req.file.buffer : null
+    const fileMimetype = req.file ? req.file.mimetype : null
+=======
     const userAccountId = getUserAccountIdFromRequest(req)
     if (!userAccountId) {
       throw new ApiError(401, 'Unauthorized')
     }
     const { wasteTypeId, gpsLat, gpsLng, description, fileUri } = req.body
+>>>>>>> 46121853a500f7c6fe0536e5aaaa37f567ab3b74
 
     const report = await wasteReportService.createReport({
       userAccountId,
       wasteTypeId,
-      gpsLat,
-      gpsLng,
+      gpsLat: parseFloat(gpsLat),
+      gpsLng: parseFloat(gpsLng),
       description,
-      fileUri
+      weight: weight ? parseFloat(weight) : null,
+      fileBuffer,
+      fileMimetype
     })
 
     res.status(201).json({
       success: true,
-      message: 'Tạo báo cáo rác thải thành công.',
+      message: 'Report created successfully',
       data: report
     })
   } catch (error) {
