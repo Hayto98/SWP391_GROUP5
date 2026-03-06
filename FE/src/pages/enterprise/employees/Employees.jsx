@@ -1,7 +1,8 @@
 import React from "react";
+import Collectors from "./collectors/Collectors";
 
 function Employees() {
-  return <div>Quản lý nhân viên</div>;
+  return <Collectors />;
 }
 
 export default Employees;

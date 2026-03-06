@@ -48,24 +48,51 @@ export const navByRole = {
 
   enterprise: [
     {
-      title: "Tổng quan",
+      title: "Điều hành",
       url: "/enterprise",
       icon: PieChart,
     },
     {
-      title: "Quản lý báo cáo",
+      title: "Báo cáo",
       url: "/enterprise/reports",
       icon: FileText,
     },
     {
-      title: "Quản lý nhân viên",
+      title: "Nhân sự",
       url: "/enterprise/employees",
       icon: Users,
     },
     {
-      title: "Cấu hình điểm thưởng",
-      url: "/enterprise/rewards-config",
+      title: "Cấu hình",
       icon: Settings2,
+      items: [
+        {
+          title: "Cấu hình điểm thưởng",
+          url: "/enterprise/rewards-config",
+        },
+        {
+          title: "Quy tắc SLA",
+          url: "/enterprise/rewards-config/rules",
+        },
+        {
+          title: "Khu vực phục vụ",
+          url: "/enterprise/service-areas",
+        },
+      ],
+    },
+    {
+      title: "Hỗ trợ",
+      icon: AlertTriangle,
+      items: [
+        {
+          title: "Khiếu nại Escalation",
+          url: "/enterprise/complaints/escalation",
+        },
+        {
+          title: "Hồ sơ doanh nghiệp",
+          url: "/enterprise/profile/overview",
+        },
+      ],
     },
   ],
 

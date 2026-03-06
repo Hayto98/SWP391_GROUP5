@@ -18,22 +18,18 @@ import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { loginUser } from "@/services/authService";
-import { fakeLogin } from "@/services/fakeAuth";
 import { useAuthStore } from "@/stores/authStore";
 
 const loginFormSchema = z.object({
-  phone: z
+  email: z
     .string()
     .trim()
-    .min(10, "Số điện thoại phải có ít nhất 10 số")
-    .refine(
-      (val) => /(84|0[3|5|7|8|9])+([0-9]{8})\b/.test(val),
-      "Số điện thoại không hợp lệ",
-    ),
+    .min(1, "Email không được để trống")
+    .email("Email không hợp lệ"),
   password: z
     .string()
-    .min(6, "mật khẩu không ngắn hơn 6")
-    .max(20, "mật khẩu không dài hơn 20"),
+    .min(6, "Mật khẩu không ngắn hơn 6 ký tự")
+    .max(20, "Mật khẩu không dài hơn 20 ký tự"),
 });
 
 export function LoginForm({ className, ...props }) {
@@ -44,25 +40,23 @@ export function LoginForm({ className, ...props }) {
   const form = useForm({
     resolver: zodResolver(loginFormSchema),
     defaultValues: {
-      phone: "",
+      email: "",
       password: "",
     },
     mode: "onBlur",
   });
   const onSubmit = async (values) => {
     try {
-      // FAKE LOGIN - dùng tạm cho dev. Thay bằng API thật khi production:
-      // const response = await loginUser({ phone: values.phone, password: values.password });
-      const response = fakeLogin(values.phone, values.password);
+      const response = await loginUser({
+        email: values.email,
+        password: values.password,
+      });
 
       if (response?.tokens?.accessToken) {
         localStorage.setItem("accessToken", response.tokens.accessToken);
       }
-      if (response?.tokens?.refreshToken) {
-        localStorage.setItem("refreshToken", response.tokens.refreshToken);
-      }
 
-      // Map roleId to role string
+      // Map roleId to role string: 1=ADMIN, 2=ENTERPRISE, 3=COLLECTOR, 4=CITIZEN
       const roleId = response?.user?.roleId;
       let role = "";
       switch (roleId) {
@@ -70,13 +64,13 @@ export function LoginForm({ className, ...props }) {
           role = "admin";
           break;
         case 2:
-          role = "citizen";
-          break;
-        case 3:
           role = "enterprise";
           break;
-        case 4:
+        case 3:
           role = "collector";
+          break;
+        case 4:
+          role = "citizen";
           break;
         default:
           role = "citizen";
@@ -88,27 +82,18 @@ export function LoginForm({ className, ...props }) {
         role,
       });
 
-      toast.success("đăng nhập thành công.");
+      toast.success("Đăng nhập thành công.");
 
-      // Navigate based on role
-      switch (role) {
-        case "admin":
-          navigate("/admin");
-          break;
-        case "citizen":
-          navigate("/citizen");
-          break;
-        case "enterprise":
-          navigate("/enterprise");
-          break;
-        case "collector":
-          navigate("/collector");
-          break;
-        default:
-          navigate("/");
-      }
+      // Chuyển đến Dashboard theo role
+      const dashboardByRole = {
+        admin: "/admin",
+        enterprise: "/enterprise",
+        collector: "/collector",
+        citizen: "/citizen",
+      };
+      navigate(dashboardByRole[role] || "/");
     } catch (error) {
-      toast.error(error.message || "Đăng nhập thất bại");
+      toast.error(error.message || "Đăng nhập thất bại. Vui lòng kiểm tra email và mật khẩu.");
     }
   };
 
@@ -125,17 +110,18 @@ export function LoginForm({ className, ...props }) {
                 </p>
               </div>
               <Controller
-                name="phone"
+                name="email"
                 control={form.control}
                 render={({ field, fieldState }) => (
                   <Field data-invalid={fieldState.invalid}>
                     <FieldLabel htmlFor={field.name}>
-                      Số điện thoại <span className="text-red-500">*</span>
+                      Email <span className="text-red-500">*</span>
                     </FieldLabel>
                     <Input
                       {...field}
                       id={field.name}
-                      type="tel"
+                      type="email"
+                      placeholder="example@email.com"
                       aria-invalid={fieldState.invalid}
                     />
                     {fieldState.invalid && (
@@ -153,7 +139,7 @@ export function LoginForm({ className, ...props }) {
                 render={({ field, fieldState }) => (
                   <Field data-invalid={fieldState.invalid}>
                     <FieldLabel htmlFor={field.name}>
-                      mật khẩu <span className="text-red-500">*</span>
+                      Mật khẩu <span className="text-red-500">*</span>
                     </FieldLabel>
                     <div className="relative">
                       <Input
@@ -189,7 +175,7 @@ export function LoginForm({ className, ...props }) {
               />
               <Field>
                 <Button type="submit" disabled={form.formState.isSubmitting}>
-                  {form.formState.isSubmitting ? "Đang xử lý..." : "đăng nhập"}
+                  {form.formState.isSubmitting ? "Đang xử lý..." : "Đăng nhập"}
                 </Button>
               </Field>
               <FieldSeparator className="*:data-[slot=field-separator-content]:bg-card">

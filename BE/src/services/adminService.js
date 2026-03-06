@@ -9,12 +9,14 @@ const DEFAULT_SALT_ROUNDS = 10
 // ==================== READ ====================
 
 /**
- * Get all users with pagination
+ * Get all users with pagination, keyword search, and role filter
  */
-async function getAllUsers({ page = 1, limit = 20 } = {}) {
+async function getAllUsers({ page = 1, limit = 20, keyword, role } = {}) {
   const offset = (page - 1) * limit
-  const users = await userRepository.findAll({ limit, offset })
-  const total = await userRepository.countAll()
+  const roleId = role !== undefined && role !== '' ? Number(role) : undefined
+  const filter = { keyword: keyword?.trim() || undefined, roleId }
+  const users = await userRepository.findAll({ limit, offset, ...filter })
+  const total = await userRepository.countAll(filter)
   return { users, total, page, limit }
 }
 
@@ -36,14 +38,15 @@ async function getUserById(userAccountId) {
  */
 async function createUser(data) {
   const { fullname, email, phone, password, roleId } = data
+  const normalizedRoleId = Number(roleId)
 
   // Validate required fields
-  if (!fullname || !email || !password || !roleId) {
-    throw new ApiError(400, 'fullname, email, password and roleId are required')
+  if (!fullname || !email || !phone || !password || !roleId) {
+    throw new ApiError(400, 'fullname, email, phone, password and roleId are required')
   }
 
   // Validate role
-  if (!Object.values(ROLES).includes(roleId)) {
+  if (!Number.isInteger(normalizedRoleId) || !Object.values(ROLES).includes(normalizedRoleId)) {
     throw new ApiError(400, 'Invalid role specified')
   }
 
@@ -53,27 +56,45 @@ async function createUser(data) {
     throw new ApiError(409, 'Email is already registered')
   }
 
+  // Check phone uniqueness
+  const existingUserByPhone = await userRepository.findByPhone(phone)
+  if (existingUserByPhone) {
+    throw new ApiError(409, 'Phone number is already registered')
+  }
+
   const userAccountId = uuidv4()
   const saltRounds = Number(process.env.BCRYPT_SALT_ROUNDS || DEFAULT_SALT_ROUNDS)
   const passwordHash = await bcrypt.hash(password, saltRounds)
   const createdAt = new Date()
 
-  await userRepository.createUser({
-    userAccountId,
-    fullname,
-    email,
-    phone: phone || null,
-    passwordHash,
-    roleId,
-    createdAt
-  })
+  try {
+    await userRepository.createUser({
+      userAccountId,
+      fullname,
+      email,
+      phone,
+      passwordHash,
+      roleId: normalizedRoleId,
+      createdAt
+    })
+  } catch (error) {
+    if (error.code === 'ER_NO_REFERENCED_ROW_2') {
+      throw new ApiError(400, 'Provided roleId does not exist')
+    }
+
+    if (error.code === 'ER_DUP_ENTRY') {
+      throw new ApiError(409, 'Email or phone number already exists')
+    }
+
+    throw error
+  }
 
   return {
     userAccountId,
     fullname,
     email,
     phone,
-    roleId,
+    roleId: normalizedRoleId,
     createdAt
   }
 }
@@ -81,19 +102,51 @@ async function createUser(data) {
 // ==================== UPDATE ====================
 
 /**
- * Update user details (name, phone only - not role/status)
+ * Update user details (fullname, phone, roleId, isLocked, banReason)
  */
-async function updateUser(userAccountId, data) {
+async function updateUser(userAccountId, data, adminId) {
   const user = await userRepository.findById(userAccountId)
   if (!user) {
     throw new ApiError(404, 'User not found')
   }
 
-  // Only allow updating safe fields
-  const safeData = {
-    fullname: data.fullname,
-    phone: data.phone
+  const { fullname, phone, roleId, isLocked, banReason } = data
+
+  // Validate roleId if provided
+  if (roleId !== undefined) {
+    if (!Object.values(ROLES).includes(roleId)) {
+      throw new ApiError(400, 'Invalid role specified')
+    }
+    if (adminId && userAccountId === adminId) {
+      throw new ApiError(403, 'You cannot change your own role')
+    }
+    if (user.roleId === ROLES.ADMIN && roleId !== ROLES.ADMIN) {
+      const adminCount = await userRepository.countByRole(ROLES.ADMIN)
+      if (adminCount <= 1) {
+        throw new ApiError(409, 'Cannot demote the last administrator')
+      }
+    }
   }
+
+  // Validate isLocked if provided
+  if (isLocked !== undefined && isLocked && adminId && userAccountId === adminId) {
+    throw new ApiError(403, 'You cannot lock your own account')
+  }
+  if (isLocked !== undefined && isLocked && user.roleId === ROLES.ADMIN) {
+    const adminCount = await userRepository.countByRole(ROLES.ADMIN)
+    if (adminCount <= 1) {
+      throw new ApiError(409, 'Cannot lock the last administrator')
+    }
+  }
+
+  const safeData = {}
+  if (fullname !== undefined) safeData.fullname = fullname
+  if (phone !== undefined) safeData.phone = phone
+  if (roleId !== undefined) safeData.roleId = roleId
+  if (isLocked !== undefined) safeData.isLocked = isLocked
+  if (banReason !== undefined) safeData.banReason = banReason
+
+  if (Object.keys(safeData).length === 0) return user
 
   await userRepository.update(userAccountId, safeData)
   return await userRepository.findById(userAccountId)

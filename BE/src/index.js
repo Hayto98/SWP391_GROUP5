@@ -5,6 +5,7 @@ const cors = require('cors')
 const errorHandler = require('./middlewares/errorHandler')
 const authRoutes = require('./routes/authRoutes')
 const adminRoutes = require('./routes/adminRoutes')
+const enterpriseRoutes = require('./routes/enterpriseRoutes')
 
 const app = express()
 const port = Number(process.env.PORT || 3000)
@@ -34,8 +35,10 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes)
 app.use('/api/v1/admin', adminRoutes)
 app.use('/api/v1/collector', require('./routes/collectorRoutes'))
+app.use('/api/enterprise', enterpriseRoutes)
 app.use('/api/reports', require('./routes/wasteReportRoutes'))
 app.use('/api/waste-types', require('./routes/wasteTypeRoutes'))
+app.use('/enterprise', require('./routes/enterpriseRoutes'))
 
 app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' })
