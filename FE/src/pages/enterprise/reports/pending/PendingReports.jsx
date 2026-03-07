@@ -268,7 +268,7 @@ export default function PendingReports() {
             <FaSearch className="pr-searchIcon" />
             <input
               className="pr-search"
-              placeholder="Tìm kiếm mã báo cáo, địa điểm..."
+              placeholder="Tìm kiếm mã báo cáo, tên công dân..."
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
@@ -345,7 +345,7 @@ export default function PendingReports() {
               <div className="pr-table">
                 <div className="pr-tr pr-th">
                   <div>MÃ BÁO CÁO</div>
-                  <div>ĐỊA ĐIỂM (PHƯỜNG/QUẬN)</div>
+                  <div>CÔNG DÂN (TÊN/SĐT)</div>
                   <div>LOẠI RÁC</div>
                   <div>KHỐI LƯỢNG</div>
                   <div>SLA</div>

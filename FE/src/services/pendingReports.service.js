@@ -1,206 +1,209 @@
-import { httpGet } from "./http";
+import { request } from "./apiClient";
 
-const FAKE = {
-  filters: {
-    wards: ["Tất cả Quận", "Quận 1", "Quận 3", "Quận 5", "Quận 7", "Thủ Đức"],
-    wasteTypes: ["Tất cả", "Nhựa", "Giấy & Carton", "Kim loại", "Điện tử"],
-    wasteSubTypes: ["Tất cả", "PET", "HDPE", "Giấy", "Carton", "Nhôm", "Sắt", "F-voiet"],
-    weights: ["Tất cả", "< 20kg", "20kg", "20–50kg", "> 50kg", "> 20kg"],
-    sorts: ["Hết hạn SLA", "Mới nhất", "Khối lượng lớn"],
-  },
-  summary: { pending: 12 },
+const MAX_PENDING_FETCH = 500;
+const SLA_TOTAL_MINUTES = 4 * 60;
+
+const DEFAULT_FILTERS = {
+  wards: ["Tất cả Quận"],
+  wasteTypes: ["Tất cả"],
+  wasteSubTypes: ["Tất cả"],
+  weights: ["Tất cả", "< 20kg", "20kg", "20–50kg", "> 50kg", "> 20kg"],
+  sorts: ["Hết hạn SLA", "Mới nhất", "Khối lượng lớn"],
 };
 
-function fakeRows() {
-  return [
-    {
-      code: "#RP001",
-      ward: "Phường Bến Nghé",
-      district: "Quận 1, TP. Hồ Chí Minh",
-      waste: "Nhựa (PET)",
-      wasteTone: "blue",
-      weightKg: 45.0,
-      sla: { type: "left", text: "2 giờ còn lại", tone: "orange" },
-      actions: ["contact", "reject"],
-    },
-    {
-      code: "#RP002",
-      ward: "Phường Tân Phong",
-      district: "Quận 7, TP. Hồ Chí Minh",
-      waste: "Giấy & Carton",
-      wasteTone: "green",
-      weightKg: 120.5,
-      sla: { type: "left", text: "5 giờ còn lại", tone: "orange" },
-      actions: ["contact", "reject"],
-    },
-    {
-      code: "#RP003",
-      ward: "Phường 2",
-      district: "Quận 5, TP. Hồ Chí Minh",
-      waste: "Kim loại",
-      wasteTone: "gray",
-      weightKg: 300.0,
-      sla: { type: "expired", text: "Quá hạn", tone: "red" },
-      actions: ["contact", "reject"],
-    },
-    {
-      code: "#RP004",
-      ward: "Phường Đa Kao",
-      district: "Quận 1, TP. Hồ Chí Minh",
-      waste: "Điện tử (F-voiet)",
-      wasteTone: "purple",
-      weightKg: 15.2,
-      sla: { type: "unknown", text: "…", tone: "muted" },
-      actions: ["accept", "reject"],
-    },
-    {
-      code: "#RP005",
-      ward: "Phường Hiệp Bình Chánh",
-      district: "Quận Thủ Đức, TP. Hồ Chí Minh",
-      waste: "Nhựa (PET)",
-      wasteTone: "blue",
-      weightKg: 60.0,
-      sla: { type: "left", text: "1 giờ còn lại", tone: "orange" },
-      actions: ["contact", "reject"],
-    },
-    {
-      code: "#RP006",
-      ward: "Phường 8",
-      district: "Quận 3, TP. Hồ Chí Minh",
-      waste: "Giấy",
-      wasteTone: "green",
-      weightKg: 22.0,
-      sla: { type: "left", text: "8 giờ còn lại", tone: "orange" },
-      actions: ["accept", "reject"],
-    },
-    {
-      code: "#RP007",
-      ward: "Phường 10",
-      district: "Quận 3, TP. Hồ Chí Minh",
-      waste: "Nhựa (HDPE)",
-      wasteTone: "blue",
-      weightKg: 18.0,
-      sla: { type: "left", text: "12 giờ còn lại", tone: "orange" },
-      actions: ["accept", "reject"],
-    },
-    {
-      code: "#RP008",
-      ward: "Phường 5",
-      district: "Quận 7, TP. Hồ Chí Minh",
-      waste: "Kim loại",
-      wasteTone: "gray",
-      weightKg: 80.0,
-      sla: { type: "expired", text: "Quá hạn", tone: "red" },
-      actions: ["contact", "reject"],
-    },
-    {
-      code: "#RP009",
-      ward: "Phường 1",
-      district: "Quận 1, TP. Hồ Chí Minh",
-      waste: "Giấy & Carton",
-      wasteTone: "green",
-      weightKg: 52.0,
-      sla: { type: "left", text: "3 giờ còn lại", tone: "orange" },
-      actions: ["contact", "reject"],
-    },
-    {
-      code: "#RP010",
-      ward: "Phường 14",
-      district: "Quận 5, TP. Hồ Chí Minh",
-      waste: "Nhựa (PET)",
-      wasteTone: "blue",
-      weightKg: 26.0,
-      sla: { type: "left", text: "6 giờ còn lại", tone: "orange" },
-      actions: ["accept", "reject"],
-    },
-    {
-      code: "#RP011",
-      ward: "Phường 6",
-      district: "Quận 7, TP. Hồ Chí Minh",
-      waste: "Điện tử",
-      wasteTone: "purple",
-      weightKg: 40.0,
-      sla: { type: "unknown", text: "…", tone: "muted" },
-      actions: ["accept", "reject"],
-    },
-    {
-      code: "#RP012",
-      ward: "Phường Linh Trung",
-      district: "Quận Thủ Đức, TP. Hồ Chí Minh",
-      waste: "Kim loại",
-      wasteTone: "gray",
-      weightKg: 95.0,
-      sla: { type: "expired", text: "Quá hạn", tone: "red" },
-      actions: ["contact", "reject"],
-    },
-  ];
+function getAuthHeaders() {
+  const token = localStorage.getItem("accessToken");
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export async function getPendingReports(params) {
-  const USE_FAKE_FOR_NOW = true;
+function normalizeText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
 
-  if (USE_FAKE_FOR_NOW) {
-    const {
-      page = 1,
-      pageSize = 5,
-      ward = "Tất cả Quận",
-      wasteType = "Tất cả",
-      wasteSubType = "Tất cả",
-      weight = "Tất cả",
-      sort = "Hết hạn SLA",
-      q = "",
-    } = params || {};
+function getWasteTone(wasteName) {
+  const normalized = normalizeText(wasteName);
+  if (normalized.includes("nhua")) return "blue";
+  if (normalized.includes("giay") || normalized.includes("carton")) return "green";
+  if (normalized.includes("kim loai") || normalized.includes("kimloai")) return "gray";
+  if (normalized.includes("dien tu") || normalized.includes("dientu")) return "purple";
+  return "gray";
+}
 
-    let rows = fakeRows();
+function formatSla(createdAt, status) {
+  if (!createdAt) {
+    return { type: "unknown", text: "Không rõ", tone: "muted" };
+  }
 
-    if (q.trim()) {
-      const s = q.trim().toLowerCase();
-      rows = rows.filter(
-        (r) =>
-          r.code.toLowerCase().includes(s) ||
-          r.ward.toLowerCase().includes(s) ||
-          r.district.toLowerCase().includes(s)
-      );
-    }
+  const createdAtDate = new Date(createdAt);
+  if (Number.isNaN(createdAtDate.getTime())) {
+    return { type: "unknown", text: "Không rõ", tone: "muted" };
+  }
 
-    if (ward !== "Tất cả Quận") rows = rows.filter((r) => r.district.includes(ward));
+  if (status && status !== "PENDING") {
+    return { type: "unknown", text: status, tone: "muted" };
+  }
 
-    if (wasteType !== "Tất cả") rows = rows.filter((r) => r.waste.toLowerCase().includes(wasteType.toLowerCase()));
-    if (wasteSubType !== "Tất cả") rows = rows.filter((r) => r.waste.toLowerCase().includes(wasteSubType.toLowerCase()));
+  const elapsedMinutes = (Date.now() - createdAtDate.getTime()) / (1000 * 60);
+  const remainingMinutes = SLA_TOTAL_MINUTES - elapsedMinutes;
 
-    if (weight !== "Tất cả") {
-      rows = rows.filter((r) => {
-        const w = r.weightKg;
-        if (weight === "< 20kg") return w < 20;
-        if (weight === "20kg") return w === 20;
-        if (weight === "20–50kg") return w >= 20 && w <= 50;
-        if (weight === "> 50kg") return w > 50;
-        if (weight === "> 20kg") return w > 20;
-        return true;
-      });
-    }
+  if (remainingMinutes <= 0) {
+    return { type: "expired", text: "Quá hạn", tone: "red" };
+  }
 
-    if (sort === "Hết hạn SLA") {
-      const rank = (r) => (r.sla.type === "expired" ? 0 : r.sla.type === "left" ? 1 : 2);
-      rows = [...rows].sort((a, b) => rank(a) - rank(b));
-    } else if (sort === "Khối lượng lớn") {
-      rows = [...rows].sort((a, b) => b.weightKg - a.weightKg);
-    } else {
-      rows = [...rows];
-    }
-
-    const total = rows.length;
-    const start = (page - 1) * pageSize;
-    const pageRows = rows.slice(start, start + pageSize);
-
+  if (remainingMinutes < 60) {
     return {
-      summary: { pending: total },
-      filters: FAKE.filters,
-      result: { total, page, pageSize, rows: pageRows },
+      type: "left",
+      text: `${Math.ceil(remainingMinutes)} phút còn lại`,
+      tone: "orange",
     };
   }
 
-  return await httpGet(`/api/enterprise/reports/pending?${new URLSearchParams(params).toString()}`);
+  return {
+    type: "left",
+    text: `${Math.ceil(remainingMinutes / 60)} giờ còn lại`,
+    tone: "orange",
+  };
+}
+
+function mapApiReportToRow(report) {
+  const reportId = String(report?.wasteReportId || "");
+  const wasteName = report?.wasteType?.name || "Không rõ";
+  const unitType = report?.wasteType?.unitType || "";
+  const rawWeight = Number(report?.weight);
+
+  return {
+    code: reportId ? `#${reportId}` : "#N/A",
+    ward: report?.citizen?.fullname || "Không rõ công dân",
+    district: report?.citizen?.phone || "Không có SĐT",
+    waste: unitType ? `${wasteName} (${unitType})` : wasteName,
+    wasteTone: getWasteTone(wasteName),
+    weightKg: Number.isFinite(rawWeight) ? rawWeight : 0,
+    sla: formatSla(report?.createdAt, report?.status),
+    actions: report?.status === "PENDING" ? ["contact", "reject"] : [],
+    createdAt: report?.createdAt || null,
+    status: report?.status || "PENDING",
+    raw: report,
+  };
+}
+
+function getWasteSubTypeName(wasteLabel) {
+  const match = /\(([^)]+)\)/.exec(String(wasteLabel || ""));
+  return match?.[1]?.trim() || String(wasteLabel || "").trim();
+}
+
+function buildFilters(allRows) {
+  const uniqueCitizenNames = [...new Set(allRows.map((row) => row.ward).filter(Boolean))];
+  const uniqueWasteTypes = [...new Set(allRows.map((row) => row.waste).filter(Boolean))];
+  const uniqueWasteSubTypes = [...new Set(allRows.map((row) => getWasteSubTypeName(row.waste)).filter(Boolean))];
+
+  return {
+    wards: ["Tất cả Quận", ...uniqueCitizenNames],
+    wasteTypes: ["Tất cả", ...uniqueWasteTypes],
+    wasteSubTypes: ["Tất cả", ...uniqueWasteSubTypes],
+    weights: DEFAULT_FILTERS.weights,
+    sorts: DEFAULT_FILTERS.sorts,
+  };
+}
+
+function applyClientFilters(rows, params = {}) {
+  const {
+    q = "",
+    ward = "Tất cả Quận",
+    wasteType = "Tất cả",
+    wasteSubType = "Tất cả",
+    weight = "Tất cả",
+    sort = "Hết hạn SLA",
+  } = params;
+
+  let nextRows = [...rows];
+
+  if (q.trim()) {
+    const search = normalizeText(q.trim());
+    nextRows = nextRows.filter((row) =>
+      [row.code, row.ward, row.district, row.waste].some((value) =>
+        normalizeText(value).includes(search)
+      )
+    );
+  }
+
+  if (ward !== "Tất cả Quận") {
+    nextRows = nextRows.filter((row) => row.ward === ward);
+  }
+
+  if (wasteType !== "Tất cả") {
+    nextRows = nextRows.filter((row) => normalizeText(row.waste).includes(normalizeText(wasteType)));
+  }
+
+  if (wasteSubType !== "Tất cả") {
+    nextRows = nextRows.filter((row) =>
+      normalizeText(getWasteSubTypeName(row.waste)).includes(normalizeText(wasteSubType))
+    );
+  }
+
+  if (weight !== "Tất cả") {
+    nextRows = nextRows.filter((row) => {
+      const w = row.weightKg;
+      if (weight === "< 20kg") return w < 20;
+      if (weight === "20kg") return w === 20;
+      if (weight === "20–50kg") return w >= 20 && w <= 50;
+      if (weight === "> 50kg") return w > 50;
+      if (weight === "> 20kg") return w > 20;
+      return true;
+    });
+  }
+
+  if (sort === "Khối lượng lớn") {
+    nextRows.sort((a, b) => b.weightKg - a.weightKg);
+  } else if (sort === "Mới nhất") {
+    nextRows.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  } else {
+    const rank = (row) => {
+      if (row.sla.type === "expired") return 0;
+      if (row.sla.type === "left") return 1;
+      return 2;
+    };
+    nextRows.sort((a, b) => rank(a) - rank(b));
+  }
+
+  return nextRows;
+}
+
+export async function getPendingReports(params) {
+  const { page = 1, pageSize = 5 } = params || {};
+  const parsedPage = Math.max(1, Number(page) || 1);
+  const parsedPageSize = Math.max(1, Number(pageSize) || 5);
+
+  const response = await request("/enterprise/reports", {
+    method: "GET",
+    params: {
+      status: "PENDING",
+      page: 1,
+      limit: MAX_PENDING_FETCH,
+    },
+    headers: getAuthHeaders(),
+  });
+
+  const apiRows = Array.isArray(response?.data) ? response.data : [];
+  const mappedRows = apiRows.map(mapApiReportToRow);
+  const filteredRows = applyClientFilters(mappedRows, params);
+
+  const total = filteredRows.length;
+  const start = (parsedPage - 1) * parsedPageSize;
+  const pageRows = filteredRows.slice(start, start + parsedPageSize);
+
+  return {
+    summary: { pending: total },
+    filters: buildFilters(mappedRows),
+    result: {
+      total,
+      page: parsedPage,
+      pageSize: parsedPageSize,
+      rows: pageRows,
+    },
+  };
 }
 
 export async function exportPendingReports(params) {
@@ -211,7 +214,16 @@ export async function exportPendingReports(params) {
     return { ok: true };
   }
 
-  return await httpGet(`/api/enterprise/reports/pending/export?${new URLSearchParams(params).toString()}`);
+  return await request("/enterprise/reports", {
+    method: "GET",
+    params: {
+      status: "PENDING",
+      page: 1,
+      limit: MAX_PENDING_FETCH,
+      ...params,
+    },
+    headers: getAuthHeaders(),
+  });
 }
 
 export async function updatePendingReportStatus(payload) {
@@ -222,5 +234,29 @@ export async function updatePendingReportStatus(payload) {
     return { ok: true };
   }
 
-  return await httpGet(`/api/enterprise/reports/pending/action?${new URLSearchParams(payload).toString()}`);
+  const action = String(payload?.action || "").toLowerCase();
+  const reportId = String(payload?.reportId || payload?.code || "").replace(/^#/, "");
+
+  if (!reportId) {
+    throw new Error("Thiếu reportId để cập nhật trạng thái báo cáo");
+  }
+
+  if (action === "accept") {
+    return await request(`/enterprise/reports/${reportId}/accept`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+    });
+  }
+
+  if (action === "reject") {
+    return await request(`/enterprise/reports/${reportId}/reject`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      data: {
+        reason: payload?.reason || "Từ chối từ danh sách chờ xử lý",
+      },
+    });
+  }
+
+  return { ok: true };
 }

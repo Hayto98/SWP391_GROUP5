@@ -13,3 +13,10 @@ export function loginUser(payload) {
     data: payload,
   });
 }
+
+export function verifyOtpUser(payload) {
+  return request("/api/auth/verify-otp", {
+    method: "POST",
+    data: payload,
+  });
+}

@@ -25,7 +25,7 @@ async function createReport({ citizenId, citizenUserAccountId, wasteTypeId, gpsL
 
   // ── 1. Validate wasteType (outside transaction — read-only) ────────
   const [wasteTypeRows] = await db.execute(
-    `SELECT waste_type_id FROM WasteType WHERE waste_type_id = ? AND is_active = 1 LIMIT 1`,
+    `SELECT waste_type_id FROM wastetype WHERE waste_type_id = ? AND is_active = 1 LIMIT 1`,
     [wasteTypeId]
   )
 
@@ -47,7 +47,7 @@ async function createReport({ citizenId, citizenUserAccountId, wasteTypeId, gpsL
     await connection.beginTransaction()
 
     await connection.execute(
-      `INSERT INTO WasteReport
+      `INSERT INTO wastereport
         (waste_report_id, citizen_id, waste_type_id, report_status_type_id,
          assigned_collector_id, gps_lat, gps_lng, description, weight, created_at)
        VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
@@ -55,7 +55,7 @@ async function createReport({ citizenId, citizenUserAccountId, wasteTypeId, gpsL
     )
 
     await connection.execute(
-      `INSERT INTO ReportStatusHistory
+      `INSERT INTO reportstatushistory
         (report_status_history_id, waste_report_id, report_status_type_id,
          changed_by_user_account_id, changed_at)
        VALUES (?, ?, ?, ?, ?)`,
@@ -81,7 +81,7 @@ async function createReport({ citizenId, citizenUserAccountId, wasteTypeId, gpsL
  */
 async function createReportAttachment({ reportAttachmentId, wasteReportId, fileUri, uploadedAt }) {
   await db.execute(
-    `INSERT INTO REPORTATTACHMENT
+    `INSERT INTO reportattachment
       (report_attachment_id, waste_report_id, file_uri, uploaded_at)
      VALUES (?, ?, ?, ?)`,
     [reportAttachmentId, wasteReportId, fileUri, uploadedAt]
@@ -130,18 +130,18 @@ async function findMyReports(citizenId, { fromDate, toDate, status, limit, offse
       
       (
         SELECT fb.feedback_text
-        FROM FEEDBACK fb
+        FROM feedback fb
         WHERE fb.waste_report_id = wr.waste_report_id
         ORDER BY fb.created_at DESC
         LIMIT 1
       ) AS reject_reason
       
-    FROM WASTEREPORT wr
-    JOIN CITIZEN c ON wr.citizen_id = c.citizen_id
-    JOIN USERACCOUNT ua_citizen ON c.user_account_id = ua_citizen.user_account_id
-    JOIN WASTETYPE wt ON wr.waste_type_id = wt.waste_type_id
-    JOIN REPORTSTATUSTYPE rst ON wr.report_status_type_id = rst.report_status_type_id
-    LEFT JOIN USERACCOUNT ua_collector ON wr.assigned_collector_id = ua_collector.user_account_id
+    FROM wastereport wr
+    JOIN citizen c ON wr.citizen_id = c.citizen_id
+    JOIN useraccount ua_citizen ON c.user_account_id = ua_citizen.user_account_id
+    JOIN wastetype wt ON wr.waste_type_id = wt.waste_type_id
+    JOIN reportstatustype rst ON wr.report_status_type_id = rst.report_status_type_id
+    LEFT JOIN useraccount ua_collector ON wr.assigned_collector_id = ua_collector.user_account_id
     
     WHERE wr.citizen_id = ?
   `
@@ -276,18 +276,18 @@ async function findReportById(reportId) {
       
       (
         SELECT fb.feedback_text
-        FROM FEEDBACK fb
+        FROM feedback fb
         WHERE fb.waste_report_id = wr.waste_report_id
         ORDER BY fb.created_at DESC
         LIMIT 1
       ) AS reject_reason
       
-    FROM WASTEREPORT wr
-    JOIN CITIZEN c ON wr.citizen_id = c.citizen_id
-    JOIN USERACCOUNT ua_citizen ON c.user_account_id = ua_citizen.user_account_id
-    JOIN WASTETYPE wt ON wr.waste_type_id = wt.waste_type_id
-    JOIN REPORTSTATUSTYPE rst ON wr.report_status_type_id = rst.report_status_type_id
-    LEFT JOIN USERACCOUNT ua_collector ON wr.assigned_collector_id = ua_collector.user_account_id
+    FROM wastereport wr
+    JOIN citizen c ON wr.citizen_id = c.citizen_id
+    JOIN useraccount ua_citizen ON c.user_account_id = ua_citizen.user_account_id
+    JOIN wastetype wt ON wr.waste_type_id = wt.waste_type_id
+    JOIN reportstatustype rst ON wr.report_status_type_id = rst.report_status_type_id
+    LEFT JOIN useraccount ua_collector ON wr.assigned_collector_id = ua_collector.user_account_id
     
     WHERE wr.waste_report_id = ?
   `
@@ -373,7 +373,7 @@ async function updateReportById(reportId, updateData) {
   // Nếu không có field nào cần update thì bypass
   if (fields.length === 0) return true
 
-  const query = `UPDATE WASTEREPORT SET ${fields.join(', ')} WHERE waste_report_id = ?`
+  const query = `UPDATE wastereport SET ${fields.join(', ')} WHERE waste_report_id = ?`
   values.push(reportId)
 
   const [result] = await db.execute(query, values)
@@ -390,13 +390,13 @@ async function deleteReportById(reportId) {
     await connection.beginTransaction()
 
     // 1. Xóa CollectedRecord (nếu có - do seed script lúc nãy có gắn)
-    await connection.execute('DELETE FROM COLLECTEDRECORD WHERE waste_report_id = ?', [reportId])
+    await connection.execute('DELETE FROM collectedrecord WHERE waste_report_id = ?', [reportId])
 
     // 2. Xóa ReportStatusHistory
-    await connection.execute('DELETE FROM REPORTSTATUSHISTORY WHERE waste_report_id = ?', [reportId])
+    await connection.execute('DELETE FROM reportstatushistory WHERE waste_report_id = ?', [reportId])
 
     // 4. Xóa bảng cha WasteReport
-    const [result] = await connection.execute('DELETE FROM WASTEREPORT WHERE waste_report_id = ?', [reportId])
+    const [result] = await connection.execute('DELETE FROM wastereport WHERE waste_report_id = ?', [reportId])
 
     await connection.commit()
     return result.affectedRows > 0
@@ -413,7 +413,7 @@ async function deleteReportById(reportId) {
  */
 async function findCitizenIdByUserAccountId(userAccountId) {
   if (!userAccountId) return null
-  const [rows] = await db.execute('SELECT citizen_id FROM CITIZEN WHERE user_account_id = ?', [userAccountId])
+  const [rows] = await db.execute('SELECT citizen_id FROM citizen WHERE user_account_id = ?', [userAccountId])
   return rows[0]?.citizen_id || null
 }
 
@@ -426,14 +426,14 @@ async function ensureCitizenIdByUserAccountId(userAccountId) {
   const createdAt = new Date()
 
   await db.execute(
-    `INSERT INTO CITIZEN (citizen_id, user_account_id, total_points, created_at)
+    `INSERT INTO citizen (citizen_id, user_account_id, total_points, created_at)
      SELECT ?, ua.user_account_id, 0, ?
-       FROM USERACCOUNT ua
+       FROM useraccount ua
       WHERE ua.user_account_id = ?
         AND ua.role_id = ?
         AND NOT EXISTS (
           SELECT 1
-            FROM CITIZEN c
+            FROM citizen c
            WHERE c.user_account_id = ua.user_account_id
         )`,
     [newCitizenId, createdAt, userAccountId, ROLES.CITIZEN]
@@ -480,18 +480,18 @@ async function findAllReports({ status, fromDate, toDate, limit, offset }) {
 
       (
         SELECT fb.feedback_text
-        FROM FEEDBACK fb
+        FROM feedback fb
         WHERE fb.waste_report_id = wr.waste_report_id
         ORDER BY fb.created_at DESC
         LIMIT 1
       ) AS reject_reason
 
-    FROM WASTEREPORT wr
-    JOIN CITIZEN c ON wr.citizen_id = c.citizen_id
-    JOIN USERACCOUNT ua_citizen ON c.user_account_id = ua_citizen.user_account_id
-    JOIN WASTETYPE wt ON wr.waste_type_id = wt.waste_type_id
-    JOIN REPORTSTATUSTYPE rst ON wr.report_status_type_id = rst.report_status_type_id
-    LEFT JOIN USERACCOUNT ua_collector ON wr.assigned_collector_id = ua_collector.user_account_id
+    FROM wastereport wr
+    JOIN citizen c ON wr.citizen_id = c.citizen_id
+    JOIN useraccount ua_citizen ON c.user_account_id = ua_citizen.user_account_id
+    JOIN wastetype wt ON wr.waste_type_id = wt.waste_type_id
+    JOIN reportstatustype rst ON wr.report_status_type_id = rst.report_status_type_id
+    LEFT JOIN useraccount ua_collector ON wr.assigned_collector_id = ua_collector.user_account_id
     WHERE 1=1
   `
 
