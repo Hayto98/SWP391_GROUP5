@@ -133,10 +133,26 @@ function mapReport(report) {
       ? Number(report.weightKg)
       : null;
 
+  const collectedRecord = report?.collectedRecord || null;
+
+  const collectorProfile =
+    report?.collector || report?.assignedCollector || null;
+
+  const collectorImages = Array.isArray(report?.collectorImages)
+    ? report.collectorImages
+    : [];
+
+  const fallbackCollectedImages = [
+    collectedRecord?.fileUri,
+    ...(Array.isArray(collectedRecord?.completionImages)
+      ? collectedRecord.completionImages
+      : []),
+  ].filter(Boolean);
+
   return {
-    id: report.wasteReportId,
+    id: report?.reportId || report?.wasteReportId,
     title: report?.wasteType?.name || "-",
-    unitType: report?.wasteType?.unitType || "-",
+    unitType: report?.unitType || report?.wasteType?.unitType || "-",
     date: report?.createdAt
       ? format(new Date(report.createdAt), "dd/MM/yyyy", { locale: vi })
       : "-",
@@ -150,16 +166,24 @@ function mapReport(report) {
       Number.isFinite(normalizedWeightKg) && normalizedWeightKg > 0
         ? normalizedWeightKg
         : null,
-    citizenImages: (report.attachments || []).map((item) => item.fileUri),
-    collectorImages: [],
-    collector: report.assignedCollector
+    citizenImages: Array.isArray(report?.images)
+      ? report.images.map((item) => item?.file_uri).filter(Boolean)
+      : (report.attachments || []).map((item) => item.fileUri),
+    collectorImages:
+      collectorImages.length > 0 ? collectorImages : fallbackCollectedImages,
+    collector: collectorProfile
       ? {
-          name: report.assignedCollector.fullname,
-          phone: report.assignedCollector.phone,
-          avatar: report.assignedCollector.avatar,
+          name: collectorProfile.fullname,
+          phone: collectorProfile.phone,
+          avatar: collectorProfile.avatar,
           estimatedTime: "Đang cập nhật",
         }
       : null,
+    collectedRecord,
+    actualQuantity:
+      report?.actualQuantity ?? collectedRecord?.actualQuantityValue ?? null,
+    reason: report?.reason || null,
+    status: rawStatus,
     wasteTypeDetail: null,
   };
 }
@@ -387,7 +411,9 @@ function ReportDetailPage() {
                   <div className="text-center">
                     <AlertCircle className="w-8 h-8 text-gray-400 mx-auto mb-2" />
                     <p className="text-sm text-muted-foreground">
-                      Đang chờ người thu gom
+                      {report.status === "COLLECTED"
+                        ? "Chưa có ảnh minh chứng"
+                        : "Đang chờ người thu gom"}
                     </p>
                   </div>
                 </div>
@@ -396,6 +422,66 @@ function ReportDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {report.status === "COLLECTED" && report.collectedRecord && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Kết quả thu gom</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="bg-gray-50 rounded-lg p-3 border">
+                <p className="text-xs text-muted-foreground">
+                  Khối lượng thực tế
+                </p>
+                <p className="font-medium">
+                  {report.collectedRecord.actualQuantityValue ??
+                    report.actualQuantity ??
+                    "-"}{" "}
+                  {report.collectedRecord.quantityUnit || report.unitType || ""}
+                </p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-3 border">
+                <p className="text-xs text-muted-foreground">
+                  Thời điểm ghi nhận
+                </p>
+                <p className="font-medium">
+                  {report.collectedRecord.recordedAt
+                    ? format(
+                        new Date(report.collectedRecord.recordedAt),
+                        "HH:mm dd/MM/yyyy",
+                        {
+                          locale: vi,
+                        },
+                      )
+                    : "-"}
+                </p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-3 border md:col-span-2">
+                <p className="text-xs text-muted-foreground">Ghi chú</p>
+                <p className="font-medium whitespace-pre-line wrap-break-word">
+                  {report.collectedRecord.note || "Không có ghi chú"}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {report.status === "REJECTED" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Lý do từ chối</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-sm text-red-700 whitespace-pre-line wrap-break-word">
+                {report.reason || "Không có lý do từ chối"}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {report.collector && (
         <Card>

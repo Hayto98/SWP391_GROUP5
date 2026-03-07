@@ -1,415 +1,438 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { Clock3, MapPin, Recycle, Scale, X } from "lucide-react";
-import { ALL_TASKS } from "./taskData";
+import { useEffect, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { Loader2, MapPin, Phone, Recycle, Scale } from "lucide-react";
+import {
+  acceptCollectorReport,
+  getCollectorReportById,
+  submitCollectorReportResult,
+} from "@/services/collectorReport.service";
+import { reverseGeocode } from "@/services/geocodingService";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
-const REJECT_REASON_OPTIONS = [
-	{
-		value: "personal",
-		label: "Vấn đề cá nhân",
-		hint: "Sức khỏe, phương tiện hoặc lịch trình cá nhân.",
-	},
-	{
-		value: "requester",
-		label: "Vấn đề từ người đặt",
-		hint: "Thông tin báo cáo thiếu, khó liên hệ hoặc vị trí chưa chính xác.",
-	},
-	{
-		value: "other",
-		label: "Khác",
-		hint: "Lý do khác không thuộc hai nhóm trên.",
-	},
-];
+function buildMapEmbedUrl(location) {
+  if (!location?.lat || !location?.lng) {
+    return "https://www.openstreetmap.org/export/embed.html";
+  }
 
-function parseSlaMinutes(slaText) {
-	const match = slaText?.match(/(\d+)/);
-	return match ? Number(match[1]) : 60;
+  const lat = Number(location.lat);
+  const lng = Number(location.lng);
+  const offset = 0.01;
+  const minLng = lng - offset;
+  const minLat = lat - offset;
+  const maxLng = lng + offset;
+  const maxLat = lat + offset;
+
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${minLng},${minLat},${maxLng},${maxLat}&layer=mapnik&marker=${lat},${lng}`;
 }
 
-function formatClock(secondsLeft) {
-	const total = Math.max(0, secondsLeft);
-	const hours = String(Math.floor(total / 3600)).padStart(2, "0");
-	const minutes = String(Math.floor((total % 3600) / 60)).padStart(2, "0");
-	const seconds = String(total % 60).padStart(2, "0");
-	return { hours, minutes, seconds };
+function getStatusStyle(status) {
+  if (status === "IN_PROGRESS") {
+    return "bg-blue-50 text-blue-700 border-blue-200";
+  }
+  if (status === "ASSIGNED") {
+    return "bg-orange-50 text-orange-700 border-orange-200";
+  }
+  if (status === "COLLECTED") {
+    return "bg-green-50 text-green-700 border-green-200";
+  }
+  return "bg-gray-50 text-gray-700 border-gray-200";
+}
+
+function mapApiData(apiData) {
+  const lat = Number(apiData?.location?.lat);
+  const lng = Number(apiData?.location?.lng);
+
+  return {
+    reportId: apiData?.reportId || "",
+    citizen: {
+      fullname: apiData?.citizen?.fullname || "-",
+      phone: apiData?.citizen?.phone || "-",
+    },
+    wasteType: {
+      id: apiData?.wasteType?.id ?? null,
+      name: apiData?.wasteType?.name || "-",
+    },
+    weight: apiData?.weight ?? null,
+    actualQuantity: apiData?.actualQuantity ?? null,
+    unitType: apiData?.unitType || "KG",
+    location:
+      Number.isFinite(lat) && Number.isFinite(lng)
+        ? {
+            lat,
+            lng,
+          }
+        : null,
+    images: Array.isArray(apiData?.images) ? apiData.images : [],
+    status: apiData?.status || "ASSIGNED",
+    areaName: "Không rõ vị trí",
+  };
 }
 
 function TaskDetail() {
-	const navigate = useNavigate();
-	const { taskId } = useParams();
-	const { state } = useLocation();
+  const navigate = useNavigate();
+  const { taskId } = useParams();
 
-	const task = useMemo(() => {
-		if (state?.task) {
-			return state.task;
-		}
+  const [task, setTask] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [accepting, setAccepting] = useState(false);
+  const [successDialogOpen, setSuccessDialogOpen] = useState(false);
+  const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
+  const [submitSaving, setSubmitSaving] = useState(false);
+  const [actualQuantity, setActualQuantity] = useState("");
+  const [quantityUnit, setQuantityUnit] = useState("KG");
+  const [note, setNote] = useState("");
+  const [resultFile, setResultFile] = useState(null);
 
-		return ALL_TASKS.find((item) => item.id.replace("#", "") === taskId) || null;
-	}, [state, taskId]);
+  useEffect(() => {
+    const fetchDetail = async () => {
+      setLoading(true);
+      try {
+        const response = await getCollectorReportById(taskId);
+        const mapped = mapApiData(response?.data || {});
 
-	const [status, setStatus] = useState("Đang chờ xử lý");
-	const [rejectOpen, setRejectOpen] = useState(false);
-	const [warningOpen, setWarningOpen] = useState(false);
-	const [rejectReason, setRejectReason] = useState("");
-	const [rejectNote, setRejectNote] = useState("");
-	const [rejectSummary, setRejectSummary] = useState("");
-	const [remainingSeconds, setRemainingSeconds] = useState(() =>
-		parseSlaMinutes(task?.sla) * 60
-	);
+        if (mapped.location?.lat && mapped.location?.lng) {
+          mapped.areaName = await reverseGeocode(
+            mapped.location.lat,
+            mapped.location.lng,
+          );
+        }
 
-	useEffect(() => {
-		setRemainingSeconds(parseSlaMinutes(task?.sla) * 60);
-	}, [task]);
+        setTask(mapped);
+      } catch (error) {
+        toast.error(error.message || "Không thể tải chi tiết nhiệm vụ");
+        setTask(null);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-	useEffect(() => {
-		const timer = setInterval(() => {
-			setRemainingSeconds((prev) => Math.max(0, prev - 1));
-		}, 1000);
+    fetchDetail();
+  }, [taskId]);
 
-		return () => clearInterval(timer);
-	}, []);
+  const handleAcceptTask = async () => {
+    if (!task || accepting) {
+      return;
+    }
 
-	if (!task) {
-		return (
-			<div className="bg-gray-50 min-h-screen font-sans p-6">
-				<div className="max-w-5xl mx-auto bg-white rounded-2xl border border-gray-100 p-8 text-center">
-					<p className="text-gray-500 mb-4">Không tìm thấy nhiệm vụ.</p>
-					<button
-						onClick={() => navigate("/collector/tasks")}
-						className="px-4 py-2 rounded-lg bg-green-500 text-white font-semibold"
-					>
-						Quay lại danh sách
-					</button>
-				</div>
-			</div>
-		);
-	}
+    if (task.status === "IN_PROGRESS") {
+      setActualQuantity(task.actualQuantity ?? "");
+      setQuantityUnit(task.unitType || "KG");
+      setNote("");
+      setResultFile(null);
+      setSubmitDialogOpen(true);
+      return;
+    }
 
-	const clock = formatClock(remainingSeconds);
-	const selectedRejectReason = REJECT_REASON_OPTIONS.find((item) => item.value === rejectReason);
-	const canConfirmReject = rejectReason !== "" && rejectNote.trim().length > 0;
-	const isFinalized = status === "Đã từ chối" || status === "Đã nhận nhiệm vụ";
+    if (task.status !== "ASSIGNED") {
+      toast.warning("Nhiệm vụ này không thể nhận thêm.");
+      return;
+    }
 
-	const statusStyle =
-		status === "Đã từ chối"
-			? "bg-red-50 text-red-700 border-red-100"
-			: status === "Đã nhận nhiệm vụ"
-				? "bg-blue-50 text-blue-700 border-blue-100"
-				: "bg-green-50 text-green-700 border-green-100";
+    setAccepting(true);
+    try {
+      await acceptCollectorReport(task.reportId);
+      setTask((prev) => ({
+        ...prev,
+        status: "IN_PROGRESS",
+      }));
+      setSuccessDialogOpen(true);
+    } catch (error) {
+      toast.error(error.message || "Nhận nhiệm vụ thất bại");
+    } finally {
+      setAccepting(false);
+    }
+  };
 
-	const handleOpenReject = () => {
-		if (isFinalized) {
-			return;
-		}
+  const handleSubmitResult = async () => {
+    if (!task || submitSaving) {
+      return;
+    }
 
-		setRejectOpen(true);
-		setRejectReason("");
-		setRejectNote("");
-	};
+    const quantity = Number(actualQuantity);
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      toast.warning("Vui lòng nhập khối lượng thực tế hợp lệ");
+      return;
+    }
 
-	const toRouteTaskId = (id) => id.replace("#", "");
+    setSubmitSaving(true);
+    try {
+      const response = await submitCollectorReportResult(task.reportId, {
+        actualQuantity: quantity,
+        quantityUnit,
+        note,
+        file: resultFile,
+      });
 
-	const handleConfirmReject = () => {
-		if (!canConfirmReject) {
-			return;
-		}
+      const submittedQuantity = response?.data?.actualQuantity ?? quantity;
 
-		setRejectOpen(false);
-		setWarningOpen(true);
-	};
+      setTask((prev) => ({
+        ...prev,
+        actualQuantity: submittedQuantity,
+      }));
+      setSubmitDialogOpen(false);
+      toast.success("Cập nhật kết quả thu gom thành công");
+    } catch (error) {
+      toast.error(error.message || "Cập nhật kết quả thu gom thất bại");
+    } finally {
+      setSubmitSaving(false);
+    }
+  };
 
-	const handleFinalReject = () => {
+  if (loading) {
+    return (
+      <div className="bg-gray-50 min-h-screen font-sans p-6">
+        <div className="max-w-6xl mx-auto bg-white rounded-2xl border border-gray-100 p-8 text-center">
+          <div className="inline-flex items-center gap-2 text-gray-500">
+            <Loader2 className="size-4 animate-spin" />
+            Đang tải chi tiết nhiệm vụ...
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-		setStatus("Đã từ chối");
-		setRejectSummary(`${selectedRejectReason?.label}: ${rejectNote.trim()}`);
-		setWarningOpen(false);
-		navigate("/collector/tasks");
-	};
+  if (!task) {
+    return (
+      <div className="bg-gray-50 min-h-screen font-sans p-6">
+        <div className="max-w-6xl mx-auto bg-white rounded-2xl border border-gray-100 p-8 text-center">
+          <p className="text-gray-500 mb-4">Không tìm thấy nhiệm vụ.</p>
+          <button
+            onClick={() => navigate("/collector/tasks")}
+            className="px-4 py-2 rounded-lg bg-green-500 text-white font-semibold"
+          >
+            Quay lại danh sách
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-	return (
-		<div className="bg-gray-50 min-h-screen font-sans pb-8">
-			<main className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8">
-				<div className="flex items-center justify-between mb-3">
-					<div className="text-sm">
-						<Link to="/collector/tasks" className="text-green-500 font-medium">
-							Nhiệm vụ
-						</Link>
-						<span className="text-gray-400"> / </span>
-						<span className="text-gray-500">Chi tiết nhiệm vụ</span>
-					</div>
-					<span className={`px-3 py-1.5 rounded-xl text-sm border font-medium ${statusStyle}`}>
-						{status}
-					</span>
-				</div>
+  return (
+    <div className="bg-gray-50 min-h-screen font-sans pb-8">
+      <main className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8">
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-sm">
+            <Link to="/collector/tasks" className="text-green-500 font-medium">
+              Nhiệm vụ
+            </Link>
+            <span className="text-gray-400"> / </span>
+            <span className="text-gray-500">Chi tiết nhiệm vụ</span>
+          </div>
+          <span
+            className={`px-3 py-1.5 rounded-xl text-sm border font-medium ${getStatusStyle(task.status)}`}
+          >
+            {task.status}
+          </span>
+        </div>
 
-				<h1 className="text-3xl font-bold text-gray-900">Nhiệm vụ #{task.id.replace("#", "WST-")}</h1>
-				<p className="text-green-600 text-sm mt-1 mb-6">Báo cáo thu gom rác thải từ người dân</p>
+        <h1 className="text-3xl font-bold text-gray-900">
+          Nhiệm vụ #{task.reportId}
+        </h1>
+        <p className="text-green-600 text-sm mt-1 mb-6">
+          Báo cáo thu gom rác thải từ người dân
+        </p>
 
-				<div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-					<div className="lg:col-span-2 space-y-4">
-						<div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
-							<div className="flex items-center justify-between mb-3">
-								<div className="flex items-center gap-2 text-gray-800 font-semibold">
-									<MapPin className="w-4 h-4 text-green-500" />
-									Vị trí thu gom
-								</div>
-								<span className="text-sm text-gray-500">{task.district}, TP. Hồ Chí Minh</span>
-							</div>
-							<div className="h-64 rounded-xl overflow-hidden border border-gray-100">
-								<iframe
-									title="Vị trí nhiệm vụ"
-									className="w-full h-full border-0"
-									src="https://www.openstreetmap.org/export/embed.html?bbox=106.68,10.76,106.73,10.80&layer=mapnik&marker=10.7769,106.7009"
-									loading="lazy"
-								/>
-							</div>
-						</div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div className="lg:col-span-2 space-y-4">
+            <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2 text-gray-800 font-semibold">
+                  <MapPin className="w-4 h-4 text-green-500" />
+                  Vị trí thu gom
+                </div>
+                <span className="text-sm text-gray-500 truncate max-w-105">
+                  {task.areaName}
+                </span>
+              </div>
+              <div className="h-64 rounded-xl overflow-hidden border border-gray-100">
+                <iframe
+                  title="Vị trí nhiệm vụ"
+                  className="w-full h-full border-0"
+                  src={buildMapEmbedUrl(task.location)}
+                  loading="lazy"
+                />
+              </div>
+            </div>
 
-						<div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
-							<div className="flex items-center gap-2 text-gray-800 font-semibold mb-3">
-								<Recycle className="w-4 h-4 text-green-500" />
-								Hình ảnh hiện trường (Từ người dân)
-							</div>
-							<div className="grid grid-cols-2 gap-3">
-								<img
-									className="w-full h-56 object-cover rounded-xl"
-									src="https://images.unsplash.com/photo-1621451537084-482c73073a0f?auto=format&fit=crop&w=900&q=80"
-									alt="Rac nhua"
-								/>
-								<img
-									className="w-full h-56 object-cover rounded-xl"
-									src="https://images.unsplash.com/photo-1605600659873-d808a13e4d2a?auto=format&fit=crop&w=900&q=80"
-									alt="Rac giay"
-								/>
-							</div>
-						</div>
-					</div>
+            <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+              <div className="flex items-center gap-2 text-gray-800 font-semibold mb-3">
+                <Recycle className="w-4 h-4 text-green-500" />
+                Hình ảnh hiện trường (Từ người dân)
+              </div>
 
-					<div className="space-y-4">
-						<div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
-							<div className="flex items-center gap-2 text-gray-500 text-xs font-semibold tracking-[0.12em] uppercase mb-3">
-								<Clock3 className="w-4 h-4" />
-								Thời gian phản hồi còn lại
-							</div>
-							<div className="grid grid-cols-3 gap-2 text-center">
-								<TimeBox value={clock.hours} label="Giờ" />
-								<TimeBox value={clock.minutes} label="Phút" />
-								<TimeBox value={clock.seconds} label="Giây" highlight />
-							</div>
-						</div>
+              {task.images.length > 0 ? (
+                <div className="grid grid-cols-2 gap-3">
+                  {task.images.map((image, index) => (
+                    <img
+                      key={`${image.file_uri}-${index}`}
+                      className="w-full h-56 object-cover rounded-xl"
+                      src={image.file_uri}
+                      alt={`Hình hiện trường ${index + 1}`}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="h-40 rounded-xl border border-dashed border-gray-200 flex items-center justify-center text-sm text-gray-500">
+                  Chưa có ảnh hiện trường
+                </div>
+              )}
+            </div>
+          </div>
 
-						<div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm space-y-3">
-							<InfoRow label="Loại rác thải" value={task.wasteType} />
-							<InfoRow label="Khối lượng ước tính" value="~15.5 kg" icon={<Scale className="w-4 h-4 text-green-500" />} />
-							<InfoRow label="Địa chỉ chi tiết" value="123 Đường Lê Lợi, Phường Bến Thành, Quận 1, TP.HCM" />
-							<div className="grid grid-cols-2 gap-3">
-								<InfoRow label="Thời gian tạo" value="Hôm nay, 14:20" />
-								<InfoRow label="Người báo cáo" value="Nguyễn Văn A" />
-							</div>
-							<blockquote className="bg-gray-50 border-l-2 border-green-400 rounded-r-lg px-3 py-2 text-sm italic text-gray-500">
-								"Rác đã được phân loại sẵn trong 3 túi lớn, để ngay trước cửa hàng."
-							</blockquote>
-						</div>
+          <div className="space-y-4">
+            <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm space-y-3">
+              <InfoRow label="Mã báo cáo" value={task.reportId} />
+              <InfoRow label="Trạng thái" value={task.status} />
+              <InfoRow
+                label="Loại rác"
+                value={`${task.wasteType.name} (ID: ${task.wasteType.id ?? "-"})`}
+              />
+              <InfoRow
+                label="Khối lượng ước tính"
+                value={`${task.weight ?? "-"} ${task.unitType || ""}`}
+                icon={<Scale className="w-4 h-4 text-green-500" />}
+              />
+              <InfoRow
+                label="Khối lượng thực tế"
+                value={`${task.actualQuantity ?? "-"} ${task.unitType || ""}`}
+                icon={<Scale className="w-4 h-4 text-blue-500" />}
+              />
+              <InfoRow label="Người báo cáo" value={task.citizen.fullname} />
+              <InfoRow
+                label="Số điện thoại"
+                value={task.citizen.phone}
+                icon={<Phone className="w-4 h-4 text-emerald-500" />}
+              />
+              <InfoRow label="Địa chỉ" value={task.areaName} />
+              <InfoRow
+                label="Tọa độ"
+                value={
+                  task.location
+                    ? `${task.location.lat}, ${task.location.lng}`
+                    : "-"
+                }
+              />
+            </div>
 
-						<div className="pt-2 flex gap-3">
-							<button
-								onClick={handleOpenReject}
-								disabled={isFinalized}
-								className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 font-semibold hover:bg-gray-200 transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-							>
-								<X className="w-4 h-4" />
-								Từ chối
-							</button>
-							<button
-								onClick={() =>
-									navigate(`/collector/tasks/${toRouteTaskId(task.id)}/accept`, {
-										state: { task },
-									})
-								}
-								disabled={isFinalized}
-								className="flex-1 rounded-xl bg-green-500 text-white py-3 font-semibold hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-							>
-								Nhận nhiệm vụ
-							</button>
-						</div>
+            <button
+              onClick={handleAcceptTask}
+              disabled={accepting || task.status === "COLLECTED"}
+              className="w-full rounded-xl bg-green-500 text-white py-3 font-semibold hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {accepting
+                ? "Đang nhận..."
+                : task.status === "IN_PROGRESS"
+                  ? "Cập nhật kết quả thu gom"
+                  : "Nhận nhiệm vụ"}
+            </button>
+          </div>
+        </div>
+      </main>
 
-						{rejectSummary && (
-							<div className="rounded-xl bg-red-50 border border-red-100 px-3 py-2 text-xs text-red-700">
-								Lý do từ chối: {rejectSummary}
-							</div>
-						)}
-					</div>
-				</div>
-			</main>
+      <Dialog open={successDialogOpen} onOpenChange={setSuccessDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nhận nhiệm vụ thành công</DialogTitle>
+            <DialogDescription>
+              Nhiệm vụ đã chuyển sang trạng thái IN_PROGRESS. Bạn có thể bắt đầu
+              cập nhật kết quả thu gom.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setSuccessDialogOpen(false)}>Đóng</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-			<RejectReasonModal
-				open={rejectOpen}
-				reason={rejectReason}
-				note={rejectNote}
-				onClose={() => setRejectOpen(false)}
-				onReasonChange={setRejectReason}
-				onNoteChange={setRejectNote}
-				onConfirm={handleConfirmReject}
-				canConfirm={canConfirmReject}
-			/>
+      <Dialog open={submitDialogOpen} onOpenChange={setSubmitDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Cập nhật kết quả thu gom</DialogTitle>
+            <DialogDescription>Nhập thông tin thực tế .</DialogDescription>
+          </DialogHeader>
 
-			<RejectWarningModal
-				open={warningOpen}
-				onBack={() => {
-					setWarningOpen(false);
-					setRejectOpen(true);
-				}}
-				onConfirm={handleFinalReject}
-			/>
-		</div>
-	);
-}
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm font-medium mb-1">Khối lượng thực tế</p>
+              <Input
+                type="number"
+                min="0"
+                step="0.1"
+                value={actualQuantity}
+                onChange={(e) => setActualQuantity(e.target.value)}
+                placeholder="Ví dụ: 4"
+              />
+            </div>
 
-function RejectWarningModal({ open, onBack, onConfirm }) {
-	if (!open) {
-		return null;
-	}
+            <div>
+              <p className="text-sm font-medium mb-1">Đơn vị</p>
+              <Input
+                value={quantityUnit}
+                onChange={(e) => setQuantityUnit(e.target.value.toUpperCase())}
+                placeholder="KG"
+              />
+            </div>
 
-	return (
-		<div className="fixed inset-0 z-60 flex items-center justify-center p-4">
-			<div className="absolute inset-0 bg-black/40" onClick={onBack} />
-			<div className="relative w-full max-w-md rounded-2xl bg-white border border-red-100 shadow-2xl p-5">
-				<h3 className="text-lg font-bold text-gray-900">Xác nhận từ chối nhiệm vụ</h3>
-				<p className="text-sm text-gray-600 mt-2 leading-relaxed">
-					<span className="font-semibold text-red-600">Lưu ý:</span> Nếu từ chối liên tục 3 lần sẽ bị khóa tài khoản trong vòng 24 giờ.
-				</p>
+            <div>
+              <p className="text-sm font-medium mb-1">Ghi chú</p>
+              <Textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Ví dụ: đầy đủ"
+                rows={3}
+              />
+            </div>
 
-				<div className="mt-5 flex items-center justify-end gap-2">
-					<button
-						onClick={onBack}
-						className="px-4 py-2.5 rounded-lg bg-gray-100 text-gray-700 font-medium hover:bg-gray-200"
-					>
-						Quay lại
-					</button>
-					<button
-						onClick={onConfirm}
-						className="px-4 py-2.5 rounded-lg bg-red-500 text-white font-semibold hover:bg-red-600"
-					>
-						Xác nhận hủy
-					</button>
-				</div>
-			</div>
-		</div>
-	);
-}
+            <div>
+              <p className="text-sm font-medium mb-1">Ảnh minh chứng</p>
+              <Input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setResultFile(e.target.files?.[0] || null)}
+              />
+            </div>
+          </div>
 
-function RejectReasonModal({
-	open,
-	reason,
-	note,
-	onClose,
-	onReasonChange,
-	onNoteChange,
-	onConfirm,
-	canConfirm,
-}) {
-	if (!open) {
-		return null;
-	}
-
-	return (
-		<div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-			<div className="absolute inset-0 bg-black/35" onClick={onClose} />
-			<div className="relative w-full max-w-lg rounded-2xl bg-white border border-gray-100 shadow-2xl p-5">
-				<div className="flex items-center justify-between mb-4">
-					<h3 className="text-lg font-bold text-gray-900">Lý do từ chối</h3>
-					<button
-						onClick={onClose}
-						className="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-500"
-					>
-						<X className="w-4 h-4 mx-auto" />
-					</button>
-				</div>
-
-				<div className="space-y-2">
-					{REJECT_REASON_OPTIONS.map((item) => {
-						const active = reason === item.value;
-
-						return (
-							<label
-								key={item.value}
-								className={`flex items-start gap-3 rounded-xl border p-3 cursor-pointer transition-colors ${
-									active
-										? "bg-green-50 border-green-200"
-										: "bg-white border-gray-200 hover:bg-gray-50"
-								}`}
-							>
-								<input
-									type="radio"
-									name="rejectReason"
-									value={item.value}
-									checked={active}
-									onChange={(e) => onReasonChange(e.target.value)}
-									className="mt-1 h-4 w-4 accent-green-600"
-								/>
-								<div>
-									<p className="text-sm font-semibold text-gray-800">{item.label}</p>
-									<p className="text-xs text-gray-500 mt-0.5">{item.hint}</p>
-								</div>
-							</label>
-						);
-					})}
-				</div>
-
-				{reason && (
-					<div className="mt-4">
-						<label className="block text-sm font-medium text-gray-700 mb-1.5">
-							Ghi chú chi tiết
-						</label>
-						<textarea
-							value={note}
-							onChange={(e) => onNoteChange(e.target.value)}
-							rows={4}
-							placeholder="Nhập nội dung ghi chú để xác nhận từ chối..."
-							className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
-						/>
-					</div>
-				)}
-
-				<div className="mt-5 flex items-center justify-end gap-2">
-					<button
-						onClick={onClose}
-						className="px-4 py-2.5 rounded-lg bg-gray-100 text-gray-700 font-medium hover:bg-gray-200"
-					>
-						Hủy
-					</button>
-					<button
-						onClick={onConfirm}
-						disabled={!canConfirm}
-						className="px-4 py-2.5 rounded-lg bg-red-500 text-white font-semibold hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed"
-					>
-						Xác nhận từ chối
-					</button>
-				</div>
-			</div>
-		</div>
-	);
-}
-
-function TimeBox({ value, label, highlight }) {
-	return (
-		<div className={`rounded-xl py-3 ${highlight ? "bg-green-100" : "bg-gray-100"}`}>
-			<p className={`text-3xl font-bold ${highlight ? "text-green-600" : "text-gray-900"}`}>{value}</p>
-			<p className="text-xs text-gray-500 mt-1 uppercase">{label}</p>
-		</div>
-	);
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setSubmitDialogOpen(false)}
+            >
+              Hủy
+            </Button>
+            <Button onClick={handleSubmitResult} disabled={submitSaving}>
+              {submitSaving ? "Đang gửi..." : "Xác nhận gửi"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 }
 
 function InfoRow({ label, value, icon }) {
-	return (
-		<div>
-			<p className="text-xs text-gray-500 uppercase tracking-wide mb-1">{label}</p>
-			<p className="text-sm text-gray-800 font-semibold inline-flex items-center gap-2">
-				{icon}
-				{value}
-			</p>
-		</div>
-	);
+  return (
+    <div>
+      <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">
+        {label}
+      </p>
+      <p className="text-sm text-gray-800 font-semibold inline-flex items-center gap-2 wrap-break-word">
+        {icon}
+        {value}
+      </p>
+    </div>
+  );
 }
 
 export default TaskDetail;
