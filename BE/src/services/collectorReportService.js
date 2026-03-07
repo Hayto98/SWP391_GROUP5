@@ -25,7 +25,8 @@ function uploadBufferToCloudinary(buffer) {
  *
  * Business rules:
  *   - User must not be locked (is_locked = true → 403)
- *   - Only returns reports with status = 'ASSIGNED' and assigned_collector_id = currentUserId
+ *   - Returns reports with status in ('ASSIGNED', 'IN_PROGRESS', 'COLLECTED')
+ *     and assigned_collector_id = currentUserId
  *   - Supports optional filter: wasteTypeId (exact)
  *   - Supports pagination: page (default 1), limit (default 10)
  *
@@ -150,6 +151,12 @@ async function getReportById(userId, reportId) {
         phone: report.citizenPhone
       },
 
+      collector: {
+        userAccountId: report.assigned_collector_id,
+        fullname: report.collectorFullname ?? null,
+        phone: report.collectorPhone ?? null
+      },
+
       wasteType: {
         id: report.wasteTypeId,
         name: report.wasteTypeName
@@ -159,7 +166,7 @@ async function getReportById(userId, reportId) {
 
       actualQuantity: collectedRecord ? Number(collectedRecord.actual_quantity_value) : null,
 
-      unitType: report.unitType ?? null,
+      unitType: collectedRecord?.quantity_unit ?? report.unitType ?? null,
 
       location: {
         lat: report.lat !== null ? Number(report.lat) : null,
@@ -167,6 +174,24 @@ async function getReportById(userId, reportId) {
       },
 
       images,
+
+      collectorImages: collectedRecord
+        ? [collectedRecord.file_uri, ...(collectedRecord.completion_images || [])].filter(Boolean)
+        : [],
+
+      collectedRecord: collectedRecord
+        ? {
+            collectedRecordId: collectedRecord.collected_record_id,
+            wasteReportId: collectedRecord.waste_report_id,
+            collectorUserAccountId: collectedRecord.collector_user_account_id,
+            actualQuantityValue: Number(collectedRecord.actual_quantity_value),
+            quantityUnit: collectedRecord.quantity_unit,
+            recordedAt: collectedRecord.recorded_at,
+            fileUri: collectedRecord.file_uri,
+            note: collectedRecord.note,
+            completionImages: collectedRecord.completion_images || []
+          }
+        : null,
 
       status: report.status
     }

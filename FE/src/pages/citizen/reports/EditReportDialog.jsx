@@ -130,7 +130,7 @@ function EditReportDialog({
           <div className="space-y-2">
             <Label htmlFor="waste-type">Loại rác</Label>
             <Select value={wasteTypeId} onValueChange={setWasteTypeId}>
-              <SelectTrigger id="waste-type">
+              <SelectTrigger className="min-w-full" id="waste-type">
                 <SelectValue placeholder="Chọn loại rác" />
               </SelectTrigger>
               <SelectContent>

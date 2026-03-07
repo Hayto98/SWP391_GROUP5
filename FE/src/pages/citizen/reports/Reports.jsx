@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,7 +29,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import ReportDetailDialog from "./ReportDetailDialog";
 import {
   getMyReports,
   getReportById,
@@ -41,80 +41,124 @@ import { getWasteTypeById, getWasteTypes } from "@/services/wasteService";
 import EditReportDialog from "./EditReportDialog";
 
 const progressTemplate = {
-  OPEN: [
-    { step: "Reported", label: "Reported", completed: true },
+  PENDING: [
+    { step: "reported", label: "Đã gửi báo cáo", completed: true },
     {
-      step: "Enterprise Accepted",
-      label: "Enterprise Accepted",
+      step: "accepted",
+      label: "Doanh nghiệp tiếp nhận",
       completed: false,
     },
     {
-      step: "Collector Assigned",
-      label: "Collector Assigned",
+      step: "assigned",
+      label: "Phân công người thu gom",
       completed: false,
     },
-    { step: "Collected", label: "Collected", completed: false },
+    { step: "collected", label: "Đã thu gom", completed: false },
+  ],
+  ACCEPTED: [
+    { step: "reported", label: "Đã gửi báo cáo", completed: true },
+    {
+      step: "accepted",
+      label: "Doanh nghiệp tiếp nhận",
+      completed: true,
+    },
+    {
+      step: "assigned",
+      label: "Phân công người thu gom",
+      completed: false,
+    },
+    { step: "collected", label: "Đã thu gom", completed: false },
   ],
   ASSIGNED: [
-    { step: "Reported", label: "Reported", completed: true },
+    { step: "reported", label: "Đã gửi báo cáo", completed: true },
     {
-      step: "Enterprise Accepted",
-      label: "Enterprise Accepted",
+      step: "accepted",
+      label: "Doanh nghiệp tiếp nhận",
       completed: true,
     },
     {
-      step: "Collector Assigned",
-      label: "Collector Assigned",
+      step: "assigned",
+      label: "Phân công người thu gom",
       completed: true,
     },
-    { step: "Collected", label: "Collected", completed: false },
+    { step: "collected", label: "Đã thu gom", completed: false },
   ],
   IN_PROGRESS: [
-    { step: "Reported", label: "Reported", completed: true },
+    { step: "reported", label: "Đã gửi báo cáo", completed: true },
     {
-      step: "Enterprise Accepted",
-      label: "Enterprise Accepted",
+      step: "accepted",
+      label: "Doanh nghiệp tiếp nhận",
       completed: true,
     },
     {
-      step: "Collector Assigned",
-      label: "Collector Assigned",
+      step: "assigned",
+      label: "Phân công người thu gom",
       completed: true,
     },
-    { step: "Collected", label: "Collected", completed: false },
+    { step: "collected", label: "Đã thu gom", completed: false },
   ],
   COLLECTED: [
-    { step: "Reported", label: "Reported", completed: true },
+    { step: "reported", label: "Đã gửi báo cáo", completed: true },
     {
-      step: "Enterprise Accepted",
-      label: "Enterprise Accepted",
+      step: "accepted",
+      label: "Doanh nghiệp tiếp nhận",
       completed: true,
     },
     {
-      step: "Collector Assigned",
-      label: "Collector Assigned",
+      step: "assigned",
+      label: "Phân công người thu gom",
       completed: true,
     },
-    { step: "Collected", label: "Collected", completed: true },
+    { step: "collected", label: "Đã thu gom", completed: true },
+  ],
+  REJECTED: [
+    { step: "reported", label: "Đã gửi báo cáo", completed: true },
+    {
+      step: "accepted",
+      label: "Doanh nghiệp tiếp nhận",
+      completed: false,
+    },
+    {
+      step: "assigned",
+      label: "Phân công người thu gom",
+      completed: false,
+    },
+    { step: "collected", label: "Đã thu gom", completed: false },
+    { step: "rejected", label: "Báo cáo bị từ chối", completed: true },
   ],
 };
 
+// Keep compatibility in case backend still returns OPEN for old records.
+progressTemplate.OPEN = progressTemplate.PENDING;
+
 function normalizeStatus(status) {
   if (status === "COLLECTED") return "completed";
-  if (status === "ASSIGNED" || status === "IN_PROGRESS") return "processing";
+  if (status === "REJECTED") return "rejected";
+  if (
+    status === "ACCEPTED" ||
+    status === "ASSIGNED" ||
+    status === "IN_PROGRESS"
+  )
+    return "processing";
   return "pending";
 }
 
 function statusTextFromApi(status) {
   if (status === "COLLECTED") return "ĐÃ THU GOM";
-  if (status === "ASSIGNED" || status === "IN_PROGRESS") return "ĐANG XỬ LÝ";
+  if (status === "REJECTED") return "ĐÃ TỪ CHỐI";
+  if (
+    status === "ACCEPTED" ||
+    status === "ASSIGNED" ||
+    status === "IN_PROGRESS"
+  )
+    return "ĐANG XỬ LÝ";
   return "CHỜ DUYỆT";
 }
 
 function mapReport(report) {
   const lat = Number(report?.location?.lat || 0);
   const lng = Number(report?.location?.lng || 0);
-  const rawStatus = report?.status || "OPEN";
+  const rawStatus = report?.status || "PENDING";
   const normalizedWeightKg =
     report?.weightKg !== undefined && report?.weightKg !== null
       ? Number(report.weightKg)
@@ -134,7 +178,7 @@ function mapReport(report) {
     longitude: lng,
     status: normalizeStatus(rawStatus),
     statusText: statusTextFromApi(rawStatus),
-    progress: progressTemplate[rawStatus] || progressTemplate.OPEN,
+    progress: progressTemplate[rawStatus] || progressTemplate.PENDING,
     trashTypes: [],
     totalPoints: 0,
     description: report?.description || "",
@@ -166,11 +210,9 @@ async function mapReportWithLocation(report) {
 }
 
 function Reports() {
+  const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState();
-  const [selectedReport, setSelectedReport] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [detailLoading, setDetailLoading] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editTargetReport, setEditTargetReport] = useState(null);
   const [editSaving, setEditSaving] = useState(false);
@@ -210,39 +252,16 @@ function Reports() {
     fetchWasteTypeOptions();
   }, []);
 
-  const handleViewReport = async (report) => {
-    setSelectedReport(report);
-    setIsModalOpen(true);
-
-    setDetailLoading(true);
-    try {
-      const response = await getReportById(report.id);
-      const detailData = response?.data || {};
-      const detailedReport = await mapReportWithLocation(detailData);
-
-      if (detailData?.wasteType?.id) {
-        try {
-          const wasteTypeResponse = await getWasteTypeById(
-            detailData.wasteType.id,
-          );
-          detailedReport.wasteTypeDetail = wasteTypeResponse?.data || null;
-        } catch {
-          detailedReport.wasteTypeDetail = null;
-        }
-      }
-
-      setSelectedReport(detailedReport);
-    } catch (error) {
-      toast.error(error.message || "Không thể tải chi tiết báo cáo");
-    } finally {
-      setDetailLoading(false);
-    }
+  const handleViewReport = (report) => {
+    navigate(`/citizen/reports/${report.id}`);
   };
 
   const getStatusColor = (status) => {
     switch (status) {
       case "completed":
         return "bg-green-100 text-green-700 border-green-200";
+      case "rejected":
+        return "bg-red-100 text-red-700 border-red-200";
       case "processing":
         return "bg-orange-100 text-orange-700 border-orange-200";
       case "pending":
@@ -337,6 +356,7 @@ function Reports() {
                     <SelectItem value="completed">Đã thu gom</SelectItem>
                     <SelectItem value="processing">Đang xử lý</SelectItem>
                     <SelectItem value="pending">Chờ duyệt</SelectItem>
+                    <SelectItem value="rejected">Đã từ chối</SelectItem>
                   </SelectGroup>
                 </SelectContent>
               </Select>
@@ -349,7 +369,7 @@ function Reports() {
                   <Button
                     variant="outline"
                     className={cn(
-                      "w-full justify-start text-left font-normal",
+                      "w-full justify-start text-left font-normal hover:scale-100",
                       !dateFilter && "text-muted-foreground",
                     )}
                   >
@@ -488,15 +508,6 @@ function Reports() {
           </Table>
         </CardContent>
       </Card>
-
-      {/* Detail Modal */}
-      <ReportDetailDialog
-        isOpen={isModalOpen}
-        onClose={setIsModalOpen}
-        report={selectedReport}
-        loading={detailLoading}
-        getStatusColor={getStatusColor}
-      />
 
       <EditReportDialog
         open={isEditModalOpen}

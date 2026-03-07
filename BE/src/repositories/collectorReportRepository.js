@@ -30,6 +30,7 @@ const db = require('../config/database')
  */
 async function findAssignedReports(collectorId, { wasteTypeId, limit, offset }) {
   const ASSIGNED_STATUS_ID = 3
+  const COLLECTED_STATUS_ID = 4
   const IN_PROGRESS_STATUS_ID = 6
   limit = Number.isInteger(Number(limit)) && Number(limit) > 0 ? Number(limit) : 10
   offset = Number.isInteger(Number(offset)) && Number(offset) >= 0 ? Number(offset) : 0
@@ -51,11 +52,11 @@ async function findAssignedReports(collectorId, { wasteTypeId, limit, offset }) 
         ON wr.waste_type_id = wt.waste_type_id
       INNER JOIN reportstatustype rst
         ON wr.report_status_type_id = rst.report_status_type_id
-      WHERE wr.report_status_type_id IN (?, ?)
+      WHERE wr.report_status_type_id IN (?, ?, ?)
         AND wr.assigned_collector_id = ?
     `
 
-  const params = [ASSIGNED_STATUS_ID, IN_PROGRESS_STATUS_ID, collectorId]
+  const params = [ASSIGNED_STATUS_ID, COLLECTED_STATUS_ID, IN_PROGRESS_STATUS_ID, collectorId]
 
   if (wasteTypeId) {
     sql += ` AND wr.waste_type_id = ?`
@@ -162,7 +163,9 @@ async function findReportForCollector(reportId) {
       wt.unit_type       AS unitType,
       rst.status_name    AS status,
       ua.fullname        AS citizenFullname,
-      ua.phone           AS citizenPhone
+      ua.phone           AS citizenPhone,
+      cua.fullname       AS collectorFullname,
+      cua.phone          AS collectorPhone
     FROM wastereport wr
     INNER JOIN wastetype wt
       ON wr.waste_type_id = wt.waste_type_id
@@ -172,6 +175,8 @@ async function findReportForCollector(reportId) {
       ON wr.citizen_id = c.citizen_id
     INNER JOIN useraccount ua
       ON c.user_account_id = ua.user_account_id
+    LEFT JOIN useraccount cua
+      ON wr.assigned_collector_id = cua.user_account_id
     WHERE wr.waste_report_id = ?
     `
 
@@ -200,14 +205,49 @@ async function findImagesByReportId(reportId) {
  */
 async function findCollectedRecord(reportId, collectorId) {
   const [rows] = await db.execute(
-    `SELECT actual_quantity_value, quantity_unit, recorded_at
-     FROM CollectedRecord
-     WHERE waste_report_id = ?
-       AND collector_user_account_id = ?
+    `SELECT
+       cr.collected_record_id,
+       cr.waste_report_id,
+       cr.collector_user_account_id,
+       cr.actual_quantity_value,
+       cr.quantity_unit,
+       cr.recorded_at,
+       cr.file_uri,
+       cr.note,
+       GROUP_CONCAT(ca.file_uri SEPARATOR '|||') AS completion_image_uris
+     FROM CollectedRecord cr
+     LEFT JOIN completionattachment ca
+       ON ca.collected_record_id = cr.collected_record_id
+     WHERE cr.waste_report_id = ?
+       AND cr.collector_user_account_id = ?
+     GROUP BY
+       cr.collected_record_id,
+       cr.waste_report_id,
+       cr.collector_user_account_id,
+       cr.actual_quantity_value,
+       cr.quantity_unit,
+       cr.recorded_at,
+       cr.file_uri,
+       cr.note
      LIMIT 1`,
     [reportId, collectorId]
   )
-  return rows[0] || null
+
+  if (!rows[0]) return null
+
+  const row = rows[0]
+
+  return {
+    collected_record_id: row.collected_record_id,
+    waste_report_id: row.waste_report_id,
+    collector_user_account_id: row.collector_user_account_id,
+    actual_quantity_value: row.actual_quantity_value,
+    quantity_unit: row.quantity_unit,
+    recorded_at: row.recorded_at,
+    file_uri: row.file_uri,
+    note: row.note,
+    completion_images: row.completion_image_uris ? row.completion_image_uris.split('|||') : []
+  }
 }
 
 // ==================== ACCEPT REPORT ====================

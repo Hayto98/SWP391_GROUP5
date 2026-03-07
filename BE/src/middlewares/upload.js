@@ -7,7 +7,7 @@ const storage = multer.memoryStorage()
 const MAX_FILE_SIZE_MB = 5
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
 
 const fileFilter = (req, file, cb) => {
   if (ALLOWED_TYPES.includes(file.mimetype)) {
