@@ -19,19 +19,19 @@ async function checkQuery() {
         ua.phone,
         (
           SELECT COUNT(*)
-          FROM CollectedRecord cr
-          JOIN WasteReport wr ON cr.waste_report_id = wr.waste_report_id
+          FROM collectedrecord cr
+          JOIN wastereport wr ON cr.waste_report_id = wr.waste_report_id
           WHERE cr.collector_user_account_id = ua.user_account_id
             AND (
               SELECT rst.status_name
-              FROM ReportStatusHistory rsh
-              JOIN ReportStatusType rst ON rsh.report_status_type_id = rst.report_status_type_id
+              FROM reportstatushistory rsh
+              JOIN reportstatustype rst ON rsh.report_status_type_id = rst.report_status_type_id
               WHERE rsh.waste_report_id = wr.waste_report_id
               ORDER BY rsh.changed_at DESC
               LIMIT 1
             ) = 'ASSIGNED'
         ) AS currentAssignedCount
-      FROM UserAccount ua
+      FROM useraccount ua
       WHERE ua.role_id = ? AND ua.is_locked = 0
       HAVING currentAssignedCount < 10
       ORDER BY currentAssignedCount ASC

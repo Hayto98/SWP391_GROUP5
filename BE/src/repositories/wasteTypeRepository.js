@@ -14,7 +14,7 @@ async function createWasteType({ wasteTypeName, unitType }) {
   const createdAt = new Date()
 
   const [result] = await db.execute(
-    `INSERT INTO WasteType (waste_type_name, unit_type, is_active)
+    `INSERT INTO wastetype (waste_type_name, unit_type, is_active)
      VALUES (?, ?, 1)`,
     [wasteTypeName, unitType]
   )
@@ -38,7 +38,7 @@ async function createWasteType({ wasteTypeName, unitType }) {
 async function findById(wasteTypeId) {
   const [rows] = await db.execute(
     `SELECT waste_type_id, waste_type_name, unit_type, is_active, IFNULL(is_deleted,0) AS is_deleted
-     FROM WasteType
+     FROM wastetype
      WHERE waste_type_id = ?`,
     [wasteTypeId]
   )
@@ -63,7 +63,7 @@ async function findById(wasteTypeId) {
 async function findByName(wasteTypeName) {
   const [rows] = await db.execute(
     `SELECT waste_type_id, waste_type_name, unit_type, is_active
-     FROM WasteType
+     FROM wastetype
      WHERE LOWER(waste_type_name) = LOWER(?)`,
     [wasteTypeName]
   )
@@ -87,7 +87,7 @@ async function findByName(wasteTypeName) {
 async function findByNameExcludeId(wasteTypeName, excludeWasteTypeId) {
   const [rows] = await db.execute(
     `SELECT waste_type_id, waste_type_name, unit_type, is_active
-     FROM WasteType
+     FROM wastetype
      WHERE LOWER(waste_type_name) = LOWER(?) AND waste_type_id != ?`,
     [wasteTypeName, excludeWasteTypeId]
   )
@@ -108,7 +108,7 @@ async function findByNameExcludeId(wasteTypeName, excludeWasteTypeId) {
  */
 async function findAll({ isActive, limit = 20, offset = 0 } = {}) {
   let query = `SELECT SQL_CALC_FOUND_ROWS waste_type_id, waste_type_name, unit_type, is_active
-               FROM WasteType WHERE 1=1 AND IFNULL(is_deleted,0) = 0`
+               FROM wastetype WHERE 1=1 AND IFNULL(is_deleted,0) = 0`
   const params = []
 
   if (isActive !== undefined) {
@@ -179,8 +179,8 @@ async function findAllWithRewardConfig({
         rc.description,
         rc.allowed_variance_percent,
         rc.is_active AS rc_is_active
-    FROM WasteType wt
-    LEFT JOIN RewardConfig rc ${joinCondition}
+    FROM wastetype wt
+    LEFT JOIN rewardconfig rc ${joinCondition}
     ${whereClause}
     ORDER BY wt.waste_type_name ASC
     LIMIT ${limitInt} OFFSET ${offsetInt}
@@ -188,7 +188,7 @@ async function findAllWithRewardConfig({
 
   const countQuery = `
     SELECT COUNT(*) AS totalCount
-    FROM WasteType wt
+    FROM wastetype wt
     ${whereClause}
   `
 
@@ -221,8 +221,8 @@ async function findByIdWithRewardConfig(wasteTypeId, { includeInactiveReward = f
   let query = `SELECT
                  wt.waste_type_id, wt.waste_type_name, wt.unit_type, wt.is_active, IFNULL(wt.is_deleted,0) AS is_deleted,
                  rc.reward_config_id, rc.points_per_unit, rc.description, rc.allowed_variance_percent, rc.is_active AS rc_is_active
-               FROM WasteType wt
-               LEFT JOIN RewardConfig rc ON wt.waste_type_id = rc.waste_type_id`
+               FROM wastetype wt
+               LEFT JOIN rewardconfig rc ON wt.waste_type_id = rc.waste_type_id`
 
   if (!includeInactiveReward) {
     query += ` AND rc.is_active = 1`
@@ -278,7 +278,7 @@ async function updateWasteType(wasteTypeId, { wasteTypeName, unitType }) {
     return null
   }
 
-  const query = `UPDATE WasteType SET ${fields.join(', ')} WHERE waste_type_id = ?`
+  const query = `UPDATE wastetype SET ${fields.join(', ')} WHERE waste_type_id = ?`
   values.push(wasteTypeId)
 
   const [result] = await db.execute(query, values)
@@ -293,7 +293,7 @@ async function updateWasteType(wasteTypeId, { wasteTypeName, unitType }) {
  */
 async function setActiveStatus(wasteTypeId, isActive) {
   const [result] = await db.execute(
-    `UPDATE WasteType SET is_active = ? WHERE waste_type_id = ?`,
+    `UPDATE wastetype SET is_active = ? WHERE waste_type_id = ?`,
     [isActive ? 1 : 0, wasteTypeId]
   )
 
@@ -305,7 +305,7 @@ async function setActiveStatus(wasteTypeId, isActive) {
  */
 async function setSoftDelete(wasteTypeId) {
   const [result] = await db.execute(
-    `UPDATE WasteType SET is_deleted = 1 WHERE waste_type_id = ?`,
+    `UPDATE wastetype SET is_deleted = 1 WHERE waste_type_id = ?`,
     [wasteTypeId]
   )
 
@@ -328,12 +328,12 @@ async function setInactive(wasteTypeId) {
 async function hasActiveReports(wasteTypeId) {
   const query = `
     SELECT COUNT(*) AS count
-    FROM WasteReport wr
+    FROM wastereport wr
     WHERE wr.waste_type_id = ?
       AND (
         SELECT rst.status_name
-        FROM ReportStatusHistory rsh
-        JOIN ReportStatusType rst ON rsh.report_status_type_id = rst.report_status_type_id
+        FROM reportstatushistory rsh
+        JOIN reportstatustype rst ON rsh.report_status_type_id = rst.report_status_type_id
         WHERE rsh.waste_report_id = wr.waste_report_id
         ORDER BY rsh.changed_at DESC
         LIMIT 1
@@ -351,18 +351,18 @@ async function countActiveReports(wasteTypeId) {
   // Đếm các report có status OPEN, ACCEPTED, ASSIGNED hoặc không có status (mặc định là OPEN)
   const query = `
     SELECT COUNT(*) AS count
-    FROM WasteReport wr
+    FROM wastereport wr
     WHERE wr.waste_type_id = ?
       AND (
         (SELECT rst.status_name
-         FROM ReportStatusHistory rsh
-         JOIN ReportStatusType rst ON rsh.report_status_type_id = rst.report_status_type_id
+         FROM reportstatushistory rsh
+         JOIN reportstatustype rst ON rsh.report_status_type_id = rst.report_status_type_id
          WHERE rsh.waste_report_id = wr.waste_report_id
          ORDER BY rsh.changed_at DESC
          LIMIT 1) IN ('OPEN', 'ACCEPTED', 'ASSIGNED')
         OR
         NOT EXISTS (
-          SELECT 1 FROM ReportStatusHistory rsh2 WHERE rsh2.waste_report_id = wr.waste_report_id
+          SELECT 1 FROM reportstatushistory rsh2 WHERE rsh2.waste_report_id = wr.waste_report_id
         )
       )
   `
@@ -382,8 +382,8 @@ async function findActiveWithReward() {
             wt.is_active         AS isActive,
             rc.points_per_unit   AS pointsPerUnit,
             rc.description       AS description
-       FROM WasteType wt
-       JOIN RewardConfig rc ON wt.waste_type_id = rc.waste_type_id
+       FROM wastetype wt
+       JOIN rewardconfig rc ON wt.waste_type_id = rc.waste_type_id
       WHERE wt.is_active = 1
         AND rc.is_active = 1
       ORDER BY wt.waste_type_name ASC`
@@ -401,8 +401,8 @@ async function findByIdWithReward(wasteTypeId) {
             rc.points_per_unit      AS pointsPerUnit,
             rc.description          AS description,
             rc.is_active            AS rewardConfigActive
-       FROM WasteType wt
-       LEFT JOIN RewardConfig rc
+       FROM wastetype wt
+       LEFT JOIN rewardconfig rc
          ON wt.waste_type_id = rc.waste_type_id
         AND rc.is_active = 1
       WHERE wt.waste_type_id = ?

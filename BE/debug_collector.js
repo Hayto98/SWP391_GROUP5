@@ -14,22 +14,22 @@ async function debug() {
         console.log('=== 1. COLLECTOR users ===')
         const [collectors] = await pool.query(
             `SELECT user_account_id, fullname, email, role_id, is_locked 
-             FROM UserAccount WHERE role_id IN (3, 4)`
+             FROM useraccount WHERE role_id IN (3, 4)`
         )
         console.table(collectors)
 
         console.log('\n=== 2. Reports with ASSIGNED status ===')
         const [assigned] = await pool.query(`
             SELECT rsh.waste_report_id, rst.status_name, rsh.changed_at
-            FROM ReportStatusHistory rsh
-            JOIN ReportStatusType rst ON rsh.report_status_type_id = rst.report_status_type_id
+            FROM reportstatushistory rsh
+            JOIN reportstatustype rst ON rsh.report_status_type_id = rst.report_status_type_id
             WHERE rst.status_name = 'ASSIGNED'
         `)
         console.table(assigned)
 
         console.log('\n=== 3. CollectedRecord entries ===')
         const [records] = await pool.query(
-            `SELECT waste_report_id, collector_user_account_id FROM CollectedRecord`
+            `SELECT waste_report_id, collector_user_account_id FROM collectedrecord`
         )
         console.table(records)
 
@@ -40,14 +40,14 @@ async function debug() {
                 cr.collector_user_account_id,
                 (
                     SELECT rst.status_name
-                    FROM ReportStatusHistory rsh
-                    JOIN ReportStatusType rst ON rsh.report_status_type_id = rst.report_status_type_id
+                    FROM reportstatushistory rsh
+                    JOIN reportstatustype rst ON rsh.report_status_type_id = rst.report_status_type_id
                     WHERE rsh.waste_report_id = wr.waste_report_id
                     ORDER BY rsh.changed_at DESC
                     LIMIT 1
                 ) AS current_status
-            FROM WasteReport wr
-            LEFT JOIN CollectedRecord cr ON wr.waste_report_id = cr.waste_report_id
+            FROM wastereport wr
+            LEFT JOIN collectedrecord cr ON wr.waste_report_id = cr.waste_report_id
             HAVING current_status = 'ASSIGNED'
         `)
         console.table(fullMatch)

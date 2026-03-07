@@ -43,6 +43,21 @@ const loginFormSchema = z.object({
     .max(20, "Mật khẩu không dài hơn 20 ký tự"),
 });
 
+function mapRoleById(roleId) {
+  switch (roleId) {
+    case 1:
+      return "admin";
+    case 2:
+      return "enterprise";
+    case 3:
+      return "collector";
+    case 4:
+      return "citizen";
+    default:
+      return "citizen";
+  }
+}
+
 export function LoginForm({ className, ...props }) {
   const login = useAuthStore((s) => s.login);
   const navigate = useNavigate();
@@ -65,33 +80,10 @@ export function LoginForm({ className, ...props }) {
     if (response?.tokens?.accessToken) {
       localStorage.setItem("accessToken", response.tokens.accessToken);
     }
-
     const roleId = response?.user?.roleId;
-    let role = "";
-    switch (roleId) {
-      case 1:
-        role = "admin";
-        break;
-      case 2:
-        role = "enterprise";
-        break;
-      case 3:
-        role = "collector";
-        break;
-      case 4:
-        role = "citizen";
-        break;
-      default:
-        role = "citizen";
-    }
-
-    login({
-      ...response?.user,
-      role,
-    });
-
+    const role = mapRoleById(roleId);
+    login({ ...response?.user, role });
     toast.success("Đăng nhập thành công.");
-
     const dashboardByRole = {
       admin: "/admin",
       enterprise: "/enterprise",
@@ -103,36 +95,8 @@ export function LoginForm({ className, ...props }) {
 
   const resetOtpState = () => {
     setOtpValue("");
-    setOtpSubmitting(false);
     setOtpEmail("");
-  };
-
-  const handleVerifyOtp = async () => {
-    if (otpValue.length !== 6) {
-      toast.error("Vui lòng nhập đủ 6 số OTP.");
-      return;
-    }
-
-    if (!otpEmail) {
-      toast.error("Thiếu email xác thực OTP.");
-      return;
-    }
-
-    setOtpSubmitting(true);
-    try {
-      const response = await verifyOtp({
-        email: otpEmail,
-        otp: otpValue,
-      });
-
-      setOtpDialogOpen(false);
-      resetOtpState();
-      completeLogin(response);
-    } catch (error) {
-      toast.error(error.message || "Xác thực OTP thất bại.");
-    } finally {
-      setOtpSubmitting(false);
-    }
+    setOtpSubmitting(false);
   };
 
   const onSubmit = async (values) => {
@@ -142,11 +106,10 @@ export function LoginForm({ className, ...props }) {
         password: values.password,
       });
 
+      // If backend returns OTP required signal, open OTP dialog
       if (response?.requireOtp) {
-        setOtpEmail(response?.email || values.email);
-        setOtpValue("");
+        setOtpEmail(values.email);
         setOtpDialogOpen(true);
-        toast.success(response?.message || "OTP đã được gửi về email của bạn.");
         return;
       }
 
@@ -159,11 +122,40 @@ export function LoginForm({ className, ...props }) {
     }
   };
 
+  const handleVerifyOtp = async () => {
+    if (otpValue.length !== 6) return;
+    setOtpSubmitting(true);
+    try {
+      const email = otpEmail || form.getValues("email");
+      if (!email) {
+        throw new Error("Không tìm thấy email đăng nhập để xác thực OTP.");
+      }
+
+      const response = await verifyOtp({ email, otp: otpValue });
+
+      if (response?.tokens?.accessToken && response?.user) {
+        setOtpDialogOpen(false);
+        resetOtpState();
+        completeLogin(response);
+        return;
+      }
+
+      throw new Error("Xác thực OTP thất bại.");
+    } catch (error) {
+      toast.error(error.message || "OTP không hợp lệ hoặc đã hết hạn.");
+    } finally {
+      setOtpSubmitting(false);
+    }
+  };
+
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card className="overflow-hidden p-0">
         <CardContent className="grid p-0 md:grid-cols-2">
-          <form className="p-6 md:p-8" onSubmit={form.handleSubmit(onSubmit)}>
+          <form
+            className="p-6 md:p-8"
+            onSubmit={form.handleSubmit(onSubmit)}
+          >
             <FieldGroup>
               <div className="flex flex-col items-center gap-2 text-center">
                 <h1 className="text-2xl font-bold">Chào mừng bạn trở lại</h1>
@@ -236,11 +228,13 @@ export function LoginForm({ className, ...props }) {
                 )}
               />
               <Field>
-                <Button type="submit" disabled={form.formState.isSubmitting}>
+                <Button
+                  type="submit"
+                  disabled={form.formState.isSubmitting}
+                >
                   {form.formState.isSubmitting ? "Đang xử lý..." : "Đăng nhập"}
                 </Button>
               </Field>
-
               <FieldDescription className="text-center">
                 Bạn không có tài khoản?{" "}
                 <span

@@ -16,7 +16,7 @@ async function createRewardConfig({ wasteTypeId, pointsPerUnit, description = nu
   const createdAt = new Date()
 
   await db.execute(
-    `INSERT INTO RewardConfig (reward_config_id, waste_type_id, points_per_unit, description, allowed_variance_percent, is_active)
+    `INSERT INTO rewardconfig (reward_config_id, waste_type_id, points_per_unit, description, allowed_variance_percent, is_active)
      VALUES (?, ?, ?, ?, ?, 1)`,
     [rewardConfigId, wasteTypeId, pointsPerUnit, description, allowedVariancePercent]
   )
@@ -40,7 +40,7 @@ async function createRewardConfig({ wasteTypeId, pointsPerUnit, description = nu
 async function findById(rewardConfigId) {
   const [rows] = await db.execute(
     `SELECT reward_config_id, waste_type_id, points_per_unit, description, allowed_variance_percent, is_active
-     FROM RewardConfig
+     FROM rewardconfig
      WHERE reward_config_id = ?`,
     [rewardConfigId]
   )
@@ -66,7 +66,7 @@ async function findById(rewardConfigId) {
 async function findByWasteTypeId(wasteTypeId) {
   const [rows] = await db.execute(
     `SELECT reward_config_id, waste_type_id, points_per_unit, description, allowed_variance_percent, is_active
-     FROM RewardConfig
+     FROM rewardconfig
      WHERE waste_type_id = ?`,
     [wasteTypeId]
   )
@@ -94,8 +94,8 @@ async function findAll({ isActive, limit = 20, offset = 0 } = {}) {
                  rc.reward_config_id, rc.waste_type_id, rc.points_per_unit, rc.description, 
                  rc.allowed_variance_percent, rc.is_active,
                  wt.waste_type_name, wt.unit_type
-               FROM RewardConfig rc
-               JOIN WasteType wt ON rc.waste_type_id = wt.waste_type_id
+               FROM rewardconfig rc
+               JOIN wastetype wt ON rc.waste_type_id = wt.waste_type_id
                WHERE 1=1`
   const params = []
 
@@ -156,7 +156,7 @@ async function updateRewardConfig(rewardConfigId, { pointsPerUnit, description, 
     return null
   }
 
-  const query = `UPDATE RewardConfig SET ${fields.join(', ')} WHERE reward_config_id = ?`
+  const query = `UPDATE rewardconfig SET ${fields.join(', ')} WHERE reward_config_id = ?`
   values.push(rewardConfigId)
 
   const [result] = await db.execute(query, values)
@@ -171,7 +171,7 @@ async function updateRewardConfig(rewardConfigId, { pointsPerUnit, description, 
  */
 async function setInactive(rewardConfigId) {
   const [result] = await db.execute(
-    `UPDATE RewardConfig SET is_active = 0 WHERE reward_config_id = ?`,
+    `UPDATE rewardconfig SET is_active = 0 WHERE reward_config_id = ?`,
     [rewardConfigId]
   )
 
@@ -184,7 +184,7 @@ async function setInactive(rewardConfigId) {
  */
 async function setInactiveByWasteTypeId(wasteTypeId) {
   const [result] = await db.execute(
-    `UPDATE RewardConfig SET is_active = 0 WHERE waste_type_id = ?`,
+    `UPDATE rewardconfig SET is_active = 0 WHERE waste_type_id = ?`,
     [wasteTypeId]
   )
 
