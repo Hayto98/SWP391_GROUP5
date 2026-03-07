@@ -371,9 +371,134 @@ async function ensureCitizenIdByUserAccountId(userAccountId) {
   return citizenId || null
 }
 
+/**
+ * Lấy tất cả báo cáo rác thải (Enterprise view)
+ * Hỗ trợ filter: status, fromDate, toDate + phân trang
+ */
+async function findAllReports({ status, fromDate, toDate, limit, offset }) {
+  const normalizedStatus = Array.isArray(status) ? status[0] : status
+  const normalizedFromDate = Array.isArray(fromDate) ? fromDate[0] : fromDate
+  const normalizedToDate = Array.isArray(toDate) ? toDate[0] : toDate
+  const safeLimit = Number.isFinite(Number(limit)) ? Math.max(1, Math.trunc(Number(limit))) : 10
+  const safeOffset = Number.isFinite(Number(offset)) ? Math.max(0, Math.trunc(Number(offset))) : 0
+
+  let innerQuery = `
+    SELECT
+      wr.waste_report_id AS waste_report_id,
+      wr.gps_lat AS gps_lat,
+      wr.gps_lng AS gps_lng,
+      wr.created_at AS created_at,
+      wr.weight AS weight,
+      wr.file_uri AS file_uri,
+      wr.description AS description,
+
+      wt.waste_type_id AS waste_type_id,
+      wt.waste_type_name AS waste_type_name,
+      wt.unit_type AS unit_type,
+
+      c.citizen_id,
+      ua_citizen.fullname AS citizen_fullname,
+      ua_citizen.phone AS citizen_phone,
+
+      rst.status_name AS current_status,
+
+      wr.assigned_collector_id AS collector_user_account_id,
+      ua_collector.fullname AS collector_fullname,
+      ua_collector.phone AS collector_phone,
+
+      (
+        SELECT fb.feedback_text
+        FROM FEEDBACK fb
+        WHERE fb.waste_report_id = wr.waste_report_id
+        ORDER BY fb.created_at DESC
+        LIMIT 1
+      ) AS reject_reason
+
+    FROM WASTEREPORT wr
+    JOIN CITIZEN c ON wr.citizen_id = c.citizen_id
+    JOIN USERACCOUNT ua_citizen ON c.user_account_id = ua_citizen.user_account_id
+    JOIN WASTETYPE wt ON wr.waste_type_id = wt.waste_type_id
+    JOIN REPORTSTATUSTYPE rst ON wr.report_status_type_id = rst.report_status_type_id
+    LEFT JOIN USERACCOUNT ua_collector ON wr.assigned_collector_id = ua_collector.user_account_id
+    WHERE 1=1
+  `
+
+  const queryParams = []
+
+  if (normalizedFromDate) {
+    innerQuery += ` AND wr.created_at >= ?`
+    queryParams.push(String(normalizedFromDate).trim())
+  }
+  if (normalizedToDate) {
+    innerQuery += ` AND wr.created_at <= ?`
+    queryParams.push(String(normalizedToDate).trim())
+  }
+
+  let finalQuery = `SELECT SQL_CALC_FOUND_ROWS * FROM (${innerQuery}) AS AllReports WHERE 1=1`
+
+  if (normalizedStatus && String(normalizedStatus).trim() !== '') {
+    finalQuery += ` AND current_status = ?`
+    queryParams.push(String(normalizedStatus).trim().toUpperCase())
+  }
+
+  finalQuery += ` ORDER BY created_at DESC LIMIT ${safeLimit} OFFSET ${safeOffset}`
+
+  let rows
+  try {
+    ;[rows] = await db.execute(finalQuery, queryParams)
+  } catch (e) {
+    console.error('SQL ERROR IN FIND ALL REPORTS:', e)
+    throw e
+  }
+
+  const [countRows] = await db.execute('SELECT FOUND_ROWS() as totalCount')
+  const total = countRows[0].totalCount
+
+  const data = rows.map((row) => {
+    const attachments = row.file_uri ? [{ fileUri: row.file_uri }] : []
+    const statusVal = row.current_status || 'PENDING'
+
+    let assignedCollector = null
+    if (['ASSIGNED', 'IN_PROGRESS', 'COLLECTED'].includes(statusVal) && row.collector_user_account_id) {
+      assignedCollector = {
+        userAccountId: row.collector_user_account_id,
+        fullname: row.collector_fullname,
+        phone: row.collector_phone,
+        avatar: null
+      }
+    }
+
+    return {
+      wasteReportId: row.waste_report_id,
+      wasteType: {
+        id: row.waste_type_id,
+        name: row.waste_type_name,
+        unitType: row.unit_type
+      },
+      citizen: {
+        fullname: row.citizen_fullname,
+        phone: row.citizen_phone
+      },
+      location: {
+        lat: Number(row.gps_lat),
+        lng: Number(row.gps_lng)
+      },
+      description: row.description,
+      status: statusVal,
+      createdAt: row.created_at,
+      attachments,
+      assignedCollector,
+      reason: row.reject_reason || null
+    }
+  })
+
+  return { data, total }
+}
+
 module.exports = {
   createReport,
   findMyReports,
+  findAllReports,
   findReportById,
   updateReportById,
   deleteReportById,

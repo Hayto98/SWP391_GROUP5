@@ -95,7 +95,7 @@ async function rejectReport(reportId, reason, userAccountId) {
 /**
  * Xử lý logic doanh nghiệp assign báo cáo cho Collector (BE-4)
  */
-async function assignReport(reportId, collectorUserAccountId, enterpriseUserAccountId) {
+async function  assignReport(reportId, collectorUserAccountId, enterpriseUserAccountId) {
   // 1. Fetch the report
   const report = await wasteReportRepository.findReportById(reportId);
   if (!report) {
@@ -158,8 +158,36 @@ async function assignReport(reportId, collectorUserAccountId, enterpriseUserAcco
   };
 }
 
+/**
+ * Enterprise lấy tất cả báo cáo rác thải với phân trang & filter
+ */
+async function getAllReports({ status, fromDate, toDate, page, limit }) {
+  const parsedPage = Math.max(1, Number(page) || 1)
+  const parsedLimit = Math.max(1, Number(limit) || 10)
+  const offset = (parsedPage - 1) * parsedLimit
+
+  const { data, total } = await wasteReportRepository.findAllReports({
+    status,
+    fromDate,
+    toDate,
+    limit: parsedLimit,
+    offset
+  })
+
+  return {
+    success: true,
+    data,
+    pagination: {
+      page: parsedPage,
+      limit: parsedLimit,
+      total
+    }
+  }
+}
+
 module.exports = {
   acceptReport,
   rejectReport,
-  assignReport
+  assignReport,
+  getAllReports
 };

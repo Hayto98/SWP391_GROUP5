@@ -73,7 +73,7 @@ async function createReport({ userAccountId, wasteTypeId, gpsLat, gpsLng, descri
     gpsLng,
     description: description.trim(),
     attachments: fileUri ? [{ fileUri }] : [],
-    status: 'OPEN',
+    status: 'PENDING',
     createdAt
   }
 }

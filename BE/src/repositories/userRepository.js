@@ -281,11 +281,6 @@ module.exports = {
   updateFailedLoginCount,
   updateLastLogin,
   softDeleteUser,
-<<<<<<< HEAD
   countByRole,
   findAvailableCollectors
 }
-=======
-  countByRole
-}
->>>>>>> a0f26bd04b4e5095fe96d71ba517a31bc1dca001
