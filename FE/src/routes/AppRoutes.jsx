@@ -11,6 +11,7 @@ import AdminSettings from "@/pages/admin/settings/Settings";
 import CitizenDashboard from "@/pages/citizen/dashboard/Dashboard";
 import CitizenTrashReport from "@/pages/citizen/trash-report/TrashReport";
 import CitizenReports from "@/pages/citizen/reports/Reports";
+import CitizenReportDetail from "@/pages/citizen/reports/ReportDetailPage";
 import CitizenRewards from "@/pages/citizen/rewards/Rewards";
 import CitizenLeaderboard from "@/pages/citizen/leaderboard/Leaderboard";
 import CitizenComplaints from "@/pages/citizen/complaints/Complaints";
@@ -67,6 +68,10 @@ function AppRoutes() {
               <Route index element={<CitizenDashboard />} />
               <Route path="trash-report" element={<CitizenTrashReport />} />
               <Route path="reports" element={<CitizenReports />} />
+              <Route
+                path="reports/:reportId"
+                element={<CitizenReportDetail />}
+              />
               <Route path="rewards" element={<CitizenRewards />} />
               <Route path="leaderboard" element={<CitizenLeaderboard />} />
               <Route path="complaints" element={<CitizenComplaints />} />

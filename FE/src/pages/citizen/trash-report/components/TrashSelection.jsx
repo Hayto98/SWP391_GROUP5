@@ -70,7 +70,7 @@ function TrashSelection({
         </Field>
         <Field>
           <FieldLabel>
-            Khối lượng ước tính (Kg)
+            Khối lượng ước tính
             <span className="text-destructive">*</span>
           </FieldLabel>
 
@@ -78,7 +78,12 @@ function TrashSelection({
             type="number"
             placeholder="nhập khối lượng rác"
             value={weight}
-            onChange={(e) => setWeight(e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (Number(value) >= 0 || value === "") {
+                setWeight(value);
+              }
+            }}
             min="0"
             step="0.1"
           />
