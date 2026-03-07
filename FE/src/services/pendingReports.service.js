@@ -73,9 +73,12 @@ function mapApiReportToRow(report) {
   const wasteName = report?.wasteType?.name || "Không rõ";
   const unitType = report?.wasteType?.unitType || "";
   const rawWeight = Number(report?.weight);
-  const sla = formatSla(report?.createdAt, report?.status);
-  const isPending = report?.status === "PENDING";
+  const normalizedStatus = String(report?.status || "PENDING").toUpperCase();
+  const sla = formatSla(report?.createdAt, normalizedStatus);
+  const isPending = normalizedStatus === "PENDING";
+  const isAccepted = normalizedStatus === "ACCEPTED";
   const canAccept = isPending;
+  const canAssign = isAccepted;
 
   return {
     code: reportId ? `#${reportId}` : "#N/A",
@@ -85,11 +88,12 @@ function mapApiReportToRow(report) {
     wasteTone: getWasteTone(wasteName),
     weightKg: Number.isFinite(rawWeight) ? rawWeight : 0,
     sla,
-    actions: isPending ? ["accept", "reject"] : ["reject"],
+    actions: isPending ? ["accept", "reject"] : [],
     canAccept,
-    isAccepted: report?.status === "ACCEPTED" || report?.status === "ASSIGNED",
+    canAssign,
+    isAccepted: canAssign,
     createdAt: report?.createdAt || null,
-    status: report?.status || "PENDING",
+    status: normalizedStatus,
     raw: report,
   };
 }
@@ -184,7 +188,6 @@ export async function getPendingReports(params) {
   const response = await request("/enterprise/reports", {
     method: "GET",
     params: {
-      status: "PENDING",
       page: 1,
       limit: MAX_PENDING_FETCH,
     },
@@ -222,7 +225,6 @@ export async function exportPendingReports(params) {
   return await request("/enterprise/reports", {
     method: "GET",
     params: {
-      status: "PENDING",
       page: 1,
       limit: MAX_PENDING_FETCH,
       ...params,

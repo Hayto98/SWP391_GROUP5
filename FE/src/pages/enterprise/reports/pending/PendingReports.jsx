@@ -291,8 +291,7 @@ export default function PendingReports() {
           <div>
             <h1>Danh sách Báo cáo Chờ xử lý</h1>
             <p>
-              Hiện có {data?.summary?.pending ?? 0} báo cáo mới chưa được gắn
-              cho đơn vị vận chuyển
+              Hiển thị {data?.result?.total ?? 0} báo cáo theo bộ lọc hiện tại
             </p>
           </div>
 
@@ -409,23 +408,27 @@ export default function PendingReports() {
                       )}
                       <ActionBtn
                         tone="ok"
-                        disabled={acting === r.code || !r.isAccepted}
+                        disabled={acting === r.code || !r.canAssign}
                         title={
-                          r.isAccepted
+                          r.canAssign
                             ? "Gán collector"
-                            : "Cần chấp nhận báo cáo trước khi gán"
+                            : r.status === "ASSIGNED"
+                              ? "Báo cáo đã được gán collector"
+                              : "Cần chấp nhận báo cáo trước khi gán"
                         }
                         onClick={() => handleAssignPopupOpen(r.code)}
                       >
-                        Gán
+                        {r.status === "ASSIGNED" ? "Đã gán" : "Gán"}
                       </ActionBtn>
-                      <ActionBtn
-                        tone="ghost"
-                        disabled={acting === r.code}
-                        onClick={() => doAction(r.code, "reject")}
-                      >
-                        {acting === r.code ? "..." : "Từ chối"}
-                      </ActionBtn>
+                      {r.actions.includes("reject") && (
+                        <ActionBtn
+                          tone="ghost"
+                          disabled={acting === r.code}
+                          onClick={() => doAction(r.code, "reject")}
+                        >
+                          {acting === r.code ? "..." : "Từ chối"}
+                        </ActionBtn>
+                      )}
                     </div>
                   </div>
                 ))}

@@ -60,9 +60,10 @@ export function usePendingReports() {
               return {
                 ...r,
                 isAccepted: true,
+                canAssign: true,
                 canAccept: false,
                 status: acceptedStatus,
-                actions: (r.actions || []).filter((a) => a !== "accept"),
+                actions: (r.actions || []).filter((a) => a !== "accept" && a !== "reject"),
               };
             });
 
