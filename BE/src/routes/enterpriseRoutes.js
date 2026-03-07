@@ -1,5 +1,6 @@
     const express = require('express')
     const enterpriseController = require('../controllers/Enterprise/enterpriseController')
+    const enterpriseReportController = require('../controllers/Enterprise/enterpriseReportController')
     const { verifyToken } = require('../middlewares/authMiddleware')
     const { requireRole } = require('../middlewares/roleMiddleware')
     const { ROLES } = require('../utils/constants')
@@ -79,5 +80,30 @@
      * Request body: { pointsPerUnit, description }
      */
     router.put('/reward-config/:rewardConfigId', enterpriseController.updateRewardConfig)
+
+    // ==================== REPORT ROUTES ====================
+
+    /**
+     * GET /enterprise/reports - Lấy tất cả báo cáo rác thải
+     * Query params: status, fromDate, toDate, page, limit
+     */
+    router.get('/reports', enterpriseReportController.getAllReports)
+
+    /**
+     * BE-2: POST /enterprise/reports/:reportId/accept - Chấp nhận báo cáo
+     */
+    router.post('/reports/:reportId/accept', enterpriseReportController.acceptReport)
+
+    /**
+     * BE-3: POST /enterprise/reports/:reportId/reject - Từ chối báo cáo
+     * Request body: { reason }
+     */
+    router.post('/reports/:reportId/reject', enterpriseReportController.rejectReport)
+
+    /**
+     * BE-4: POST /enterprise/reports/:reportId/assign - Assign báo cáo cho Collector
+     * Request body: { collectorUserAccountId }
+     */
+    router.post('/reports/:reportId/assign', enterpriseReportController.assignReport)
 
     module.exports = router
