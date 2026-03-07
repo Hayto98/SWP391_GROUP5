@@ -1,23 +1,21 @@
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Camera, X } from "lucide-react";
-import { useState, useRef } from "react";
-import { Input } from "@/components/ui/input";
+import { useRef } from "react";
 
 function ReportSummary({
   description,
   setDescription,
-  fileUri,
-  setFileUri,
+  files,
+  setFiles,
   onSubmit,
   submitting,
 }) {
-  const [images, setImages] = useState([]);
   const fileInputRef = useRef(null);
 
   const handleFileChange = (e) => {
-    const files = Array.from(e.target.files);
-    const validFiles = files.filter((file) => {
+    const selectedFiles = Array.from(e.target.files || []);
+    const validFiles = selectedFiles.filter((file) => {
       const isValidType = ["image/jpeg", "image/png", "image/jpg"].includes(
         file.type,
       );
@@ -31,13 +29,18 @@ function ReportSummary({
       preview: URL.createObjectURL(file),
     }));
 
-    setImages([...images, ...newImages]);
+    // Backend currently accepts one file field named `file`.
+    if (newImages[0]) {
+      setFiles([newImages[0]]);
+    }
+
+    e.target.value = "";
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
-    const files = Array.from(e.dataTransfer.files);
-    const validFiles = files.filter((file) => {
+    const droppedFiles = Array.from(e.dataTransfer.files || []);
+    const validFiles = droppedFiles.filter((file) => {
       const isValidType = ["image/jpeg", "image/png", "image/jpg"].includes(
         file.type,
       );
@@ -51,7 +54,9 @@ function ReportSummary({
       preview: URL.createObjectURL(file),
     }));
 
-    setImages([...images, ...newImages]);
+    if (newImages[0]) {
+      setFiles([newImages[0]]);
+    }
   };
 
   const handleDragOver = (e) => {
@@ -59,7 +64,11 @@ function ReportSummary({
   };
 
   const removeImage = (id) => {
-    setImages(images.filter((img) => img.id !== id));
+    const target = files.find((img) => img.id === id);
+    if (target?.preview) {
+      URL.revokeObjectURL(target.preview);
+    }
+    setFiles(files.filter((img) => img.id !== id));
   };
 
   return (
@@ -79,12 +88,6 @@ function ReportSummary({
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-start mt-4">Tải ảnh lên</h3>
 
-        <Input
-          placeholder="Hoặc nhập link ảnh (fileUri)"
-          value={fileUri}
-          onChange={(e) => setFileUri?.(e.target.value)}
-        />
-
         <div
           onClick={() => fileInputRef.current?.click()}
           onDrop={handleDrop}
@@ -100,16 +103,15 @@ function ReportSummary({
             ref={fileInputRef}
             type="file"
             accept="image/jpeg,image/png,image/jpg"
-            multiple
             onChange={handleFileChange}
             className="hidden"
           />
         </div>
 
         {/* Preview uploaded images */}
-        {images.length > 0 && (
+        {files.length > 0 && (
           <div className="grid grid-cols-3 gap-3">
-            {images.map((image) => (
+            {files.map((image) => (
               <div key={image.id} className="relative group">
                 <img
                   src={image.preview}

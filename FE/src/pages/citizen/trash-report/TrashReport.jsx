@@ -15,7 +15,7 @@ function TrashReport() {
   const [selectedType, setSelectedType] = useState("");
   const [weight, setWeight] = useState("");
   const [description, setDescription] = useState("");
-  const [fileUri, setFileUri] = useState("");
+  const [files, setFiles] = useState([]);
   const [selectedMarker, setSelectedMarker] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -78,14 +78,18 @@ function TrashReport() {
       return;
     }
 
-    const reportPayload = {
-      wasteTypeId: selectedType,
-      gpsLat: selectedMarker.position[0],
-      gpsLng: selectedMarker.position[1],
-      weight: weightNum,
-      description: finalDescription,
-      fileUri: fileUri?.trim() || undefined,
-    };
+    if (!files[0]?.file) {
+      toast.warning("Vui lòng tải lên ít nhất 1 ảnh");
+      return;
+    }
+
+    const reportPayload = new FormData();
+    reportPayload.append("wasteTypeId", String(selectedType));
+    reportPayload.append("gpsLat", String(selectedMarker.position[0]));
+    reportPayload.append("gpsLng", String(selectedMarker.position[1]));
+    reportPayload.append("description", finalDescription);
+    reportPayload.append("weight", String(weightNum));
+    reportPayload.append("file", files[0].file);
 
     setSubmitting(true);
     try {
@@ -94,7 +98,7 @@ function TrashReport() {
       setSelectedType("");
       setWeight("");
       setDescription("");
-      setFileUri("");
+      setFiles([]);
       setSelectedMarker(null);
     } catch (error) {
       toast.error(error.message || "Gửi báo cáo thất bại");
@@ -128,8 +132,8 @@ function TrashReport() {
         <ReportSummary
           description={description}
           setDescription={setDescription}
-          fileUri={fileUri}
-          setFileUri={setFileUri}
+          files={files}
+          setFiles={setFiles}
           onSubmit={handleSendReport}
           submitting={submitting}
         />
