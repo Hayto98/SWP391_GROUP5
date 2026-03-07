@@ -2,7 +2,7 @@ const collectorReportService = require('../../services/collectorReportService')
 
 /**
  * GET /collector/reports
- * Returns waste reports assigned to the authenticated collector (ASSIGNED + IN_PROGRESS).
+ * Returns waste reports assigned to the authenticated collector (ASSIGNED + IN_PROGRESS + COLLECTED).
  */
 async function getAssignedReports(req, res, next) {
   try {

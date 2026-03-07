@@ -232,6 +232,8 @@ async function findMyReports(citizenId, { fromDate, toDate, status, limit, offse
         lng: Number(row.gps_lng)
       },
       description: row.description,
+      weight: row.weight !== null && row.weight !== undefined ? Number(row.weight) : null,
+      weightKg: row.weight !== null && row.weight !== undefined ? Number(row.weight) : null,
       status: statusVal,
       createdAt: row.created_at,
       attachments: attachments,
@@ -298,7 +300,75 @@ async function findReportById(reportId) {
   if (rows.length === 0) return null
 
   const row = rows[0]
-  const attachments = row.file_uri ? [{ fileUri: row.file_uri }] : []
+  const [attachmentRows] = await db.execute(
+    `SELECT file_uri, uploaded_at
+     FROM REPORTATTACHMENT
+     WHERE waste_report_id = ?
+     ORDER BY uploaded_at DESC`,
+    [reportId]
+  )
+
+  const attachments =
+    attachmentRows.length > 0
+      ? attachmentRows
+          .filter((item) => !!item.file_uri)
+          .map((item) => ({
+            fileUri: item.file_uri,
+            uploadedAt: item.uploaded_at
+          }))
+      : row.file_uri
+        ? [{ fileUri: row.file_uri }]
+        : []
+
+  const [collectedRows] = await db.execute(
+    `SELECT
+       cr.collected_record_id,
+       cr.waste_report_id,
+       cr.collector_user_account_id,
+       cr.actual_quantity_value,
+       cr.quantity_unit,
+       cr.recorded_at,
+       cr.file_uri,
+       cr.note,
+       GROUP_CONCAT(ca.file_uri SEPARATOR '|||') AS completion_image_uris
+     FROM collectedrecord cr
+     LEFT JOIN completionattachment ca
+       ON ca.collected_record_id = cr.collected_record_id
+     WHERE cr.waste_report_id = ?
+     GROUP BY
+       cr.collected_record_id,
+       cr.waste_report_id,
+       cr.collector_user_account_id,
+       cr.actual_quantity_value,
+       cr.quantity_unit,
+       cr.recorded_at,
+       cr.file_uri,
+       cr.note
+     ORDER BY cr.recorded_at DESC
+     LIMIT 1`,
+    [reportId]
+  )
+
+  const collectedRow = collectedRows[0] || null
+
+  const collectorImages = collectedRow
+    ? [collectedRow.file_uri, ...(collectedRow.completion_image_uris || '').split('|||')].filter(Boolean)
+    : []
+
+  const collectedRecord = collectedRow
+    ? {
+        collectedRecordId: collectedRow.collected_record_id,
+        wasteReportId: collectedRow.waste_report_id,
+        collectorUserAccountId: collectedRow.collector_user_account_id,
+        actualQuantityValue: Number(collectedRow.actual_quantity_value),
+        quantityUnit: collectedRow.quantity_unit,
+        recordedAt: collectedRow.recorded_at,
+        fileUri: collectedRow.file_uri,
+        note: collectedRow.note,
+        completionImages: (collectedRow.completion_image_uris || '').split('|||').filter(Boolean)
+      }
+    : null
+
   const statusVal = row.current_status || 'PENDING'
 
   let assignedCollector = null
@@ -314,6 +384,7 @@ async function findReportById(reportId) {
   }
 
   return {
+    reportId: row.waste_report_id,
     wasteReportId: row.waste_report_id,
     citizenId: row.citizen_id, // include to verify ownership later in service
     wasteType: {
@@ -330,10 +401,18 @@ async function findReportById(reportId) {
       lng: Number(row.gps_lng)
     },
     description: row.description,
+    weight: row.weight !== null && row.weight !== undefined ? Number(row.weight) : null,
+    weightKg: row.weight !== null && row.weight !== undefined ? Number(row.weight) : null,
+    actualQuantity: collectedRecord ? Number(collectedRecord.actualQuantityValue) : null,
+    unitType: collectedRecord?.quantityUnit || row.unit_type || null,
     status: statusVal,
     createdAt: row.created_at,
     attachments: attachments,
+    images: attachments.map((item) => ({ file_uri: item.fileUri })),
     assignedCollector: assignedCollector,
+    collector: assignedCollector,
+    collectorImages,
+    collectedRecord,
     reason: row.reject_reason || null
   }
 }
