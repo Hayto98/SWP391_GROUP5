@@ -16,28 +16,22 @@ async function acceptReport(reportId, userAccountId) {
 
   // 2. Check if the current_status is PENDING
   if (report.status !== 'PENDING') {
-    throw new ApiError(400, 'Report cannot be accepted. Status invalid or expired.');
+    throw new ApiError(
+      400,
+      `Report cannot be accepted. Current status is ${report.status || 'UNKNOWN'}. Expected PENDING.`
+    );
   }
 
-  // 3. Validate time: 4 hours (BR-5)
-  const reportCreatedAt = new Date(report.createdAt);
-  const now = new Date();
-  const diffInHours = (now - reportCreatedAt) / (1000 * 60 * 60);
-
-  if (diffInHours > 4) {
-    throw new ApiError(400, 'Report cannot be accepted. Status invalid or expired.');
-  }
-
-  // 4. Lookup report_status_type_id for ACCEPTED
+  // 3. Lookup report_status_type_id for ACCEPTED
   const statusTypeId = await enterpriseReportRepository.findStatusTypeIdByName('ACCEPTED');
   if (!statusTypeId) {
     throw new ApiError(500, 'Lỗi cấu hình hệ thống: Không tìm thấy trạng thái ACCEPTED trong database.');
   }
 
-  // 5. Insert new record into ReportStatusHistory
+  // 4. Insert new record into ReportStatusHistory
   const { changedAt } = await enterpriseReportRepository.addReportStatusHistory(reportId, statusTypeId, userAccountId);
 
-  // 6. Return response
+  // 5. Return response
   return {
     success: true,
     data: {

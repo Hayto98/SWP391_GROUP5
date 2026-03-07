@@ -1,6 +1,7 @@
     const express = require('express')
     const enterpriseController = require('../controllers/Enterprise/enterpriseController')
     const enterpriseReportController = require('../controllers/Enterprise/enterpriseReportController')
+    const enterpriseCollectorController = require('../controllers/Enterprise/enterpriseCollectorController')
     const { verifyToken } = require('../middlewares/authMiddleware')
     const { requireRole } = require('../middlewares/roleMiddleware')
     const { ROLES } = require('../utils/constants')
@@ -82,6 +83,11 @@
     router.put('/reward-config/:rewardConfigId', enterpriseController.updateRewardConfig)
 
     // ==================== REPORT ROUTES ====================
+
+    /**
+     * GET /enterprise/collectors/available - Lấy danh sách collector khả dụng để gán báo cáo
+     */
+    router.get('/collectors/available', enterpriseCollectorController.getAvailableCollectors)
 
     /**
      * GET /enterprise/reports - Lấy tất cả báo cáo rác thải

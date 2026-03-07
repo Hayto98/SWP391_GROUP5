@@ -49,16 +49,74 @@ export function usePendingReports() {
       setActing(code);
       setError("");
       try {
-        await updatePendingReportStatus({ code, action });
+        const apiActionResult = await updatePendingReportStatus({ code, action });
         setData((prev) => {
           if (!prev) return prev;
+
+          if (String(action).toLowerCase() === "accept") {
+            const acceptedStatus = String(apiActionResult?.status || "ACCEPTED").toUpperCase();
+            const nextRows = prev.result.rows.map((r) => {
+              if (r.code !== code) return r;
+              return {
+                ...r,
+                isAccepted: true,
+                canAccept: false,
+                status: acceptedStatus,
+                actions: (r.actions || []).filter((a) => a !== "accept"),
+              };
+            });
+
+            return {
+              ...prev,
+              result: {
+                ...prev.result,
+                rows: nextRows,
+              },
+            };
+          }
+
           const nextRows = prev.result.rows.filter((r) => r.code !== code);
           const nextTotal = Math.max(0, (prev.result.total || 0) - 1);
-          return { ...prev, summary: { pending: nextTotal }, result: { ...prev.result, total: nextTotal, rows: nextRows } };
+
+          return {
+            ...prev,
+            summary: { pending: nextTotal },
+            result: { ...prev.result, total: nextTotal, rows: nextRows },
+          };
         });
         return { ok: true };
       } catch (e) {
         const message = e?.message || "Thao tác thất bại";
+
+        // Backend enforces 4-hour SLA for ACCEPT. If request is stale, reflect it immediately in UI.
+        if (
+          String(action).toLowerCase() === "accept" &&
+          /(invalid or expired|sla\s*4\s*hours\s*has\s*expired|expired)/i.test(
+            message,
+          )
+        ) {
+          setData((prev) => {
+            if (!prev) return prev;
+
+            const nextRows = prev.result.rows.map((r) => {
+              if (r.code !== code) return r;
+              return {
+                ...r,
+                canAccept: false,
+                sla: { type: "expired", text: "Quá hạn", tone: "red" },
+              };
+            });
+
+            return {
+              ...prev,
+              result: {
+                ...prev.result,
+                rows: nextRows,
+              },
+            };
+          });
+        }
+
         setError(message);
         return { ok: false, error: message };
       } finally {

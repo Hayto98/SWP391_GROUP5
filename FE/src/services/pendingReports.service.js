@@ -73,6 +73,9 @@ function mapApiReportToRow(report) {
   const wasteName = report?.wasteType?.name || "Không rõ";
   const unitType = report?.wasteType?.unitType || "";
   const rawWeight = Number(report?.weight);
+  const sla = formatSla(report?.createdAt, report?.status);
+  const isPending = report?.status === "PENDING";
+  const canAccept = isPending;
 
   return {
     code: reportId ? `#${reportId}` : "#N/A",
@@ -81,8 +84,10 @@ function mapApiReportToRow(report) {
     waste: unitType ? `${wasteName} (${unitType})` : wasteName,
     wasteTone: getWasteTone(wasteName),
     weightKg: Number.isFinite(rawWeight) ? rawWeight : 0,
-    sla: formatSla(report?.createdAt, report?.status),
-    actions: report?.status === "PENDING" ? ["contact", "reject"] : [],
+    sla,
+    actions: isPending ? ["accept", "reject"] : ["reject"],
+    canAccept,
+    isAccepted: report?.status === "ACCEPTED" || report?.status === "ASSIGNED",
     createdAt: report?.createdAt || null,
     status: report?.status || "PENDING",
     raw: report,
@@ -227,7 +232,7 @@ export async function exportPendingReports(params) {
 }
 
 export async function updatePendingReportStatus(payload) {
-  const USE_FAKE_FOR_NOW = true;
+  const USE_FAKE_FOR_NOW = false;
 
   if (USE_FAKE_FOR_NOW) {
     await new Promise((r) => setTimeout(r, 350));
@@ -242,20 +247,43 @@ export async function updatePendingReportStatus(payload) {
   }
 
   if (action === "accept") {
-    return await request(`/enterprise/reports/${reportId}/accept`, {
+    const response = await request(`/enterprise/reports/${reportId}/accept`, {
       method: "POST",
       headers: getAuthHeaders(),
     });
+
+    if (!response?.success) {
+      throw new Error(response?.message || "Chấp nhận báo cáo thất bại");
+    }
+
+    return {
+      ok: true,
+      reportId: response?.data?.reportId || reportId,
+      status: String(response?.data?.Status || response?.data?.status || "ACCEPTED").toUpperCase(),
+      acceptedAt: response?.data?.acceptedAt || null,
+      raw: response,
+    };
   }
 
   if (action === "reject") {
-    return await request(`/enterprise/reports/${reportId}/reject`, {
+    const response = await request(`/enterprise/reports/${reportId}/reject`, {
       method: "POST",
       headers: getAuthHeaders(),
       data: {
         reason: payload?.reason || "Từ chối từ danh sách chờ xử lý",
       },
     });
+
+    if (!response?.success) {
+      throw new Error(response?.message || "Từ chối báo cáo thất bại");
+    }
+
+    return {
+      ok: true,
+      reportId: response?.data?.reportId || reportId,
+      status: String(response?.data?.status || "REJECTED").toUpperCase(),
+      raw: response,
+    };
   }
 
   return { ok: true };

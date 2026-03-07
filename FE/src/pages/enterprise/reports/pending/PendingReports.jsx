@@ -49,11 +49,12 @@ const Sla = ({ tone, text }) => (
   </span>
 );
 
-const ActionBtn = ({ tone, children, onClick, disabled }) => (
+const ActionBtn = ({ tone, children, onClick, disabled, title }) => (
   <button
     className={`pr-action pr-action-${tone}`}
     onClick={onClick}
     disabled={disabled}
+    title={title}
     type="button"
   >
     {children}
@@ -98,6 +99,7 @@ export default function PendingReports() {
     setPage,
     doAction,
     exportExcel,
+    reload,
   } = usePendingReports();
 
   const total = data?.result?.total || 0;
@@ -221,31 +223,32 @@ export default function PendingReports() {
       setAssigningCollectorId(collector.id);
       setAssignError("");
       try {
-        await assignTaskToCollector({
+        const assignResult = await assignTaskToCollector({
           reportId: assigningReportId,
           collectorId: collector.id,
         });
+
+        const assignedCollectorName =
+          assignResult?.collector?.fullname || collector.name;
 
         recordReportAssignment({
           reportId: assigningReportId,
           collectorId: collector.id,
-          collectorName: collector.name,
+          collectorName: assignedCollectorName,
         });
-
-        const actionResult = await doAction(assigningReportCode, "accept");
-        if (!actionResult?.ok) {
-          throw new Error(actionResult?.error || "Cập nhật trạng thái báo cáo thất bại");
-        }
 
         const reportCodeText = assigningReportCode || `#${assigningReportId}`;
         toast.success(
-          `Nhân viên ${collector.name} vừa được gán cho báo cáo ${reportCodeText}.`,
+          `Nhân viên ${assignedCollectorName} vừa được gán cho báo cáo ${reportCodeText}.`,
           {
-            description: `Mã nhân viên: ${collector.id}`,
+            description: assignResult?.assignedAt
+              ? `Mã nhân viên: ${collector.id} • ${new Date(assignResult.assignedAt).toLocaleString("vi-VN")}`
+              : `Mã nhân viên: ${collector.id}`,
           },
         );
         refreshAssignmentHistory();
         handleAssignPopupChange(false);
+        await reload();
       } catch (e) {
         setAssignError(e?.message || "Gán collector thất bại");
       } finally {
@@ -255,8 +258,8 @@ export default function PendingReports() {
     [
       assigningReportCode,
       assigningReportId,
-      doAction,
       handleAssignPopupChange,
+      reload,
       refreshAssignmentHistory,
     ],
   );
@@ -390,18 +393,28 @@ export default function PendingReports() {
                       >
                         Chi tiết
                       </ActionBtn>
-                      {r.actions.includes("contact") && (
+                      {r.actions.includes("accept") && (
                         <ActionBtn
                           tone="warn"
-                          disabled={acting === r.code}
-                          onClick={() => doAction(r.code, "contact")}
+                          disabled={acting === r.code || !r.canAccept}
+                          title={
+                            r.canAccept
+                              ? "Chấp nhận báo cáo"
+                              : "Báo cáo đã quá hạn SLA nên không thể chấp nhận"
+                          }
+                          onClick={() => doAction(r.code, "accept")}
                         >
-                          {acting === r.code ? "..." : "Cần liên hệ"}
+                          {acting === r.code ? "..." : "Chấp nhận"}
                         </ActionBtn>
                       )}
                       <ActionBtn
                         tone="ok"
-                        disabled={acting === r.code}
+                        disabled={acting === r.code || !r.isAccepted}
+                        title={
+                          r.isAccepted
+                            ? "Gán collector"
+                            : "Cần chấp nhận báo cáo trước khi gán"
+                        }
                         onClick={() => handleAssignPopupOpen(r.code)}
                       >
                         Gán
