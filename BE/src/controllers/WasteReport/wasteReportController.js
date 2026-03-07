@@ -11,18 +11,10 @@ function getUserAccountIdFromRequest(req) {
  */
 async function createReport(req, res, next) {
   try {
-<<<<<<< HEAD
     const userAccountId = req.user.sub
     const { wasteTypeId, gpsLat, gpsLng, description, weight } = req.body
     const fileBuffer = req.file ? req.file.buffer : null
     const fileMimetype = req.file ? req.file.mimetype : null
-=======
-    const userAccountId = getUserAccountIdFromRequest(req)
-    if (!userAccountId) {
-      throw new ApiError(401, 'Unauthorized')
-    }
-    const { wasteTypeId, gpsLat, gpsLng, description, fileUri } = req.body
->>>>>>> 46121853a500f7c6fe0536e5aaaa37f567ab3b74
 
     const report = await wasteReportService.createReport({
       userAccountId,

@@ -79,14 +79,14 @@ async function createReport({ citizenId, citizenUserAccountId, wasteTypeId, gpsL
 /**
  * Tạo attachment cho WasteReport (lưu vào bảng ReportAttachment)
  */
-// async function createReportAttachment({ reportAttachmentId, wasteReportId, fileUri, uploadedAt }) {
-//   await db.execute(
-//     `INSERT INTO ReportAttachment
-//       (report_attachment_id, waste_report_id, file_uri, uploaded_at)
-//      VALUES (?, ?, ?, ?)`,
-//     [reportAttachmentId, wasteReportId, fileUri, uploadedAt]
-//   )
-// }
+async function createReportAttachment({ reportAttachmentId, wasteReportId, fileUri, uploadedAt }) {
+  await db.execute(
+    `INSERT INTO REPORTATTACHMENT
+      (report_attachment_id, waste_report_id, file_uri, uploaded_at)
+     VALUES (?, ?, ?, ?)`,
+    [reportAttachmentId, wasteReportId, fileUri, uploadedAt]
+  )
+}
 
 // ==================== READ ====================
 
@@ -445,6 +445,7 @@ async function ensureCitizenIdByUserAccountId(userAccountId) {
 
 module.exports = {
   createReport,
+  createReportAttachment,
   findMyReports,
   findReportById,
   updateReportById,
