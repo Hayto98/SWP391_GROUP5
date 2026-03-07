@@ -71,8 +71,23 @@ async function assignReport(req, res, next) {
   }
 }
 
+/**
+ * Enterprise lấy tất cả báo cáo rác thải
+ * GET /enterprise/reports
+ */
+async function getAllReports(req, res, next) {
+  try {
+    const { status, fromDate, toDate, page, limit } = req.query
+    const result = await enterpriseReportService.getAllReports({ status, fromDate, toDate, page, limit })
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
 module.exports = {
   acceptReport,
   rejectReport,
-  assignReport
+  assignReport,
+  getAllReports
 };

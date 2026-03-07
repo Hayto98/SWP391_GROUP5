@@ -130,9 +130,18 @@ async function createReport({
   }
 
   return {
+    wasteReportId,
+    citizenId,
+    wasteTypeId,
+    gpsLat,
+    gpsLng,
+    description: description.trim(),
+    attachments: fileUri ? [{ fileUri }] : [],
+    status: 'PENDING',
+    createdAt,
     reportId: created.wasteReportId,
-    imageUrl,
-    status: 'PENDING'
+    imageUrl
+
   }
 }
 
