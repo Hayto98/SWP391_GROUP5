@@ -7,9 +7,13 @@ import {
   FieldError,
   FieldGroup,
   FieldLabel,
-  FieldSeparator,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -17,8 +21,15 @@ import { toast } from "sonner";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { loginUser } from "@/services/authService";
+import { loginUser, verifyOtp } from "@/services/authService";
 import { useAuthStore } from "@/stores/authStore";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const loginFormSchema = z.object({
   email: z
@@ -36,6 +47,10 @@ export function LoginForm({ className, ...props }) {
   const login = useAuthStore((s) => s.login);
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
+  const [otpDialogOpen, setOtpDialogOpen] = useState(false);
+  const [otpValue, setOtpValue] = useState("");
+  const [otpSubmitting, setOtpSubmitting] = useState(false);
+  const [otpEmail, setOtpEmail] = useState("");
 
   const form = useForm({
     resolver: zodResolver(loginFormSchema),
@@ -45,6 +60,81 @@ export function LoginForm({ className, ...props }) {
     },
     mode: "onBlur",
   });
+
+  const completeLogin = (response) => {
+    if (response?.tokens?.accessToken) {
+      localStorage.setItem("accessToken", response.tokens.accessToken);
+    }
+
+    const roleId = response?.user?.roleId;
+    let role = "";
+    switch (roleId) {
+      case 1:
+        role = "admin";
+        break;
+      case 2:
+        role = "enterprise";
+        break;
+      case 3:
+        role = "collector";
+        break;
+      case 4:
+        role = "citizen";
+        break;
+      default:
+        role = "citizen";
+    }
+
+    login({
+      ...response?.user,
+      role,
+    });
+
+    toast.success("Đăng nhập thành công.");
+
+    const dashboardByRole = {
+      admin: "/admin",
+      enterprise: "/enterprise",
+      collector: "/collector",
+      citizen: "/citizen",
+    };
+    navigate(dashboardByRole[role] || "/");
+  };
+
+  const resetOtpState = () => {
+    setOtpValue("");
+    setOtpSubmitting(false);
+    setOtpEmail("");
+  };
+
+  const handleVerifyOtp = async () => {
+    if (otpValue.length !== 6) {
+      toast.error("Vui lòng nhập đủ 6 số OTP.");
+      return;
+    }
+
+    if (!otpEmail) {
+      toast.error("Thiếu email xác thực OTP.");
+      return;
+    }
+
+    setOtpSubmitting(true);
+    try {
+      const response = await verifyOtp({
+        email: otpEmail,
+        otp: otpValue,
+      });
+
+      setOtpDialogOpen(false);
+      resetOtpState();
+      completeLogin(response);
+    } catch (error) {
+      toast.error(error.message || "Xác thực OTP thất bại.");
+    } finally {
+      setOtpSubmitting(false);
+    }
+  };
+
   const onSubmit = async (values) => {
     try {
       const response = await loginUser({
@@ -52,46 +142,15 @@ export function LoginForm({ className, ...props }) {
         password: values.password,
       });
 
-      if (response?.tokens?.accessToken) {
-        localStorage.setItem("accessToken", response.tokens.accessToken);
+      if (response?.requireOtp) {
+        setOtpEmail(response?.email || values.email);
+        setOtpValue("");
+        setOtpDialogOpen(true);
+        toast.success(response?.message || "OTP đã được gửi về email của bạn.");
+        return;
       }
 
-      // Map roleId to role string: 1=ADMIN, 2=ENTERPRISE, 3=COLLECTOR, 4=CITIZEN
-      const roleId = response?.user?.roleId;
-      let role = "";
-      switch (roleId) {
-        case 1:
-          role = "admin";
-          break;
-        case 2:
-          role = "enterprise";
-          break;
-        case 3:
-          role = "collector";
-          break;
-        case 4:
-          role = "citizen";
-          break;
-        default:
-          role = "citizen";
-      }
-
-      // Lưu user vào store với role
-      login({
-        ...response?.user,
-        role,
-      });
-
-      toast.success("Đăng nhập thành công.");
-
-      // Chuyển đến Dashboard theo role
-      const dashboardByRole = {
-        admin: "/admin",
-        enterprise: "/enterprise",
-        collector: "/collector",
-        citizen: "/citizen",
-      };
-      navigate(dashboardByRole[role] || "/");
+      completeLogin(response);
     } catch (error) {
       toast.error(
         error.message ||
@@ -206,6 +265,56 @@ export function LoginForm({ className, ...props }) {
         By clicking continue, you agree to our <a href="#">Terms of Service</a>{" "}
         and <span>Privacy Policy</span>.
       </FieldDescription>
+
+      <Dialog
+        open={otpDialogOpen}
+        onOpenChange={(open) => {
+          if (!otpSubmitting) {
+            setOtpDialogOpen(open);
+            if (!open) resetOtpState();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md" showCloseButton={!otpSubmitting}>
+          <DialogHeader>
+            <DialogTitle>Xác thực OTP</DialogTitle>
+            <DialogDescription>
+              Nhập mã OTP gồm 6 số đã gửi tới email{" "}
+              <span className="font-medium">{otpEmail}</span>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-center">
+              <InputOTP
+                maxLength={6}
+                value={otpValue}
+                autoFocus
+                onChange={(value) => setOtpValue(value.replace(/\D/g, ""))}
+                disabled={otpSubmitting}
+              >
+                <InputOTPGroup>
+                  <InputOTPSlot index={0} className="h-11 w-11 text-lg" />
+                  <InputOTPSlot index={1} className="h-11 w-11 text-lg" />
+                  <InputOTPSlot index={2} className="h-11 w-11 text-lg" />
+                  <InputOTPSlot index={3} className="h-11 w-11 text-lg" />
+                  <InputOTPSlot index={4} className="h-11 w-11 text-lg" />
+                  <InputOTPSlot index={5} className="h-11 w-11 text-lg" />
+                </InputOTPGroup>
+              </InputOTP>
+            </div>
+
+            <Button
+              type="button"
+              className="w-full"
+              onClick={handleVerifyOtp}
+              disabled={otpSubmitting || otpValue.length !== 6}
+            >
+              {otpSubmitting ? "Đang xác thực..." : "Xác nhận OTP"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

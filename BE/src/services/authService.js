@@ -3,7 +3,9 @@ const { v4: uuidv4 } = require('uuid')
 const ApiError = require('../errors/ApiError')
 const userRepository = require('../repositories/userRepository')
 const refreshTokenRepository = require('../repositories/refreshTokenRepository')
+const otpRepository = require('../repositories/otpRepository')
 const tokenService = require('./tokenService')
+const emailService = require('./emailService')
 
 const DEFAULT_SALT_ROUNDS = 10
 
@@ -78,13 +80,49 @@ async function login({ email, password }) {
   if (!passwordMatches) {
     const newFailedCount = (user.failedLoginCount || 0) + 1
     if (newFailedCount >= 5) {
-      // Lock account after 5 failed attempts
       await userRepository.updateLockStatus(user.userAccountId, true)
     } else {
       await userRepository.updateFailedLoginCount(user.userAccountId, newFailedCount)
     }
     throw new ApiError(401, 'Invalid credentials')
   }
+
+  // Generate 6-digit OTP
+  const otp = String(Math.floor(100000 + Math.random() * 900000))
+  const otpExpiresMinutes = Number(process.env.OTP_EXPIRES_MINUTES || 5)
+  const expiredAt = new Date(Date.now() + otpExpiresMinutes * 60 * 1000)
+
+  await otpRepository.saveOtp(user.userAccountId, otp, expiredAt)
+  await emailService.sendOtpEmail(user.email, otp)
+
+  return {
+    requireOtp: true,
+    email: user.email,
+    message: 'OTP has been sent to your email. Please verify to continue.'
+  }
+}
+
+async function verifyOtp({ email, otp }) {
+  if (!email || !otp) {
+    throw new ApiError(400, 'email and otp are required')
+  }
+
+  const user = await userRepository.findByEmail(email)
+  if (!user) {
+    throw new ApiError(401, 'Invalid or expired OTP')
+  }
+
+  if (user.isLocked) {
+    throw new ApiError(403, `Account is locked. Reason: ${user.banReason || 'Not specified'}`)
+  }
+
+  const validOtp = await otpRepository.findValidOtp(user.userAccountId, otp)
+  if (!validOtp) {
+    throw new ApiError(401, 'Invalid or expired OTP')
+  }
+
+  // Mark OTP as used
+  await otpRepository.markOtpUsed(validOtp.verificationTokenId)
 
   // Update last login and reset failed login count
   await userRepository.updateLastLogin(user.userAccountId)
@@ -101,7 +139,7 @@ async function login({ email, password }) {
 
   const accessToken = tokenService.generateAccessToken(accessTokenPayload)
   const refreshToken = tokenService.generateRefreshToken(refreshTokenPayload, refreshTokenId)
-  
+
   const tokenHash = tokenService.hashToken(refreshToken)
   const refreshTokenExpiresAt = tokenService.calculateExpiryDate(process.env.REFRESH_TOKEN_EXPIRES_IN || '7d')
 
@@ -131,11 +169,12 @@ async function login({ email, password }) {
 }
 
 async function logout() {
-  // Chỉ access token được client xóa khi logout
+  // Access token được client xóa khi logout
 }
 
 module.exports = {
   register,
   login,
+  verifyOtp,
   logout
 }

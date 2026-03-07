@@ -5,15 +5,75 @@ const { ROLES } = require('../utils/constants')
 // ==================== CREATE ====================
 
 /**
- * Tạo mới một WasteReport
+ * Tạo mới một WasteReport + ghi vào ReportStatusHistory (PENDING).
+ *
+ * waste_type_id is INT (not UUID). Validates wasteType exists and is active.
+ * Uses transaction — rolls back on any error.
+ *
+ * @param {object} params
+ * @param {string} params.citizenId                - citizen_id (UUID)
+ * @param {string} params.citizenUserAccountId     - user_account_id of citizen (for history)
+ * @param {number} params.wasteTypeId              - waste_type_id (INT)
+ * @param {number} params.gpsLat
+ * @param {number} params.gpsLng
+ * @param {string} params.description
+ * @param {number|null} params.weight
+ * @returns {{ wasteReportId: string, status: 'PENDING' }}
  */
-async function createReport({ wasteReportId, citizenId, wasteTypeId, gpsLat, gpsLng, description, createdAt }) {
-  await db.execute(
-    `INSERT INTO WasteReport
-      (waste_report_id, citizen_id, waste_type_id, ai_suggested_waste_type_id, is_duplicate, gps_lat, gps_lng, description, created_at)
-     VALUES (?, ?, ?, NULL, 0, ?, ?, ?, ?)`,
-    [wasteReportId, citizenId, wasteTypeId, gpsLat, gpsLng, description, createdAt]
+async function createReport({ citizenId, citizenUserAccountId, wasteTypeId, gpsLat, gpsLng, description, weight }) {
+  const PENDING_STATUS_ID = 1
+
+  // ── 1. Validate wasteType (outside transaction — read-only) ────────
+  const [wasteTypeRows] = await db.execute(
+    `SELECT waste_type_id FROM WasteType WHERE waste_type_id = ? AND is_active = 1 LIMIT 1`,
+    [wasteTypeId]
   )
+
+  if (wasteTypeRows.length === 0) {
+    const error = new Error('wasteTypeId không tồn tại hoặc không còn hoạt động.')
+    error.code = 'INVALID_WASTE_TYPE'
+    throw error
+  }
+
+  // ── 2. Generate IDs and timestamp ─────────────────────────────────
+  const wasteReportId = uuidv4()
+  const statusHistoryId = uuidv4()
+  const createdAt = new Date()
+
+  // ── 3. Transaction: insert report + history ────────────────────────
+  const connection = await db.getConnection()
+
+  try {
+    await connection.beginTransaction()
+
+    await connection.execute(
+      `INSERT INTO WasteReport
+        (waste_report_id, citizen_id, waste_type_id, report_status_type_id,
+         assigned_collector_id, gps_lat, gps_lng, description, weight, created_at)
+       VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
+      [wasteReportId, citizenId, wasteTypeId, PENDING_STATUS_ID, gpsLat, gpsLng, description, weight ?? null, createdAt]
+    )
+
+    await connection.execute(
+      `INSERT INTO ReportStatusHistory
+        (report_status_history_id, waste_report_id, report_status_type_id,
+         changed_by_user_account_id, changed_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [statusHistoryId, wasteReportId, PENDING_STATUS_ID, citizenUserAccountId, createdAt]
+    )
+
+    await connection.commit()
+  } catch (error) {
+    await connection.rollback()
+    throw error
+  } finally {
+    connection.release()
+  }
+
+  return {
+    wasteReportId,
+    status: 'PENDING'
+  }
 }
 
 /**
@@ -21,7 +81,7 @@ async function createReport({ wasteReportId, citizenId, wasteTypeId, gpsLat, gps
  */
 async function createReportAttachment({ reportAttachmentId, wasteReportId, fileUri, uploadedAt }) {
   await db.execute(
-    `INSERT INTO ReportAttachment
+    `INSERT INTO REPORTATTACHMENT
       (report_attachment_id, waste_report_id, file_uri, uploaded_at)
      VALUES (?, ?, ?, ?)`,
     [reportAttachmentId, wasteReportId, fileUri, uploadedAt]
@@ -46,44 +106,42 @@ async function findMyReports(citizenId, { fromDate, toDate, status, limit, offse
 
   let selectPart = `
     SELECT SQL_CALC_FOUND_ROWS
-      wr.waste_report_id,
-      wr.gps_lat,
-      wr.gps_lng,
-      wr.created_at,
+      wr.waste_report_id AS waste_report_id,
+      wr.gps_lat AS gps_lat,
+      wr.gps_lng AS gps_lng,
+      wr.created_at AS created_at,
+      wr.weight AS weight,
+      wr.file_uri AS file_uri,
+      wr.description AS description,
       
-      wt.waste_type_id,
-      wt.waste_type_name,
-      wt.unit_type,
+      wt.waste_type_id AS waste_type_id,
+      wt.waste_type_name AS waste_type_name,
+      wt.unit_type AS unit_type,
       
       c.citizen_id,
       ua_citizen.fullname AS citizen_fullname,
       ua_citizen.phone AS citizen_phone,
       
-      (
-        SELECT rst.status_name
-        FROM ReportStatusHistory rsh
-        JOIN ReportStatusType rst ON rsh.report_status_type_id = rst.report_status_type_id
-        WHERE rsh.waste_report_id = wr.waste_report_id
-        ORDER BY rsh.changed_at DESC
-        LIMIT 1
-      ) AS current_status,
+      rst.status_name AS current_status,
       
-      (
-        SELECT GROUP_CONCAT(ra.file_uri SEPARATOR '|||')
-        FROM ReportAttachment ra
-        WHERE ra.waste_report_id = wr.waste_report_id
-      ) AS attachment_uris,
-      
-      cr.collector_user_account_id,
+      wr.assigned_collector_id AS collector_user_account_id,
       ua_collector.fullname AS collector_fullname,
-      ua_collector.phone AS collector_phone
+      ua_collector.phone AS collector_phone,
       
-    FROM WasteReport wr
-    JOIN Citizen c ON wr.citizen_id = c.citizen_id
-    JOIN UserAccount ua_citizen ON c.user_account_id = ua_citizen.user_account_id
-    JOIN WasteType wt ON wr.waste_type_id = wt.waste_type_id
-    LEFT JOIN CollectedRecord cr ON wr.waste_report_id = cr.waste_report_id
-    LEFT JOIN UserAccount ua_collector ON cr.collector_user_account_id = ua_collector.user_account_id
+      (
+        SELECT fb.feedback_text
+        FROM FEEDBACK fb
+        WHERE fb.waste_report_id = wr.waste_report_id
+        ORDER BY fb.created_at DESC
+        LIMIT 1
+      ) AS reject_reason
+      
+    FROM WASTEREPORT wr
+    JOIN CITIZEN c ON wr.citizen_id = c.citizen_id
+    JOIN USERACCOUNT ua_citizen ON c.user_account_id = ua_citizen.user_account_id
+    JOIN WASTETYPE wt ON wr.waste_type_id = wt.waste_type_id
+    JOIN REPORTSTATUSTYPE rst ON wr.report_status_type_id = rst.report_status_type_id
+    LEFT JOIN USERACCOUNT ua_collector ON wr.assigned_collector_id = ua_collector.user_account_id
     
     WHERE wr.citizen_id = ?
   `
@@ -128,16 +186,22 @@ async function findMyReports(citizenId, { fromDate, toDate, status, limit, offse
     return value
   })
 
-  const [rows] = await db.execute(finalQuery, safeQueryParams)
+  let rows
+  try {
+    ;[rows] = await db.execute(finalQuery, safeQueryParams)
+  } catch (e) {
+    console.error('SQL ERROR IN FIND MY REPORTS:', e)
+    throw e
+  }
 
   // Lấy tổng số rows cho pagination
   const [countRows] = await db.execute('SELECT FOUND_ROWS() as totalCount')
   const total = countRows[0].totalCount
 
   const data = rows.map((row) => {
-    const attachments = row.attachment_uris ? row.attachment_uris.split('|||').map((uri) => ({ fileUri: uri })) : []
+    const attachments = row.file_uri ? [{ fileUri: row.file_uri }] : []
 
-    const statusVal = row.current_status || 'OPEN'
+    const statusVal = row.current_status || 'PENDING'
 
     let assignedCollector = null
     if (statusVal === 'ASSIGNED' || statusVal === 'IN_PROGRESS' || statusVal === 'COLLECTED') {
@@ -166,10 +230,12 @@ async function findMyReports(citizenId, { fromDate, toDate, status, limit, offse
         lat: Number(row.gps_lat),
         lng: Number(row.gps_lng)
       },
+      description: row.description,
       status: statusVal,
       createdAt: row.created_at,
       attachments: attachments,
-      assignedCollector: assignedCollector
+      assignedCollector: assignedCollector,
+      reason: row.reject_reason || null
     }
   })
 
@@ -186,44 +252,42 @@ async function findMyReports(citizenId, { fromDate, toDate, status, limit, offse
 async function findReportById(reportId) {
   let query = `
     SELECT
-      wr.waste_report_id,
-      wr.gps_lat,
-      wr.gps_lng,
-      wr.created_at,
+      wr.waste_report_id AS waste_report_id,
+      wr.gps_lat AS gps_lat,
+      wr.gps_lng AS gps_lng,
+      wr.created_at AS created_at,
+      wr.weight AS weight,
+      wr.file_uri AS file_uri,
+      wr.description AS description,
       
-      wt.waste_type_id,
-      wt.waste_type_name,
-      wt.unit_type,
+      wt.waste_type_id AS waste_type_id,
+      wt.waste_type_name AS waste_type_name,
+      wt.unit_type AS unit_type,
       
       c.citizen_id,
       ua_citizen.fullname AS citizen_fullname,
       ua_citizen.phone AS citizen_phone,
       
-      (
-        SELECT rst.status_name
-        FROM ReportStatusHistory rsh
-        JOIN ReportStatusType rst ON rsh.report_status_type_id = rst.report_status_type_id
-        WHERE rsh.waste_report_id = wr.waste_report_id
-        ORDER BY rsh.changed_at DESC
-        LIMIT 1
-      ) AS current_status,
+      rst.status_name AS current_status,
       
-      (
-        SELECT GROUP_CONCAT(ra.file_uri SEPARATOR '|||')
-        FROM ReportAttachment ra
-        WHERE ra.waste_report_id = wr.waste_report_id
-      ) AS attachment_uris,
-      
-      cr.collector_user_account_id,
+      wr.assigned_collector_id AS collector_user_account_id,
       ua_collector.fullname AS collector_fullname,
-      ua_collector.phone AS collector_phone
+      ua_collector.phone AS collector_phone,
       
-    FROM WasteReport wr
-    JOIN Citizen c ON wr.citizen_id = c.citizen_id
-    JOIN UserAccount ua_citizen ON c.user_account_id = ua_citizen.user_account_id
-    JOIN WasteType wt ON wr.waste_type_id = wt.waste_type_id
-    LEFT JOIN CollectedRecord cr ON wr.waste_report_id = cr.waste_report_id
-    LEFT JOIN UserAccount ua_collector ON cr.collector_user_account_id = ua_collector.user_account_id
+      (
+        SELECT fb.feedback_text
+        FROM FEEDBACK fb
+        WHERE fb.waste_report_id = wr.waste_report_id
+        ORDER BY fb.created_at DESC
+        LIMIT 1
+      ) AS reject_reason
+      
+    FROM WASTEREPORT wr
+    JOIN CITIZEN c ON wr.citizen_id = c.citizen_id
+    JOIN USERACCOUNT ua_citizen ON c.user_account_id = ua_citizen.user_account_id
+    JOIN WASTETYPE wt ON wr.waste_type_id = wt.waste_type_id
+    JOIN REPORTSTATUSTYPE rst ON wr.report_status_type_id = rst.report_status_type_id
+    LEFT JOIN USERACCOUNT ua_collector ON wr.assigned_collector_id = ua_collector.user_account_id
     
     WHERE wr.waste_report_id = ?
   `
@@ -233,8 +297,8 @@ async function findReportById(reportId) {
   if (rows.length === 0) return null
 
   const row = rows[0]
-  const attachments = row.attachment_uris ? row.attachment_uris.split('|||').map((uri) => ({ fileUri: uri })) : []
-  const statusVal = row.current_status || 'OPEN'
+  const attachments = row.file_uri ? [{ fileUri: row.file_uri }] : []
+  const statusVal = row.current_status || 'PENDING'
 
   let assignedCollector = null
   if (statusVal === 'ASSIGNED' || statusVal === 'IN_PROGRESS' || statusVal === 'COLLECTED') {
@@ -264,10 +328,12 @@ async function findReportById(reportId) {
       lat: Number(row.gps_lat),
       lng: Number(row.gps_lng)
     },
+    description: row.description,
     status: statusVal,
     createdAt: row.created_at,
     attachments: attachments,
-    assignedCollector: assignedCollector
+    assignedCollector: assignedCollector,
+    reason: row.reject_reason || null
   }
 }
 
@@ -295,11 +361,19 @@ async function updateReportById(reportId, updateData) {
     fields.push('description = ?')
     values.push(updateData.description)
   }
+  if (updateData.weight !== undefined) {
+    fields.push('weight = ?')
+    values.push(updateData.weight)
+  }
+  if (updateData.file_uri !== undefined) {
+    fields.push('file_uri = ?')
+    values.push(updateData.file_uri)
+  }
 
   // Nếu không có field nào cần update thì bypass
   if (fields.length === 0) return true
 
-  const query = `UPDATE WasteReport SET ${fields.join(', ')} WHERE waste_report_id = ?`
+  const query = `UPDATE WASTEREPORT SET ${fields.join(', ')} WHERE waste_report_id = ?`
   values.push(reportId)
 
   const [result] = await db.execute(query, values)
@@ -316,16 +390,13 @@ async function deleteReportById(reportId) {
     await connection.beginTransaction()
 
     // 1. Xóa CollectedRecord (nếu có - do seed script lúc nãy có gắn)
-    await connection.execute('DELETE FROM CollectedRecord WHERE waste_report_id = ?', [reportId])
+    await connection.execute('DELETE FROM COLLECTEDRECORD WHERE waste_report_id = ?', [reportId])
 
-    // 2. Xóa ReportAttachment
-    await connection.execute('DELETE FROM ReportAttachment WHERE waste_report_id = ?', [reportId])
-
-    // 3. Xóa ReportStatusHistory
-    await connection.execute('DELETE FROM ReportStatusHistory WHERE waste_report_id = ?', [reportId])
+    // 2. Xóa ReportStatusHistory
+    await connection.execute('DELETE FROM REPORTSTATUSHISTORY WHERE waste_report_id = ?', [reportId])
 
     // 4. Xóa bảng cha WasteReport
-    const [result] = await connection.execute('DELETE FROM WasteReport WHERE waste_report_id = ?', [reportId])
+    const [result] = await connection.execute('DELETE FROM WASTEREPORT WHERE waste_report_id = ?', [reportId])
 
     await connection.commit()
     return result.affectedRows > 0
@@ -342,7 +413,7 @@ async function deleteReportById(reportId) {
  */
 async function findCitizenIdByUserAccountId(userAccountId) {
   if (!userAccountId) return null
-  const [rows] = await db.execute('SELECT citizen_id FROM Citizen WHERE user_account_id = ?', [userAccountId])
+  const [rows] = await db.execute('SELECT citizen_id FROM CITIZEN WHERE user_account_id = ?', [userAccountId])
   return rows[0]?.citizen_id || null
 }
 
@@ -355,14 +426,14 @@ async function ensureCitizenIdByUserAccountId(userAccountId) {
   const createdAt = new Date()
 
   await db.execute(
-    `INSERT INTO Citizen (citizen_id, user_account_id, total_points, created_at)
+    `INSERT INTO CITIZEN (citizen_id, user_account_id, total_points, created_at)
      SELECT ?, ua.user_account_id, 0, ?
-       FROM UserAccount ua
+       FROM USERACCOUNT ua
       WHERE ua.user_account_id = ?
         AND ua.role_id = ?
         AND NOT EXISTS (
           SELECT 1
-            FROM Citizen c
+            FROM CITIZEN c
            WHERE c.user_account_id = ua.user_account_id
         )`,
     [newCitizenId, createdAt, userAccountId, ROLES.CITIZEN]

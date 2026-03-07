@@ -23,6 +23,7 @@ app.use(
   })
 )
 
+// Regular expression parsing for non-multipart requests
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
@@ -33,9 +34,11 @@ app.get('/health', (req, res) => {
 // Routes
 app.use('/api/auth', authRoutes)
 app.use('/api/v1/admin', adminRoutes)
+app.use('/api/v1/collector', require('./routes/collectorRoutes'))
 app.use('/api/enterprise', enterpriseRoutes)
 app.use('/api/reports', require('./routes/wasteReportRoutes'))
 app.use('/api/waste-types', require('./routes/wasteTypeRoutes'))
+app.use('/enterprise', require('./routes/enterpriseRoutes'))
 
 app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' })

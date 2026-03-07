@@ -1,7 +1,8 @@
 import React from "react";
+import EnterpriseOverview from "../overview/EnterpriseOverview";
 
 function Dashboard() {
-  return <div>Enterprise Dashboard - Tổng quan</div>;
+  return <EnterpriseOverview />;
 }
 
 export default Dashboard;
