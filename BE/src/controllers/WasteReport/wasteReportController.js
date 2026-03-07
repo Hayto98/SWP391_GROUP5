@@ -12,7 +12,7 @@ function getUserAccountIdFromRequest(req) {
 async function createReport(req, res, next) {
   try {
     const userAccountId = req.user.sub
-    const { wasteTypeId, gpsLat, gpsLng, description, weight } = req.body
+    const { wasteTypeId, gpsLat, gpsLng, description, weight, fileUri } = req.body
     const fileBuffer = req.file ? req.file.buffer : null
     const fileMimetype = req.file ? req.file.mimetype : null
 
@@ -24,7 +24,8 @@ async function createReport(req, res, next) {
       description,
       weight: weight ? parseFloat(weight) : null,
       fileBuffer,
-      fileMimetype
+      fileMimetype,
+      fileUriFromBody: fileUri || null   // URL truyền thẳng qua JSON body
     })
 
     res.status(201).json({

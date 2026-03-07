@@ -219,7 +219,7 @@ async function updateFailedLoginCount(userAccountId, count) {
 }
 
 async function updateLastLogin(userAccountId) {
-  await db.execute('UPDATE UserAccount SET last_login_at = ?, failed_login_count = 0 WHERE user_account_id = ?', [
+  await db.execute('UPDATE USERACCOUNT SET last_login_at = ?, failed_login_count = 0 WHERE user_account_id = ?', [
     new Date(),
     userAccountId
   ])
@@ -228,7 +228,7 @@ async function updateLastLogin(userAccountId) {
 // ==================== DELETE (Soft) ====================
 
 async function softDeleteUser(userAccountId) {
-  await db.execute('UPDATE UserAccount SET is_locked = 1, ban_reason = ? WHERE user_account_id = ?', [
+  await db.execute('UPDATE USERACCOUNT SET is_locked = 1, ban_reason = ? WHERE user_account_id = ?', [
     SOFT_DELETED_REASON,
     userAccountId
   ])

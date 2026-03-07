@@ -20,12 +20,12 @@ const { ROLES } = require('../utils/constants')
  * @param {number|null} params.weight
  * @returns {{ wasteReportId: string, status: 'PENDING' }}
  */
-async function createReport({ citizenId, citizenUserAccountId, wasteTypeId, gpsLat, gpsLng, description, weight }) {
+async function createReport({ citizenId, citizenUserAccountId, wasteTypeId, gpsLat, gpsLng, description, weight, fileUri }) {
   const PENDING_STATUS_ID = 1
 
   // ── 1. Validate wasteType (outside transaction — read-only) ────────
   const [wasteTypeRows] = await db.execute(
-    `SELECT waste_type_id FROM WasteType WHERE waste_type_id = ? AND is_active = 1 LIMIT 1`,
+    `SELECT waste_type_id FROM WASTETYPE WHERE waste_type_id = ? AND is_active = 1 LIMIT 1`,
     [wasteTypeId]
   )
 
@@ -47,15 +47,15 @@ async function createReport({ citizenId, citizenUserAccountId, wasteTypeId, gpsL
     await connection.beginTransaction()
 
     await connection.execute(
-      `INSERT INTO WasteReport
+      `INSERT INTO WASTEREPORT
         (waste_report_id, citizen_id, waste_type_id, report_status_type_id,
-         assigned_collector_id, gps_lat, gps_lng, description, weight, created_at)
-       VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
-      [wasteReportId, citizenId, wasteTypeId, PENDING_STATUS_ID, gpsLat, gpsLng, description, weight ?? null, createdAt]
+         assigned_collector_id, gps_lat, gps_lng, description, weight, file_uri, created_at)
+       VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)`,
+      [wasteReportId, citizenId, wasteTypeId, PENDING_STATUS_ID, gpsLat, gpsLng, description, weight ?? 0, fileUri || null, createdAt]
     )
 
     await connection.execute(
-      `INSERT INTO ReportStatusHistory
+      `INSERT INTO REPORTSTATUSHISTORY
         (report_status_history_id, waste_report_id, report_status_type_id,
          changed_by_user_account_id, changed_at)
        VALUES (?, ?, ?, ?, ?)`,
@@ -72,7 +72,8 @@ async function createReport({ citizenId, citizenUserAccountId, wasteTypeId, gpsL
 
   return {
     wasteReportId,
-    status: 'PENDING'
+    status: 'PENDING',
+    createdAt
   }
 }
 
