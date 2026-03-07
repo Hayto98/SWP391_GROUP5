@@ -20,6 +20,7 @@ import { vi } from "date-fns/locale";
 import { getReportById } from "@/services/wasteReportService";
 import { reverseGeocode } from "@/services/geocodingService";
 import { getWasteTypeById } from "@/services/wasteService";
+import ImageSection from "@/components/ui/image-section";
 
 // Fix Leaflet default icon issue
 // eslint-disable-next-line no-underscore-dangle
@@ -384,13 +385,12 @@ function ReportDetailPage() {
                 Ảnh người dân
               </p>
               {report.citizenImages && report.citizenImages.length > 0 ? (
-                <img
-                  src={report.citizenImages[0]}
-                  alt="Ảnh người dân"
-                  className="w-full h-48 object-cover rounded-lg border"
+                <ImageSection
+                  image={report.citizenImages?.[0]}
+                  className="flex-1"
                 />
               ) : (
-                <div className="w-full h-48 bg-gray-100 rounded-lg border flex items-center justify-center">
+                <div className="w-full h-60 bg-gray-100 rounded-lg border flex items-center justify-center">
                   <p className="text-sm text-muted-foreground">Chưa có ảnh</p>
                 </div>
               )}
@@ -401,13 +401,12 @@ function ReportDetailPage() {
                 Ảnh thu gom
               </p>
               {report.collectorImages && report.collectorImages.length > 0 ? (
-                <img
-                  src={report.collectorImages[0]}
-                  alt="Ảnh thu gom"
-                  className="w-full h-48 object-cover rounded-lg border"
+                <ImageSection
+                  image={report.collectorImages[0]}
+                  className="flex-1"
                 />
               ) : (
-                <div className="w-full h-48 bg-gray-100 rounded-lg border flex items-center justify-center">
+                <div className="w-full h-60 bg-gray-100 rounded-lg border flex items-center justify-center">
                   <div className="text-center">
                     <AlertCircle className="w-8 h-8 text-gray-400 mx-auto mb-2" />
                     <p className="text-sm text-muted-foreground">

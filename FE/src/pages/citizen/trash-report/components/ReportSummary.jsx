@@ -2,6 +2,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Camera, X } from "lucide-react";
 import { useRef } from "react";
+import ImageSection from "@/components/ui/image-section";
 
 function ReportSummary({
   description,
@@ -12,6 +13,10 @@ function ReportSummary({
   submitting,
 }) {
   const fileInputRef = useRef(null);
+
+  const openFilePicker = () => {
+    fileInputRef.current?.click();
+  };
 
   const handleFileChange = (e) => {
     const selectedFiles = Array.from(e.target.files || []);
@@ -88,48 +93,56 @@ function ReportSummary({
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-start mt-4">Tải ảnh lên</h3>
 
-        <div
-          onClick={() => fileInputRef.current?.click()}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-green-400 hover:bg-green-50/30 transition-colors"
-        >
-          <Camera className="size-12 text-green-500 mx-auto mb-3" />
-          <p className="text-sm font-medium text-gray-700 mb-1">
-            Nhấn để tải lên hoặc kéo thả ảnh
-          </p>
-          <p className="text-xs text-green-500">Hỗ trợ JPG, PNG (Tối đa 5MB)</p>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/jpg"
-            onChange={handleFileChange}
-            className="hidden"
-          />
-        </div>
+        {files.length === 0 ? (
+          <div
+            onClick={openFilePicker}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-green-400 hover:bg-green-50/30 transition-colors"
+          >
+            <Camera className="size-12 text-green-500 mx-auto mb-3" />
+            <p className="text-sm font-medium text-gray-700 mb-1">
+              Nhấn để tải lên hoặc kéo thả ảnh
+            </p>
+            <p className="text-xs text-green-500">
+              Hỗ trợ JPG, PNG (Tối đa 5MB)
+            </p>
+          </div>
+        ) : (
+          <div className="relative rounded-lg border p-3">
+            <ImageSection title="Ảnh đã chọn" image={files[0]?.preview} />
 
-        {/* Preview uploaded images */}
-        {files.length > 0 && (
-          <div className="grid grid-cols-3 gap-3">
-            {files.map((image) => (
-              <div key={image.id} className="relative group">
-                <img
-                  src={image.preview}
-                  alt="Preview"
-                  className="w-full h-32 object-cover rounded-lg border"
-                />
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  className="absolute top-1 right-1 size-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={() => removeImage(image.id)}
-                >
-                  <X className="size-3" />
-                </Button>
-              </div>
-            ))}
+            <div className="absolute top-14 right-6 flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={openFilePicker}
+              >
+                Thay đổi ảnh
+              </Button>
+
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                className="gap-1"
+                onClick={() => removeImage(files[0]?.id)}
+              >
+                <X className="size-3" />
+                Xóa ảnh
+              </Button>
+            </div>
           </div>
         )}
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/jpg"
+          onChange={handleFileChange}
+          className="hidden"
+        />
       </div>
 
       {/* Submit Button */}
