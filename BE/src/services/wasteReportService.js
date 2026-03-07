@@ -1,13 +1,61 @@
 const wasteReportRepository = require('../repositories/wasteReportRepository')
 const ApiError = require('../errors/ApiError')
 const { v4: uuidv4 } = require('uuid')
+const cloudinary = require('../config/cloudinary')
+const sharp = require('sharp')
+
+// ==================== HELPERS ====================
+
+/**
+ * Compress an image Buffer using sharp before upload.
+ * Resizes to max 1200px width, converts to JPEG, quality 80%.
+ * Non-image files are passed through unchanged.
+ * @private
+ */
+async function compressImage(buffer, mimetype) {
+  if (!mimetype || !mimetype.startsWith('image/')) return buffer
+  try {
+    return await sharp(buffer).resize({ width: 1200, withoutEnlargement: true }).jpeg({ quality: 80 }).toBuffer()
+  } catch {
+    // If compression fails (e.g. unsupported format), upload the original
+    return buffer
+  }
+}
+
+/**
+ * Upload a Buffer to Cloudinary and return the secure_url.
+ * Compresses the image first to reduce upload time and storage cost.
+ * Uses upload_stream so we never write to disk.
+ */
+async function uploadBufferToCloudinary(buffer, mimetype) {
+  const compressed = await compressImage(buffer, mimetype)
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: 'waste_reports', resource_type: 'image' },
+      (error, result) => {
+        if (error) return reject(new ApiError(500, 'Cloudinary upload failed: ' + error.message))
+        resolve(result.secure_url)
+      }
+    )
+    stream.end(compressed)
+  })
+}
 
 // ==================== CREATE ====================
 
 /**
- * Validate và tạo mới một WasteReport
+ * Validate và tạo mới một WasteReport — supports multipart/form-data with image upload.
  */
-async function createReport({ userAccountId, wasteTypeId, gpsLat, gpsLng, description, fileUri }) {
+async function createReport({
+  userAccountId,
+  wasteTypeId,
+  gpsLat,
+  gpsLng,
+  description,
+  weight,
+  fileBuffer,
+  fileMimetype
+}) {
   // ── Validation ──────────────────────────────────────────────
   const errors = []
 
@@ -15,10 +63,10 @@ async function createReport({ userAccountId, wasteTypeId, gpsLat, gpsLng, descri
     throw new ApiError(401, 'Unauthorized')
   }
 
-  if (!wasteTypeId || isNaN(Number(wasteTypeId))) {
-    errors.push('wasteTypeId is required and must be a number')
-  } else {
-    wasteTypeId = Number(wasteTypeId)
+  if (wasteTypeId === undefined || wasteTypeId === null) {
+    errors.push('wasteTypeId is required')
+  } else if (!Number.isInteger(Number(wasteTypeId)) || Number(wasteTypeId) <= 0) {
+    errors.push('wasteTypeId must be a positive integer')
   }
 
   if (gpsLat === undefined || gpsLat === null || typeof gpsLat !== 'number' || Number.isNaN(gpsLat)) {
@@ -43,22 +91,38 @@ async function createReport({ userAccountId, wasteTypeId, gpsLat, gpsLng, descri
     throw new ApiError(403, 'Chỉ Citizen mới được tạo báo cáo rác thải.')
   }
 
-  // ── Persist ─────────────────────────────────────────────────
-  const wasteReportId = uuidv4()
-  const createdAt = new Date()
+  // ── Upload image to Cloudinary (if provided) ─────────────────
+  let imageUrl = null
+  if (fileBuffer) {
+    imageUrl = await uploadBufferToCloudinary(fileBuffer, fileMimetype || 'image/jpeg')
+  }
 
+  // ── Persist ─────────────────────────────────────────────────
+  let created
   try {
-    await wasteReportRepository.createReport({
-      wasteReportId,
+    created = await wasteReportRepository.createReport({
       citizenId,
-      wasteTypeId,
+      citizenUserAccountId: userAccountId,
+      wasteTypeId: Number(wasteTypeId),
       gpsLat,
       gpsLng,
       description: description.trim(),
-      fileUri,
-      createdAt
+      weight: weight ?? null
     })
+
+    // Save Cloudinary URL into ReportAttachment
+    if (imageUrl) {
+      await wasteReportRepository.createReportAttachment({
+        reportAttachmentId: uuidv4(),
+        wasteReportId: created.wasteReportId,
+        fileUri: imageUrl,
+        uploadedAt: new Date()
+      })
+    }
   } catch (error) {
+    if (error.code === 'INVALID_WASTE_TYPE') {
+      throw new ApiError(400, error.message)
+    }
     if (error.code === 'ER_NO_REFERENCED_ROW_2') {
       throw new ApiError(400, 'wasteTypeId không tồn tại.')
     }
@@ -74,7 +138,10 @@ async function createReport({ userAccountId, wasteTypeId, gpsLat, gpsLng, descri
     description: description.trim(),
     attachments: fileUri ? [{ fileUri }] : [],
     status: 'PENDING',
-    createdAt
+    createdAt,
+    reportId: created.wasteReportId,
+    imageUrl
+
   }
 }
 

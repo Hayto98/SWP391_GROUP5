@@ -1,7 +1,6 @@
 import React from "react";
+import AcceptWasteConfig from "./accept-waste/AcceptWasteConfig";
 
-function RewardsConfig() {
-  return <div>Cấu hình điểm thưởng</div>;
+export default function RewardsConfig() {
+  return <AcceptWasteConfig />;
 }
-
-export default RewardsConfig;

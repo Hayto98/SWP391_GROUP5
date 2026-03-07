@@ -19,9 +19,28 @@ import { useAuthStore } from "@/stores/authStore";
 
 // This is sample data.
 
+const resolveRole = (user) => {
+  if (!user) return "";
+  if (typeof user.role === "string" && user.role) return user.role;
+
+  switch (user.roleId) {
+    case 1:
+      return "admin";
+    case 2:
+      return "citizen";
+    case 3:
+      return "enterprise";
+    case 4:
+      return "collector";
+    default:
+      return "";
+  }
+};
+
 export function AppSidebar({ ...props }) {
   const user = useAuthStore((s) => s.user);
-  const navMain = navByRole[user.role];
+  const role = resolveRole(user);
+  const navMain = role ? navByRole[role] || [] : [];
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
@@ -34,7 +53,7 @@ export function AppSidebar({ ...props }) {
           </div>
           <div className="grid flex-1 text-left text-sm leading-tight">
             <span className="truncate font-medium">Recycle</span>
-            <span className="truncate text-xs">{user.role}</span>
+            <span className="truncate text-xs">{role}</span>
           </div>
         </SidebarMenuButton>
       </SidebarHeader>
