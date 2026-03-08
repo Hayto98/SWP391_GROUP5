@@ -219,6 +219,7 @@ function mapApiReportToDetail(rawReport, fallbackReportId) {
   return {
     id: rawReport?.wasteReportId || rawReport?.id || fallbackReportId,
     status: STATUS_LABELS[normalizedStatus] || normalizedStatus,
+    rawStatus: normalizedStatus,
     createdAt: formatDateTime(rawReport?.createdAt) || "Không rõ thời gian",
     imageUrl:
       firstAttachment?.fileUri ||

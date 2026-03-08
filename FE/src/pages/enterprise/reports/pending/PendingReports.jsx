@@ -303,7 +303,7 @@ export default function PendingReports() {
 
       <div className="pr-head">
         <div>
-          <h1>Danh sách Báo cáo Chờ xử lý</h1>
+          <h1>Danh sách Báo cáo</h1>
           <p>
             Hiển thị {data?.result?.total ?? 0} báo cáo theo bộ lọc hiện tại
           </p>
@@ -364,8 +364,7 @@ export default function PendingReports() {
                 <div>MÃ BÁO CÁO</div>
                 <div>CÔNG DÂN (TÊN/SĐT)</div>
                 <div>LOẠI RÁC</div>
-                <div>KHỐI LƯỢNG</div>
-                <div>SLA</div>
+                <div>TRẠNG THÁI</div>
                 <div>HÀNH ĐỘNG</div>
               </div>
 
@@ -394,11 +393,9 @@ export default function PendingReports() {
                   <div>
                     <Tag tone={r.wasteTone}>{r.waste}</Tag>
                   </div>
-                  <div>{r.weightKg.toFixed(1)} kg</div>
-                  <div>
-                    <Sla tone={r.sla.tone} text={r.sla.text} />
-                  </div>
-                  <div className="pr-actions">
+                  <div>{r.status || "-"}</div>
+
+                  <div className="pr-actions flex">
                     <ActionBtn
                       tone="ghost"
                       disabled={acting === r.code}

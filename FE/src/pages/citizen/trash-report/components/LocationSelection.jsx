@@ -80,8 +80,10 @@ function LocationSelection({ marker, onMapClick, onDeleteMarker }) {
   return (
     <>
       <CardHeader className="text-start px-0">
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold">Vị trí thu gom</h3>
+        <div className="flex ">
+          <h3 className="font-semibold">Vị trí thu gom </h3>
+          <span className="text-destructive"> *</span>
+
           {/* <span className="text-sm text-muted-foreground">
             Đã chọn {markers.length} vị trí
           </span> */}

@@ -91,7 +91,10 @@ function ReportSummary({
 
       {/* Upload ảnh */}
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-start mt-4">Tải ảnh lên</h3>
+        <h3 className="text-sm font-semibold text-start mt-4">
+          Tải ảnh lên
+          <span className="text-destructive"> *</span>
+        </h3>
 
         {files.length === 0 ? (
           <div
