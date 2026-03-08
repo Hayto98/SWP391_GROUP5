@@ -75,9 +75,10 @@
   
   .rs-grid{
     display:grid;
-    grid-template-columns: 1.3fr 1fr;
+    grid-template-columns: 1fr;
     gap:12px;
     margin-top: 10px;
+    width: 100%;
   }
   
   .rs-card{
@@ -86,6 +87,7 @@
     border-radius:14px;
     box-shadow: var(--shadow);
     padding:12px;
+    width: 100%;
   }
   
   .rs-cardTitle{
@@ -98,6 +100,7 @@
     border:1px solid var(--border);
     border-radius:14px;
     overflow:hidden;
+    width: 100%;
   }
   
   .rs-tr{
