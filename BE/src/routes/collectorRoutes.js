@@ -27,6 +27,7 @@ router.use(verifyToken)
 router.use(requireRole(ROLES.COLLECTOR))
 
 // ==================== ROUTES ====================
+router.get('/working-status', collectorController.getWorkingStatus)
 router.patch('/working-status', collectorController.updateWorkingStatus)
 router.get('/reports', collectorReportController.getAssignedReports)
 router.get('/reports/:reportId', collectorReportController.getReportById)
