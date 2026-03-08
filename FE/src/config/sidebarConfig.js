@@ -67,11 +67,11 @@ export const navByRole = {
       icon: Settings2,
       items: [
         {
-          title: "Cấu hình điểm thưởng",
+          title: "Hoạt động điểm thưởng",
           url: "/enterprise/rewards-config",
         },
         {
-          title: "Quy tắc SLA",
+          title: "Cấu hình điểm thưởng",
           url: "/enterprise/rewards-config/rules",
         },
         {

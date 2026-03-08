@@ -82,7 +82,8 @@ function formatPriority(status, createdAt) {
 
 function buildTimeline(rawReport) {
   const status = String(rawReport?.status || "PENDING").toUpperCase();
-  const createdAtText = formatDateTime(rawReport?.createdAt) || "Không rõ thời gian";
+  const createdAtText =
+    formatDateTime(rawReport?.createdAt) || "Không rõ thời gian";
 
   const timeline = [
     {
@@ -93,12 +94,24 @@ function buildTimeline(rawReport) {
   ];
 
   if (status === "PENDING") {
-    timeline.push({ title: "Chờ admin tiếp nhận", time: "Đang chờ xử lý", state: "active" });
-    timeline.push({ title: "Lên lịch thu gom", time: "Chưa bắt đầu", state: "todo" });
+    timeline.push({
+      title: "Chờ admin tiếp nhận",
+      time: "Đang chờ xử lý",
+      state: "active",
+    });
+    timeline.push({
+      title: "Lên lịch thu gom",
+      time: "Chưa bắt đầu",
+      state: "todo",
+    });
     return timeline;
   }
 
-  timeline.push({ title: "Chờ admin tiếp nhận", time: createdAtText, state: "done" });
+  timeline.push({
+    title: "Chờ admin tiếp nhận",
+    time: createdAtText,
+    state: "done",
+  });
 
   if (status === "REJECTED") {
     timeline.push({
@@ -110,33 +123,65 @@ function buildTimeline(rawReport) {
   }
 
   if (status === "ACCEPTED") {
-    timeline.push({ title: "Lên lịch thu gom", time: "Đang lên lịch", state: "active" });
+    timeline.push({
+      title: "Lên lịch thu gom",
+      time: "Đang lên lịch",
+      state: "active",
+    });
     return timeline;
   }
 
   if (status === "ASSIGNED") {
-    timeline.push({ title: "Lên lịch thu gom", time: "Đã phân công", state: "active" });
+    timeline.push({
+      title: "Lên lịch thu gom",
+      time: "Đã phân công",
+      state: "active",
+    });
     return timeline;
   }
 
   if (status === "IN_PROGRESS") {
-    timeline.push({ title: "Lên lịch thu gom", time: "Đã phân công", state: "done" });
-    timeline.push({ title: "Collector đang thu gom", time: "Đang thực hiện", state: "active" });
+    timeline.push({
+      title: "Lên lịch thu gom",
+      time: "Đã phân công",
+      state: "done",
+    });
+    timeline.push({
+      title: "Collector đang thu gom",
+      time: "Đang thực hiện",
+      state: "active",
+    });
     return timeline;
   }
 
   if (status === "COLLECTED") {
-    timeline.push({ title: "Lên lịch thu gom", time: "Đã phân công", state: "done" });
-    timeline.push({ title: "Đã thu gom hoàn tất", time: "Hoàn tất", state: "done" });
+    timeline.push({
+      title: "Lên lịch thu gom",
+      time: "Đã phân công",
+      state: "done",
+    });
+    timeline.push({
+      title: "Đã thu gom hoàn tất",
+      time: "Hoàn tất",
+      state: "done",
+    });
     return timeline;
   }
 
-  timeline.push({ title: `Trạng thái: ${status}`, time: createdAtText, state: "active" });
+  timeline.push({
+    title: `Trạng thái: ${status}`,
+    time: createdAtText,
+    state: "active",
+  });
   return timeline;
 }
 
 function extractSingleReport(response) {
-  if (response?.data && !Array.isArray(response.data) && typeof response.data === "object") {
+  if (
+    response?.data &&
+    !Array.isArray(response.data) &&
+    typeof response.data === "object"
+  ) {
     return response.data;
   }
 
@@ -155,28 +200,46 @@ function extractReportList(response) {
 
 function mapApiReportToDetail(rawReport, fallbackReportId) {
   const location = normalizeLocation(rawReport?.location);
-  const firstAttachment = Array.isArray(rawReport?.attachments)
-    ? rawReport.attachments.find((item) => item?.fileUri)
-    : null;
+  const attachments = Array.isArray(rawReport?.attachments)
+    ? rawReport.attachments
+    : Array.isArray(rawReport?.images)
+      ? rawReport.images
+      : [];
+  const firstAttachment = attachments.find(
+    (item) => item?.fileUri || item?.file_uri,
+  );
 
   const wasteTypeName = rawReport?.wasteType?.name || "Không rõ";
   const unitType = rawReport?.wasteType?.unitType || "";
-  const wasteTypeLabel = unitType ? `${wasteTypeName} (${unitType})` : wasteTypeName;
+  const wasteTypeLabel = unitType
+    ? `${wasteTypeName} (${unitType})`
+    : wasteTypeName;
   const normalizedStatus = String(rawReport?.status || "PENDING").toUpperCase();
 
   return {
     id: rawReport?.wasteReportId || rawReport?.id || fallbackReportId,
     status: STATUS_LABELS[normalizedStatus] || normalizedStatus,
     createdAt: formatDateTime(rawReport?.createdAt) || "Không rõ thời gian",
-    imageUrl: firstAttachment?.fileUri || rawReport?.imageUrl || DEFAULT_IMAGE_URL,
+    imageUrl:
+      firstAttachment?.fileUri ||
+      firstAttachment?.file_uri ||
+      rawReport?.imageUrl ||
+      DEFAULT_IMAGE_URL,
     wasteType: wasteTypeLabel,
     weightEstimate: formatWeightEstimate(rawReport?.weight),
     reporter: {
-      name: rawReport?.citizen?.fullname || rawReport?.reporter?.name || "Không rõ",
-      phone: rawReport?.citizen?.phone || rawReport?.reporter?.phone || "Không có SĐT",
+      name:
+        rawReport?.citizen?.fullname || rawReport?.reporter?.name || "Không rõ",
+      phone:
+        rawReport?.citizen?.phone ||
+        rawReport?.reporter?.phone ||
+        "Không có SĐT",
     },
     priority: formatPriority(normalizedStatus, rawReport?.createdAt),
-    note: rawReport?.description || rawReport?.note || "Không có mô tả từ người dân",
+    note:
+      rawReport?.description ||
+      rawReport?.note ||
+      "Không có mô tả từ người dân",
     description: rawReport?.description || rawReport?.note || "",
     address:
       rawReport?.address ||
@@ -184,6 +247,14 @@ function mapApiReportToDetail(rawReport, fallbackReportId) {
     location,
     timeline: buildTimeline(rawReport),
     assignedCollector: rawReport?.assignedCollector || null,
+    collector: rawReport?.collector || rawReport?.assignedCollector || null,
+    actualQuantity: rawReport?.actualQuantity ?? null,
+    unitType: rawReport?.unitType || rawReport?.wasteType?.unitType || "",
+    attachments,
+    collectorImages: Array.isArray(rawReport?.collectorImages)
+      ? rawReport.collectorImages
+      : [],
+    collectedRecord: rawReport?.collectedRecord || null,
     reason: rawReport?.reason || null,
   };
 }
@@ -202,7 +273,8 @@ async function findReportByEnterpriseList(reportId, headers) {
   return (
     rows.find(
       (item) =>
-        String(item?.wasteReportId || item?.id || "") === String(reportId || ""),
+        String(item?.wasteReportId || item?.id || "") ===
+        String(reportId || ""),
     ) || null
   );
 }
@@ -217,10 +289,13 @@ export async function getReportDetail(reportId) {
   let report = null;
 
   try {
-    const detailResponse = await request(`/reports/${normalizedReportId}`, {
-      method: "GET",
-      headers,
-    });
+    const detailResponse = await request(
+      `/enterprise/reports/${normalizedReportId}`,
+      {
+        method: "GET",
+        headers,
+      },
+    );
     report = extractSingleReport(detailResponse);
   } catch {
     // Fallback sang endpoint danh sách nếu hệ thống chưa mở route detail riêng cho enterprise.

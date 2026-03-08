@@ -18,6 +18,7 @@ import {
   FaUserCircle,
   FaExclamationTriangle,
   FaBoxOpen,
+  FaClock,
 } from "react-icons/fa";
 
 const Stat = ({ icon, label, value, tone }) => (
@@ -138,11 +139,14 @@ export default function ReportDetail() {
     [routeReportId],
   );
   const timelineItems = useMemo(() => {
-    const baseTimeline = Array.isArray(data?.timeline) ? [...data.timeline] : [];
+    const baseTimeline = Array.isArray(data?.timeline)
+      ? [...data.timeline]
+      : [];
     if (!latestAssignment) return baseTimeline;
 
     const assignTitle = `Đã phân công cho ${latestAssignment.collectorName}`;
-    const assignTime = latestAssignment.assignedAtText || latestAssignment.assignedAt;
+    const assignTime =
+      latestAssignment.assignedAtText || latestAssignment.assignedAt;
 
     const scheduleIndex = baseTimeline.findIndex(
       (item) => String(item?.title || "").toLowerCase() === "lên lịch thu gom",
@@ -164,7 +168,9 @@ export default function ReportDetail() {
     }
 
     const pendingIndex = baseTimeline.findIndex((item) =>
-      String(item?.title || "").toLowerCase().includes("chờ admin tiếp nhận"),
+      String(item?.title || "")
+        .toLowerCase()
+        .includes("chờ admin tiếp nhận"),
     );
     if (pendingIndex >= 0) {
       baseTimeline[pendingIndex] = {
@@ -247,7 +253,10 @@ export default function ReportDetail() {
         </div>
       </div>
 
-      <Dialog open={isCollectionPopupOpen} onOpenChange={setCollectionPopupOpen}>
+      <Dialog
+        open={isCollectionPopupOpen}
+        onOpenChange={setCollectionPopupOpen}
+      >
         <DialogContent
           className="max-w-none overflow-hidden p-0"
           style={{ width: "95vw", maxWidth: 1200, height: "85vh" }}
@@ -292,8 +301,7 @@ export default function ReportDetail() {
               <div className="rd-mapInfoTop">
                 <div className="rd-mapTitle">TỌA ĐỘ GPS</div>
                 <div className="rd-mapCoord">
-                  {data.location.lat.toFixed(6)},{" "}
-                  {data.location.lng.toFixed(6)}
+                  {data.location.lat.toFixed(6)}, {data.location.lng.toFixed(6)}
                 </div>
               </div>
 
@@ -341,7 +349,9 @@ export default function ReportDetail() {
         <div className="rd-leftCol">
           <div className="rd-card rd-section">
             <div className="rd-secTitle">Ghi chú từ người dân</div>
-            <div className="rd-note">{data.note || data.description || "-"}</div>
+            <div className="rd-note">
+              {data.note || data.description || "-"}
+            </div>
           </div>
 
           <div className="rd-card rd-section">
@@ -361,6 +371,50 @@ export default function ReportDetail() {
                 <span>{data.reporter?.phone || "Không có SĐT"}</span>
               </div>
             </div>
+
+            <div className="rd-contact" style={{ marginTop: 10 }}>
+              <div className="rd-contactItem">
+                <FaUserCircle />
+                <span>
+                  Collector: {data.collector?.fullname || "Chưa gán"}
+                  {data.collector?.phone ? ` (${data.collector.phone})` : ""}
+                </span>
+              </div>
+              <div className="rd-contactItem">
+                <FaCheck />
+                <span>
+                  Trạng thái: {data.status} | Số lượng thực tế:{" "}
+                  {data.actualQuantity ?? "-"} {data.unitType || ""}
+                </span>
+              </div>
+              <div className="rd-contactItem">
+                <FaClock />
+                <span>Lý do: {data.reason || "-"}</span>
+              </div>
+            </div>
+
+            {!!data.collectorImages?.length && (
+              <div style={{ marginTop: 12 }}>
+                <div className="rd-secTitle" style={{ marginBottom: 8 }}>
+                  Ảnh thu gom từ collector
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {data.collectorImages.map((img, idx) => (
+                    <img
+                      key={`${img}-${idx}`}
+                      src={img}
+                      alt={`collector-${idx}`}
+                      style={{
+                        width: 110,
+                        height: 80,
+                        objectFit: "cover",
+                        borderRadius: 8,
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

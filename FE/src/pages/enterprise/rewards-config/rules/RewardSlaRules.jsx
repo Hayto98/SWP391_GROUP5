@@ -13,6 +13,7 @@ import {
   FaEdit,
   FaExclamationTriangle,
   FaPlus,
+  FaSave,
   FaTimes,
   FaTimesCircle,
   FaTrash,
@@ -167,6 +168,10 @@ function EditWasteTypeModal({ onClose, onConfirm, adding, wasteItem }) {
       setLocalErr("Tỷ lệ sai số không được âm");
       return;
     }
+    if (!unitType.trim()) {
+      setLocalErr("Vui lòng nhập đơn vị tính");
+      return;
+    }
     setLocalErr("");
     const res = await onConfirm({
       wasteTypeId: wasteItem.wasteTypeId || wasteItem.id,
@@ -175,7 +180,7 @@ function EditWasteTypeModal({ onClose, onConfirm, adding, wasteItem }) {
       allowed_variance_percent: Number(variance),
       description: desc,
       waste_type_name: wasteTypeName.trim(),
-      unit_type: unitType,
+      unit_type: unitType.trim(),
     });
     if (res?.ok) onClose();
   };
@@ -219,20 +224,19 @@ function EditWasteTypeModal({ onClose, onConfirm, adding, wasteItem }) {
           </div>
 
           <div className="rs-field">
-            <label className="rs-label">Đơn vị tính</label>
-            <div className="rs-unit-group">
-              {["KG", "LON"].map((u) => (
-                <button
-                  key={u}
-                  type="button"
-                  className={`rs-unit-opt${unitType === u ? " rs-unit-opt--active" : ""}`}
-                  onClick={() => setUnitType(u)}
-                  disabled={adding}
-                >
-                  {u}
-                </button>
-              ))}
-            </div>
+            <label className="rs-label">
+              Đơn vị tính <span style={{ color: "#ef4444" }}>*</span>
+            </label>
+            <input
+              className="rs-field-input"
+              placeholder="VD: KG, LON, BAO..."
+              value={unitType}
+              onChange={(e) => {
+                setUnitType(e.target.value);
+                setLocalErr("");
+              }}
+              disabled={adding}
+            />
           </div>
 
           <div className="rs-field">
