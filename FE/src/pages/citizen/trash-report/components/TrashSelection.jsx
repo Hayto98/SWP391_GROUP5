@@ -37,7 +37,11 @@ function TrashSelection({
     <div>
       <FieldGroup className="flex gap-4 flex-row">
         <Field>
-          <FieldLabel>Loại rác</FieldLabel>
+          <FieldLabel>
+            Loại rác
+            <span className="text-destructive">*</span>
+          </FieldLabel>
+
           <Select value={selectedType} onValueChange={setSelectedType}>
             <SelectTrigger>
               <SelectValue
@@ -68,6 +72,7 @@ function TrashSelection({
             </span>
           </FieldDescription>
         </Field>
+
         <Field>
           <FieldLabel>
             Khối lượng ước tính
@@ -80,7 +85,15 @@ function TrashSelection({
             value={weight}
             onChange={(e) => {
               const value = e.target.value;
-              if (Number(value) >= 0 || value === "") {
+
+              if (value === "") {
+                setWeight("");
+                return;
+              }
+
+              const num = Number(value);
+
+              if (num >= 0 && num <= 200) {
                 setWeight(value);
               }
             }}
@@ -97,7 +110,17 @@ function TrashSelection({
           </FieldDescription>
         </Field>
       </FieldGroup>
+      {selectedWasteType && (
+        <div className="mt-2 rounded-lg border w-full p-3">
+          <p className="text-xs font-medium text-muted-foreground mb-1">
+            Mô tả loại rác
+          </p>
 
+          <FieldDescription className="text-sm leading-relaxed text-foreground/90">
+            {selectedWasteType.description || "Chưa có mô tả cho loại rác này."}
+          </FieldDescription>
+        </div>
+      )}
       <div className="flex mt-4 gap-2 rounded px-2 py-4 bg-orange-100 border border-orange-300">
         <CircleAlert className="text-destructive" />
         <div className="text-destructive">

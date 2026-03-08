@@ -85,9 +85,24 @@ async function getAllReports(req, res, next) {
   }
 }
 
+/**
+ * Enterprise lấy chi tiết 1 báo cáo rác thải
+ * GET /enterprise/reports/:reportId
+ */
+async function getReportById(req, res, next) {
+  try {
+    const { reportId } = req.params
+    const result = await enterpriseReportService.getReportById(reportId)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
 module.exports = {
   acceptReport,
   rejectReport,
   assignReport,
-  getAllReports
+  getAllReports,
+  getReportById
 }

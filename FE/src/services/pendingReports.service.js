@@ -3,11 +3,32 @@ import { request } from "./apiClient";
 const MAX_PENDING_FETCH = 500;
 const SLA_TOTAL_MINUTES = 4 * 60;
 
+const ALL_WARD = "Tất cả Người dùng";
+const ALL_WASTE_TYPE = "Tất cả loại rác";
+const ALL_WASTE_SUBTYPE = "Tất cả đơn vị rác";
+const ALL_WEIGHT = "Tất cả cân nặng";
+const ALL_STATUS = "Tất cả trạng thái";
+
+const ALL_WARD_OPTIONS = new Set([
+  ALL_WARD,
+  "Tất cả Quận",
+  "Tất cả người dùng",
+]);
+const ALL_WASTE_TYPE_OPTIONS = new Set([ALL_WASTE_TYPE, "Tất cả"]);
+const ALL_WASTE_SUBTYPE_OPTIONS = new Set([
+  ALL_WASTE_SUBTYPE,
+  "Tất cả đơn vị",
+  "Tất cả",
+]);
+const ALL_WEIGHT_OPTIONS = new Set([ALL_WEIGHT, "Tất cả"]);
+const ALL_STATUS_OPTIONS = new Set([ALL_STATUS, "Tất cả"]);
+
 const DEFAULT_FILTERS = {
-  wards: ["Tất cả Quận"],
-  wasteTypes: ["Tất cả"],
-  wasteSubTypes: ["Tất cả"],
-  weights: ["Tất cả", "< 20kg", "20kg", "20–50kg", "> 50kg", "> 20kg"],
+  wards: [ALL_WARD],
+  wasteTypes: [ALL_WASTE_TYPE],
+  wasteSubTypes: [ALL_WASTE_SUBTYPE],
+  weights: [ALL_WEIGHT, "< 20kg", "20kg", "20–50kg", "> 50kg", "> 20kg"],
+  statuses: [ALL_STATUS],
   sorts: ["Hết hạn SLA", "Mới nhất", "Khối lượng lớn"],
 };
 
@@ -26,9 +47,12 @@ function normalizeText(value) {
 function getWasteTone(wasteName) {
   const normalized = normalizeText(wasteName);
   if (normalized.includes("nhua")) return "blue";
-  if (normalized.includes("giay") || normalized.includes("carton")) return "green";
-  if (normalized.includes("kim loai") || normalized.includes("kimloai")) return "gray";
-  if (normalized.includes("dien tu") || normalized.includes("dientu")) return "purple";
+  if (normalized.includes("giay") || normalized.includes("carton"))
+    return "green";
+  if (normalized.includes("kim loai") || normalized.includes("kimloai"))
+    return "gray";
+  if (normalized.includes("dien tu") || normalized.includes("dientu"))
+    return "purple";
   return "gray";
 }
 
@@ -104,15 +128,27 @@ function getWasteSubTypeName(wasteLabel) {
 }
 
 function buildFilters(allRows) {
-  const uniqueCitizenNames = [...new Set(allRows.map((row) => row.ward).filter(Boolean))];
-  const uniqueWasteTypes = [...new Set(allRows.map((row) => row.waste).filter(Boolean))];
-  const uniqueWasteSubTypes = [...new Set(allRows.map((row) => getWasteSubTypeName(row.waste)).filter(Boolean))];
+  const uniqueCitizenNames = [
+    ...new Set(allRows.map((row) => row.ward).filter(Boolean)),
+  ];
+  const uniqueWasteTypes = [
+    ...new Set(allRows.map((row) => row.waste).filter(Boolean)),
+  ];
+  const uniqueWasteSubTypes = [
+    ...new Set(
+      allRows.map((row) => getWasteSubTypeName(row.waste)).filter(Boolean),
+    ),
+  ];
+  const uniqueStatuses = [
+    ...new Set(allRows.map((row) => row.status).filter(Boolean)),
+  ];
 
   return {
-    wards: ["Tất cả Quận", ...uniqueCitizenNames],
-    wasteTypes: ["Tất cả", ...uniqueWasteTypes],
-    wasteSubTypes: ["Tất cả", ...uniqueWasteSubTypes],
+    wards: [ALL_WARD, ...uniqueCitizenNames],
+    wasteTypes: [ALL_WASTE_TYPE, ...uniqueWasteTypes],
+    wasteSubTypes: [ALL_WASTE_SUBTYPE, ...uniqueWasteSubTypes],
     weights: DEFAULT_FILTERS.weights,
+    statuses: [ALL_STATUS, ...uniqueStatuses],
     sorts: DEFAULT_FILTERS.sorts,
   };
 }
@@ -120,12 +156,23 @@ function buildFilters(allRows) {
 function applyClientFilters(rows, params = {}) {
   const {
     q = "",
-    ward = "Tất cả Quận",
-    wasteType = "Tất cả",
-    wasteSubType = "Tất cả",
-    weight = "Tất cả",
+    ward = ALL_WARD,
+    wasteType = ALL_WASTE_TYPE,
+    wasteSubType = ALL_WASTE_SUBTYPE,
+    weight = ALL_WEIGHT,
+    status = ALL_STATUS,
     sort = "Hết hạn SLA",
   } = params;
+
+  const isAllWard = ALL_WARD_OPTIONS.has(String(ward || "").trim());
+  const isAllWasteType = ALL_WASTE_TYPE_OPTIONS.has(
+    String(wasteType || "").trim(),
+  );
+  const isAllWasteSubType = ALL_WASTE_SUBTYPE_OPTIONS.has(
+    String(wasteSubType || "").trim(),
+  );
+  const isAllWeight = ALL_WEIGHT_OPTIONS.has(String(weight || "").trim());
+  const isAllStatus = ALL_STATUS_OPTIONS.has(String(status || "").trim());
 
   let nextRows = [...rows];
 
@@ -133,26 +180,30 @@ function applyClientFilters(rows, params = {}) {
     const search = normalizeText(q.trim());
     nextRows = nextRows.filter((row) =>
       [row.code, row.ward, row.district, row.waste].some((value) =>
-        normalizeText(value).includes(search)
-      )
+        normalizeText(value).includes(search),
+      ),
     );
   }
 
-  if (ward !== "Tất cả Quận") {
+  if (!isAllWard) {
     nextRows = nextRows.filter((row) => row.ward === ward);
   }
 
-  if (wasteType !== "Tất cả") {
-    nextRows = nextRows.filter((row) => normalizeText(row.waste).includes(normalizeText(wasteType)));
-  }
-
-  if (wasteSubType !== "Tất cả") {
+  if (!isAllWasteType) {
     nextRows = nextRows.filter((row) =>
-      normalizeText(getWasteSubTypeName(row.waste)).includes(normalizeText(wasteSubType))
+      normalizeText(row.waste).includes(normalizeText(wasteType)),
     );
   }
 
-  if (weight !== "Tất cả") {
+  if (!isAllWasteSubType) {
+    nextRows = nextRows.filter((row) =>
+      normalizeText(getWasteSubTypeName(row.waste)).includes(
+        normalizeText(wasteSubType),
+      ),
+    );
+  }
+
+  if (!isAllWeight) {
     nextRows = nextRows.filter((row) => {
       const w = row.weightKg;
       if (weight === "< 20kg") return w < 20;
@@ -164,10 +215,21 @@ function applyClientFilters(rows, params = {}) {
     });
   }
 
+  if (!isAllStatus) {
+    const expectedStatus = normalizeText(status);
+    nextRows = nextRows.filter(
+      (row) => normalizeText(row.status) === expectedStatus,
+    );
+  }
+
   if (sort === "Khối lượng lớn") {
     nextRows.sort((a, b) => b.weightKg - a.weightKg);
   } else if (sort === "Mới nhất") {
-    nextRows.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    nextRows.sort(
+      (a, b) =>
+        new Date(b.createdAt || 0).getTime() -
+        new Date(a.createdAt || 0).getTime(),
+    );
   } else {
     const rank = (row) => {
       if (row.sla.type === "expired") return 0;
@@ -242,7 +304,10 @@ export async function updatePendingReportStatus(payload) {
   }
 
   const action = String(payload?.action || "").toLowerCase();
-  const reportId = String(payload?.reportId || payload?.code || "").replace(/^#/, "");
+  const reportId = String(payload?.reportId || payload?.code || "").replace(
+    /^#/,
+    "",
+  );
 
   if (!reportId) {
     throw new Error("Thiếu reportId để cập nhật trạng thái báo cáo");
@@ -261,7 +326,9 @@ export async function updatePendingReportStatus(payload) {
     return {
       ok: true,
       reportId: response?.data?.reportId || reportId,
-      status: String(response?.data?.Status || response?.data?.status || "ACCEPTED").toUpperCase(),
+      status: String(
+        response?.data?.Status || response?.data?.status || "ACCEPTED",
+      ).toUpperCase(),
       acceptedAt: response?.data?.acceptedAt || null,
       raw: response,
     };

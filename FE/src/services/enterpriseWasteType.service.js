@@ -7,11 +7,36 @@ function getAuthHeaders() {
 
 // ─── Fake data dùng cho mock ─────────────────────────────────────────────────
 let FAKE_WASTE_TYPES = [
-  { wasteTypeId: 1, wasteTypeName: "Nhựa tái chế (PET)", unitType: "KG", isActive: true },
-  { wasteTypeId: 2, wasteTypeName: "Giấy & Carton",       unitType: "KG", isActive: true },
-  { wasteTypeId: 3, wasteTypeName: "Kim loại (Nhôm, Sắt)", unitType: "KG", isActive: true },
-  { wasteTypeId: 4, wasteTypeName: "Thủy tinh",            unitType: "LON", isActive: true },
-  { wasteTypeId: 5, wasteTypeName: "Rác điện tử",          unitType: "KG", isActive: false },
+  {
+    wasteTypeId: 1,
+    wasteTypeName: "Nhựa tái chế (PET)",
+    unitType: "KG",
+    isActive: true,
+  },
+  {
+    wasteTypeId: 2,
+    wasteTypeName: "Giấy & Carton",
+    unitType: "KG",
+    isActive: true,
+  },
+  {
+    wasteTypeId: 3,
+    wasteTypeName: "Kim loại (Nhôm, Sắt)",
+    unitType: "KG",
+    isActive: true,
+  },
+  {
+    wasteTypeId: 4,
+    wasteTypeName: "Thủy tinh",
+    unitType: "LON",
+    isActive: true,
+  },
+  {
+    wasteTypeId: 5,
+    wasteTypeName: "Rác điện tử",
+    unitType: "KG",
+    isActive: false,
+  },
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -46,7 +71,7 @@ export async function createWasteType(payload) {
   });
 }
 
-export async function updateRewardConfig(payload) {
+export async function createRewardConfig(payload) {
   const USE_FAKE_FOR_NOW = false;
 
   if (USE_FAKE_FOR_NOW) {
@@ -57,9 +82,39 @@ export async function updateRewardConfig(payload) {
   return request("/api/enterprise/reward-config", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-    data: payload,
+    data: {
+      wasteTypeId: payload.wasteTypeId,
+      pointsPerUnit: payload.pointsPerUnit,
+      description: payload.description,
+      allowed_variance_percent: payload.allowed_variance_percent,
+      allowedVariancePercent: payload.allowed_variance_percent,
+    },
   });
 }
+
+export async function updateRewardConfigById(rewardConfigId, payload) {
+  const USE_FAKE_FOR_NOW = false;
+
+  if (USE_FAKE_FOR_NOW) {
+    await delay(300);
+    return { success: true, data: payload };
+  }
+
+  return request(`/api/enterprise/reward-config/${rewardConfigId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    data: {
+      wasteTypeId: payload.wasteTypeId,
+      pointsPerUnit: payload.pointsPerUnit,
+      description: payload.description,
+      allowed_variance_percent: payload.allowed_variance_percent,
+      allowedVariancePercent: payload.allowed_variance_percent,
+    },
+  });
+}
+
+// Backward-compatible alias used by older code.
+export const updateRewardConfig = createRewardConfig;
 
 /**
  * GET /api/enterprise/waste-types
@@ -81,7 +136,12 @@ export async function getWasteTypes(params = {}) {
     return {
       success: true,
       data,
-      pagination: { page, limit, total: data.length, totalPages: Math.ceil(data.length / limit) },
+      pagination: {
+        page,
+        limit,
+        total: data.length,
+        totalPages: Math.ceil(data.length / limit),
+      },
     };
   }
 
@@ -102,7 +162,9 @@ export async function getWasteTypeById(wasteTypeId) {
 
   if (USE_FAKE_FOR_NOW) {
     await delay(250);
-    const item = FAKE_WASTE_TYPES.find((w) => w.wasteTypeId === Number(wasteTypeId));
+    const item = FAKE_WASTE_TYPES.find(
+      (w) => w.wasteTypeId === Number(wasteTypeId),
+    );
     if (!item) throw new Error("WasteType không tồn tại");
     return { success: true, data: item };
   }
@@ -120,11 +182,13 @@ export async function getWasteTypeById(wasteTypeId) {
  * @param {{ wasteTypeName?: string, unitType?: "KG" | "LON" }} payload
  */
 export async function updateWasteType(wasteTypeId, payload) {
-  const USE_FAKE_FOR_NOW = true;
+  const USE_FAKE_FOR_NOW = false;
 
   if (USE_FAKE_FOR_NOW) {
     await delay(400);
-    const idx = FAKE_WASTE_TYPES.findIndex((w) => w.wasteTypeId === Number(wasteTypeId));
+    const idx = FAKE_WASTE_TYPES.findIndex(
+      (w) => w.wasteTypeId === Number(wasteTypeId),
+    );
     if (idx === -1) throw new Error("WasteType không tồn tại");
     FAKE_WASTE_TYPES[idx] = { ...FAKE_WASTE_TYPES[idx], ...payload };
     return { success: true, data: FAKE_WASTE_TYPES[idx] };
@@ -133,7 +197,12 @@ export async function updateWasteType(wasteTypeId, payload) {
   return request(`/api/enterprise/waste-types/${wasteTypeId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-    data: payload,
+    data: {
+      waste_type_name: payload.waste_type_name,
+      unit_type: payload.unit_type,
+      wasteTypeName: payload.waste_type_name,
+      unitType: payload.unit_type,
+    },
   });
 }
 
@@ -148,10 +217,15 @@ export async function toggleWasteTypeStatus(wasteTypeId, isActive) {
 
   if (USE_FAKE_FOR_NOW) {
     await delay(350);
-    const idx = FAKE_WASTE_TYPES.findIndex((w) => w.wasteTypeId === Number(wasteTypeId));
+    const idx = FAKE_WASTE_TYPES.findIndex(
+      (w) => w.wasteTypeId === Number(wasteTypeId),
+    );
     if (idx === -1) throw new Error("WasteType không tồn tại");
     FAKE_WASTE_TYPES[idx].isActive = isActive;
-    return { success: true, data: { wasteTypeId: Number(wasteTypeId), isActive } };
+    return {
+      success: true,
+      data: { wasteTypeId: Number(wasteTypeId), isActive },
+    };
   }
 
   return request(`/api/enterprise/waste-types/${wasteTypeId}/status`, {
@@ -171,7 +245,9 @@ export async function deleteWasteType(wasteTypeId) {
 
   if (USE_FAKE_FOR_NOW) {
     await delay(350);
-    const idx = FAKE_WASTE_TYPES.findIndex((w) => w.wasteTypeId === Number(wasteTypeId));
+    const idx = FAKE_WASTE_TYPES.findIndex(
+      (w) => w.wasteTypeId === Number(wasteTypeId),
+    );
     if (idx === -1) throw new Error("WasteType không tồn tại");
     FAKE_WASTE_TYPES.splice(idx, 1);
     return { success: true, message: "WasteType đã được xóa" };

@@ -96,6 +96,11 @@ router.get('/collectors/available', enterpriseCollectorController.getAvailableCo
 router.get('/reports', enterpriseReportController.getAllReports)
 
 /**
+ * GET /enterprise/reports/:reportId - Lấy chi tiết báo cáo rác thải
+ */
+router.get('/reports/:reportId', enterpriseReportController.getReportById)
+
+/**
  * BE-2: POST /enterprise/reports/:reportId/accept - Chấp nhận báo cáo
  */
 router.post('/reports/:reportId/accept', enterpriseReportController.acceptReport)
