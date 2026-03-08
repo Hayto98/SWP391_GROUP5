@@ -5,7 +5,8 @@ const tokenService = require('./src/services/tokenService');
     try {
         console.log("Generating token for ADMIN@GREENAPP.COM...");
         
-        const [rows] = await db.execute('SELECT user_account_id, email, phone, role_id FROM USERACCOUNT WHERE email = ? LIMIT 1', ['ADMIN@GREENAPP.COM']);
+        const [rows] = await db.execute('SELECT user_account_id, email, phone, role_id FROM useraccount WHERE email = ? LIMIT 1', ['ADMIN@GREENAPP.COM']);
+
         const user = rows[0];
         
         if (!user) {

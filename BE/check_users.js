@@ -13,7 +13,8 @@ async function run() {
   });
 
   try {
-    const [rows] = await pool.query('SELECT user_account_id, email, password_hash, is_locked FROM UserAccount WHERE email = ?', ['tthanhhai@example.com']);
+    const [rows] = await pool.query('SELECT user_account_id, email, password_hash, is_locked FROM useraccount WHERE email = ?', ['tthanhhai@example.com']);
+
     console.log('User found:', rows);
     if (rows.length > 0) {
       const match = await bcrypt.compare('Password123', rows[0].password_hash);

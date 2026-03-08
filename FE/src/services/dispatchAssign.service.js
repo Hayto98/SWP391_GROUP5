@@ -1,74 +1,142 @@
-import { httpGet } from "./http";
+import { request } from "./apiClient";
 
-const FAKE = {
-  selectedReport: {
-    id: "RP-1024",
-    status: "Đang chờ xử lý",
-    wasteType: "Nhựa & Kim loại",
-    address: "123 Lê Lợi, Quận 1, TP. Hồ Chí Minh",
-    weightEstimate: "Ước tính: 15–20 kg",
-    sla: {
-      title: "SLA DEADLINE REMINDER",
-      desc: "Hạn chốt xử lý: 14:00 - Còn lại 05 phút",
-      linkText: "Xem chính sách SLA",
+const MAX_REPORT_SCAN = 500;
+const MAX_TASKS_PER_COLLECTOR = 10;
+const DEFAULT_LOCATION = { lat: 10.776261, lng: 106.66602 };
+
+function getAuthHeaders() {
+  const token = localStorage.getItem("accessToken");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+function formatWeightEstimate(weight) {
+  const numeric = Number(weight);
+  if (!Number.isFinite(numeric) || numeric < 0) return "Chưa cập nhật";
+  return `${numeric.toFixed(1)} kg`;
+}
+
+function mapReportToSelectedReport(report, fallbackReportId) {
+  const lat = Number(report?.location?.lat);
+  const lng = Number(report?.location?.lng);
+  const hasLocation = Number.isFinite(lat) && Number.isFinite(lng);
+  const wasteName = report?.wasteType?.name || "Không rõ";
+  const unitType = report?.wasteType?.unitType || "";
+
+  return {
+    id: report?.wasteReportId || fallbackReportId,
+    status: String(report?.status || "PENDING"),
+    wasteType: unitType ? `${wasteName} (${unitType})` : wasteName,
+    address: hasLocation
+      ? `Tọa độ: ${lat.toFixed(6)}, ${lng.toFixed(6)}`
+      : "Chưa có tọa độ",
+    weightEstimate: formatWeightEstimate(report?.weight),
+    location: hasLocation ? { lat, lng } : { ...DEFAULT_LOCATION },
+  };
+}
+
+function mapCollectorToPopupItem(collector) {
+  const tasks = Number(collector?.currentAssignedCount);
+  const safeTasks = Number.isFinite(tasks) ? tasks : 0;
+  const loadPercent = Math.min(
+    100,
+    Math.max(0, Math.round((safeTasks / MAX_TASKS_PER_COLLECTOR) * 100)),
+  );
+
+  return {
+    id: collector?.userAccountId || collector?.id || "",
+    name: collector?.fullname || collector?.name || "Không rõ",
+    status: "Sẵn sàng",
+    distanceKm: 0,
+    etaText: "Chưa có dữ liệu ETA",
+    tasks: safeTasks,
+    maxTasks: MAX_TASKS_PER_COLLECTOR,
+    loadPercent,
+    canAssign: safeTasks < MAX_TASKS_PER_COLLECTOR,
+  };
+}
+
+async function findReportByIdFromEnterpriseList(reportId, headers) {
+  const response = await request("/enterprise/reports", {
+    method: "GET",
+    params: {
+      page: 1,
+      limit: MAX_REPORT_SCAN,
     },
-    location: { lat: 10.776261, lng: 106.66602 },
-  },
-  collectors: [
-    {
-      id: "CL_2045",
-      name: "Nguyễn Văn An",
-      status: "Trực tuyến",
-      distanceKm: 1.2,
-      etaText: "~ 5 phút di chuyển",
-      tasks: 2,
-      maxTasks: 5,
-      loadPercent: 40,
-      canAssign: true,
-    },
-    {
-      id: "CL_2702",
-      name: "Trần Minh Tâm",
-      status: "Trực tuyến",
-      distanceKm: 2.8,
-      etaText: "~ 12 phút di chuyển",
-      tasks: 4,
-      maxTasks: 5,
-      loadPercent: 80,
-      canAssign: true,
-    },
-    {
-      id: "CL_2688",
-      name: "Lê Thị Hoa",
-      status: "Bận (Nghỉ trưa)",
-      distanceKm: 0.5,
-      etaText: "~ 2 phút di chuyển",
-      tasks: 0,
-      maxTasks: 5,
-      loadPercent: 0,
-      canAssign: false,
-    },
-  ],
-  miniMap: {
-    openMapText: "Mở bản đồ lớn",
-  },
-};
+    headers,
+  });
+
+  const rows = Array.isArray(response?.data) ? response.data : [];
+  return (
+    rows.find(
+      (item) => String(item?.wasteReportId || "") === String(reportId || ""),
+    ) || null
+  );
+}
 
 export async function getDispatchAssign(reportId) {
-  const USE_FAKE_FOR_NOW = true;
+  const normalizedReportId = String(reportId || "").replace(/^#/, "");
+  if (!normalizedReportId) {
+    throw new Error("Thiếu mã báo cáo để gán collector");
+  }
 
-  if (USE_FAKE_FOR_NOW) return { ...FAKE, selectedReport: { ...FAKE.selectedReport, id: reportId || FAKE.selectedReport.id } };
+  const headers = getAuthHeaders();
 
-  return await httpGet(`/api/enterprise/dispatch/assign?reportId=${encodeURIComponent(reportId)}`);
+  const [report, collectorsResponse] = await Promise.all([
+    findReportByIdFromEnterpriseList(normalizedReportId, headers),
+    request("/enterprise/collectors/available", {
+      method: "GET",
+      headers,
+    }),
+  ]);
+
+  if (!report) {
+    throw new Error("Không tìm thấy báo cáo để gán collector");
+  }
+
+  const collectors = Array.isArray(collectorsResponse?.data)
+    ? collectorsResponse.data.map(mapCollectorToPopupItem)
+    : [];
+
+  return {
+    selectedReport: mapReportToSelectedReport(report, normalizedReportId),
+    collectors,
+    miniMap: {
+      openMapText: "Mở bản đồ lớn",
+    },
+  };
 }
 
 export async function assignTaskToCollector(payload) {
-  const USE_FAKE_FOR_NOW = true;
+  const reportId = String(payload?.reportId || "").replace(/^#/, "");
+  const collectorUserAccountId = String(
+    payload?.collectorUserAccountId || payload?.collectorId || "",
+  ).trim();
 
-  if (USE_FAKE_FOR_NOW) {
-    await new Promise((r) => setTimeout(r, 450));
-    return { ok: true };
+  if (!reportId || !collectorUserAccountId) {
+    throw new Error("Thiếu reportId hoặc collectorUserAccountId để gán");
   }
 
-  return await httpGet(`/api/enterprise/dispatch/assign/action?${new URLSearchParams(payload).toString()}`);
+  const response = await request(`/enterprise/reports/${reportId}/assign`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    data: {
+      collectorUserAccountId,
+    },
+  });
+
+  if (!response?.success) {
+    throw new Error(response?.message || "Gán collector thất bại");
+  }
+
+  return {
+    ok: true,
+    reportId: response?.data?.reportId || reportId,
+    status: String(response?.data?.status || "ASSIGNED").toUpperCase(),
+    assignedAt: response?.data?.assignedAt || null,
+    collector: {
+      id: response?.data?.collector?.id || collectorUserAccountId,
+      fullname: response?.data?.collector?.fullname || "",
+    },
+    raw: response,
+  };
 }

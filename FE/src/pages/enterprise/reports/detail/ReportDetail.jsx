@@ -326,7 +326,7 @@ export default function ReportDetail() {
             tone="muted"
             icon={<FaUserCircle />}
             label="NGƯỜI BÁO CÁO"
-            value={data.reporter.name}
+            value={data.reporter?.name || "Không rõ"}
           />
           <Stat
             tone="orange"
@@ -341,23 +341,24 @@ export default function ReportDetail() {
         <div className="rd-leftCol">
           <div className="rd-card rd-section">
             <div className="rd-secTitle">Ghi chú từ người dân</div>
-            <div className="rd-note">{data.note}</div>
+            <div className="rd-note">{data.note || data.description || "-"}</div>
           </div>
 
           <div className="rd-card rd-section">
             <div className="rd-secTitle">Địa chỉ chi tiết</div>
             <div className="rd-address">
-              <FaMapMarkerAlt /> <span>{data.address}</span>
+              <FaMapMarkerAlt />
+              <span>{data.address || "Chưa có địa chỉ chi tiết"}</span>
             </div>
 
             <div className="rd-contact">
               <div className="rd-contactItem">
                 <FaUserCircle />
-                <span>{data.reporter.name}</span>
+                <span>{data.reporter?.name || "Không rõ"}</span>
               </div>
               <div className="rd-contactItem">
                 <FaPhoneAlt />
-                <span>{data.reporter.phone}</span>
+                <span>{data.reporter?.phone || "Không có SĐT"}</span>
               </div>
             </div>
           </div>

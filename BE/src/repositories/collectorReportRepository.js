@@ -192,7 +192,7 @@ async function findReportForCollector(reportId) {
  * @returns {Array<{ file_uri: string }>}
  */
 async function findImagesByReportId(reportId) {
-  const [rows] = await db.execute(`SELECT file_uri FROM ReportAttachment WHERE waste_report_id = ?`, [reportId])
+  const [rows] = await db.execute(`SELECT file_uri FROM reportattachment WHERE waste_report_id = ?`, [reportId])
   return rows.map((r) => ({ file_uri: r.file_uri }))
 }
 
@@ -215,7 +215,7 @@ async function findCollectedRecord(reportId, collectorId) {
        cr.file_uri,
        cr.note,
        GROUP_CONCAT(ca.file_uri SEPARATOR '|||') AS completion_image_uris
-     FROM CollectedRecord cr
+     FROM collectedrecord cr
      LEFT JOIN completionattachment ca
        ON ca.collected_record_id = cr.collected_record_id
      WHERE cr.waste_report_id = ?
