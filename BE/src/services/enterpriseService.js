@@ -274,7 +274,10 @@ async function deleteWasteType(wasteTypeId) {
     throw new ApiError(400, 'WasteType đã bị xóa trước đó')
   }
 
-  // Soft delete marker only; do NOT change RewardConfig
+  // Khi xóa, đồng thời tắt active để loại rác không còn được dùng.
+  await wasteTypeRepository.setActiveStatus(wasteTypeId, false)
+
+  // Soft delete marker
   await wasteTypeRepository.setSoftDelete(wasteTypeId)
 
   return {
