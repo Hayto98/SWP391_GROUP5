@@ -2,10 +2,6 @@ const ApiError = require('../errors/ApiError')
 const wasteTypeRepository = require('../repositories/wasteTypeRepository')
 const rewardConfigRepository = require('../repositories/rewardConfigRepository')
 
-// ==================== CONSTANTS ====================
-
-const VALID_UNIT_TYPES = ['KG', 'LON']
-
 // ==================== WASTE TYPE SERVICES ====================
 
 /**
@@ -14,7 +10,7 @@ const VALID_UNIT_TYPES = ['KG', 'LON']
  *
  * Business Rules:
  * - Tên không được trùng
- * - unitType bắt buộc (KG / LON)
+ * - unitType bắt buộc (không rỗng)
  * - is_active mặc định = true
  */
 async function createWasteType({ wasteTypeName, unitType }) {
@@ -27,10 +23,10 @@ async function createWasteType({ wasteTypeName, unitType }) {
     throw new ApiError(400, 'unitType is required')
   }
 
-  // Validate unitType
-  const normalizedUnitType = unitType.toUpperCase()
-  if (!VALID_UNIT_TYPES.includes(normalizedUnitType)) {
-    throw new ApiError(400, `unitType must be one of: ${VALID_UNIT_TYPES.join(', ')}`)
+  // unitType chỉ cần có giá trị, không fix cứng danh sách
+  const normalizedUnitType = String(unitType).trim()
+  if (!normalizedUnitType) {
+    throw new ApiError(400, 'unitType không được để trống')
   }
 
   // Check unique name
@@ -63,7 +59,7 @@ async function createWasteType({ wasteTypeName, unitType }) {
  * - wasteType phải tồn tại
  * - Không cho đổi nếu đang có report ở trạng thái OPEN / ACCEPTED / ASSIGNED
  * - Tên không trùng với wasteType khác
- * - unitType chỉ nhận: KG hoặc LON
+ * - unitType nếu có thì không được rỗng
  * - Không cho update nếu is_active = false (đã inactive)
  */
 async function updateWasteType(wasteTypeId, { wasteTypeName, unitType }) {
@@ -102,9 +98,9 @@ async function updateWasteType(wasteTypeId, { wasteTypeName, unitType }) {
   }
 
   if (unitType !== undefined) {
-    const normalizedUnitType = unitType.toUpperCase()
-    if (!VALID_UNIT_TYPES.includes(normalizedUnitType)) {
-      throw new ApiError(400, `unitType must be one of: ${VALID_UNIT_TYPES.join(', ')}`)
+    const normalizedUnitType = String(unitType).trim()
+    if (!normalizedUnitType) {
+      throw new ApiError(400, 'unitType không được để trống')
     }
     updateData.unitType = normalizedUnitType
   }
@@ -133,7 +129,6 @@ async function updateWasteType(wasteTypeId, { wasteTypeName, unitType }) {
  *
  * Business Rules:
  * - wasteType phải tồn tại
- * - Nếu set isActive = false → kiểm tra có report OPEN/ACCEPTED/ASSIGNED không
  * - Nếu hợp lệ → update is_active = isActive
  * - Nếu set isActive = false → đồng thời inactive RewardConfig
  * - Nếu set isActive = true → không tự động active RewardConfig
@@ -150,13 +145,8 @@ async function toggleWasteTypeStatus(wasteTypeId, isActive) {
     throw new ApiError(404, 'WasteType không tồn tại')
   }
 
-  // If deactivating, check for active reports
+  // If deactivating, still allow existing active reports to continue processing.
   if (isActive === false) {
-    const activeReportCount = await wasteTypeRepository.countActiveReports(wasteTypeId)
-    if (activeReportCount > 0) {
-      throw new ApiError(400, 'Cannot deactivate WasteType because there are active reports')
-    }
-
     // Inactive related RewardConfig
     await rewardConfigRepository.setInactiveByWasteTypeId(wasteTypeId)
   }
@@ -186,11 +176,11 @@ async function getAllWasteTypes({ isActive, page = 1, limit = 20, unitType, incl
     filters.isActive = isActive === 'true' || isActive === true
   }
 
-  // Validate unitType if provided
+  // unitType filter: nếu truyền lên thì chỉ cần không rỗng
   if (unitType !== undefined && unitType !== null && unitType !== '') {
-    const normalized = String(unitType).toUpperCase()
-    if (!VALID_UNIT_TYPES.includes(normalized)) {
-      throw new ApiError(400, `unitType must be one of: ${VALID_UNIT_TYPES.join(', ')}`)
+    const normalized = String(unitType).trim()
+    if (!normalized) {
+      throw new ApiError(400, 'unitType không được để trống')
     }
     filters.unitType = normalized
   }

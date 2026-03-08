@@ -182,9 +182,62 @@ async function getAllReports({ status, fromDate, toDate, page, limit }) {
   }
 }
 
+/**
+ * Enterprise lấy chi tiết 1 báo cáo theo reportId
+ */
+async function getReportById(reportId) {
+  const report = await wasteReportRepository.findReportById(reportId)
+
+  if (!report) {
+    throw new ApiError(404, 'Không tìm thấy báo cáo rác thải.')
+  }
+
+  return {
+    success: true,
+    data: {
+      reportId: report.reportId || report.wasteReportId,
+      wasteReportId: report.wasteReportId || report.reportId,
+      wasteType: {
+        id: report?.wasteType?.id ?? null,
+        name: report?.wasteType?.name ?? null,
+        unitType: report?.wasteType?.unitType ?? report?.unitType ?? null
+      },
+      citizen: {
+        fullname: report?.citizen?.fullname ?? null,
+        phone: report?.citizen?.phone ?? null
+      },
+      collector: report?.collector
+        ? {
+            userAccountId: report.collector.userAccountId,
+            fullname: report.collector.fullname,
+            phone: report.collector.phone
+          }
+        : null,
+      location: {
+        lat: report?.location?.lat ?? null,
+        lng: report?.location?.lng ?? null
+      },
+      description: report?.description ?? null,
+      weight: report?.weight ?? null,
+      weightKg: report?.weightKg ?? report?.weight ?? null,
+      actualQuantity: report?.actualQuantity ?? null,
+      unitType: report?.unitType ?? report?.wasteType?.unitType ?? null,
+      status: report?.status ?? null,
+      createdAt: report?.createdAt ?? null,
+      attachments: Array.isArray(report?.attachments) ? report.attachments : [],
+      images: Array.isArray(report?.attachments) ? report.attachments.map((item) => ({ fileUri: item.fileUri })) : [],
+      assignedCollector: report?.assignedCollector || null,
+      collectorImages: Array.isArray(report?.collectorImages) ? report.collectorImages : [],
+      collectedRecord: report?.collectedRecord || null,
+      reason: report?.reason ?? null
+    }
+  }
+}
+
 module.exports = {
   acceptReport,
   rejectReport,
   assignReport,
-  getAllReports
+  getAllReports,
+  getReportById
 }
