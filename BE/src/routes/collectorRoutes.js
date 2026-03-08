@@ -4,6 +4,7 @@ const { requireRole } = require('../middlewares/roleMiddleware')
 const { ROLES } = require('../utils/constants')
 const { uploadMultiple, uploadSingle } = require('../middlewares/upload')
 const collectorReportController = require('../controllers/Collector/collectorReportController')
+const collectorController = require('../controllers/Collector/collectorController')
 
 const router = express.Router()
 
@@ -26,6 +27,7 @@ router.use(verifyToken)
 router.use(requireRole(ROLES.COLLECTOR))
 
 // ==================== ROUTES ====================
+router.patch('/working-status', collectorController.updateWorkingStatus)
 router.get('/reports', collectorReportController.getAssignedReports)
 router.get('/reports/:reportId', collectorReportController.getReportById)
 router.get('/reports/:reportId/result', collectorReportController.getResult)

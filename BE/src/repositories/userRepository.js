@@ -225,6 +225,11 @@ async function updateLastLogin(userAccountId) {
   ])
 }
 
+async function updateWorkingStatus(userAccountId, isWorking) {
+  const status = isWorking ? 1 : 0
+  await db.execute('UPDATE USERACCOUNT SET is_working = ? WHERE user_account_id = ?', [status, userAccountId])
+}
+
 // ==================== DELETE (Soft) ====================
 
 async function softDeleteUser(userAccountId) {
@@ -271,6 +276,19 @@ async function findAvailableCollectors() {
   return rows
 }
 
+async function getWorkingCollectors() {
+  const [rows] = await db.execute(
+    `SELECT user_account_id AS userAccountId,
+            fullname,
+            email,
+            phone
+       FROM USERACCOUNT
+      WHERE role_id = ? AND is_working = 1 AND is_locked = 0`,
+    [ROLES.COLLECTOR]
+  )
+  return rows
+}
+
 module.exports = {
   findByEmail,
   findByPhone,
@@ -285,5 +303,7 @@ module.exports = {
   updateLastLogin,
   softDeleteUser,
   countByRole,
-  findAvailableCollectors
+  findAvailableCollectors,
+  getWorkingCollectors,
+  updateWorkingStatus
 }

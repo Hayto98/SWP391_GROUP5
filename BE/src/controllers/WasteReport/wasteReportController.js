@@ -25,7 +25,7 @@ async function createReport(req, res, next) {
       weight: weight ? parseFloat(weight) : null,
       fileBuffer,
       fileMimetype,
-      fileUriFromBody: fileUri || null   // URL truyền thẳng qua JSON body
+      fileUriFromBody: fileUri || null // URL truyền thẳng qua JSON body
     })
 
     res.status(201).json({
