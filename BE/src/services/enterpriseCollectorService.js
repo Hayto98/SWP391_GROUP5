@@ -1,25 +1,23 @@
-const userRepository = require('../repositories/userRepository');
+const userRepository = require('../repositories/userRepository')
 
 /**
- * Lấy danh sách Collector đang hoạt động (< 10 report ASSIGNED)
+ * Lấy danh sách Collector đang làm việc (is_working = 1, is_locked = 0)
  */
 async function getAvailableCollectors() {
-  const collectors = await userRepository.findAvailableCollectors();
-  
-  // Format the output specifically as required: { userAccountId, fullname, phone, currentAssignedCount }
-  const data = collectors.map(c => ({
-    userAccountId: c.userAccountId,
-    fullname: c.fullname,
-    phone: String(c.phone),
-    currentAssignedCount: Number(c.currentAssignedCount)
-  }));
+  const collectors = await userRepository.getWorkingCollectors()
+
+  if (collectors.length === 0) {
+    return {
+      collectors: [],
+      message: 'No collectors currently available'
+    }
+  }
 
   return {
-    success: true,
-    data
-  };
+    collectors
+  }
 }
 
 module.exports = {
   getAvailableCollectors
-};
+}

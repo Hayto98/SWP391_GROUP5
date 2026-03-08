@@ -1,8 +1,8 @@
-const enterpriseReportService = require('../../services/enterpriseReportService');
-const ApiError = require('../../errors/ApiError');
+const enterpriseReportService = require('../../services/enterpriseReportService')
+const ApiError = require('../../errors/ApiError')
 
 function getUserAccountIdFromRequest(req) {
-  return req.user?.sub || req.user?.userAccountId || req.user?.id || null;
+  return req.user?.sub || req.user?.userAccountId || req.user?.id || null
 }
 
 /**
@@ -11,17 +11,17 @@ function getUserAccountIdFromRequest(req) {
  */
 async function acceptReport(req, res, next) {
   try {
-    const userAccountId = getUserAccountIdFromRequest(req);
+    const userAccountId = getUserAccountIdFromRequest(req)
     if (!userAccountId) {
-      throw new ApiError(401, 'Unauthorized');
+      throw new ApiError(401, 'Unauthorized')
     }
-    const reportId = req.params.reportId;
+    const reportId = req.params.reportId
 
-    const result = await enterpriseReportService.acceptReport(reportId, userAccountId);
+    const result = await enterpriseReportService.acceptReport(reportId, userAccountId)
 
-    res.status(200).json(result);
+    res.status(200).json(result)
   } catch (error) {
-    next(error);
+    next(error)
   }
 }
 
@@ -31,18 +31,18 @@ async function acceptReport(req, res, next) {
  */
 async function rejectReport(req, res, next) {
   try {
-    const userAccountId = getUserAccountIdFromRequest(req);
+    const userAccountId = getUserAccountIdFromRequest(req)
     if (!userAccountId) {
-      throw new ApiError(401, 'Unauthorized');
+      throw new ApiError(401, 'Unauthorized')
     }
-    const reportId = req.params.reportId;
-    const { reason } = req.body;
+    const reportId = req.params.reportId
+    const { reason } = req.body
 
-    const result = await enterpriseReportService.rejectReport(reportId, reason, userAccountId);
+    const result = await enterpriseReportService.rejectReport(reportId, reason, userAccountId)
 
-    res.status(200).json(result);
-} catch (error) {
-    next(error);
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
   }
 }
 
@@ -52,22 +52,22 @@ async function rejectReport(req, res, next) {
  */
 async function assignReport(req, res, next) {
   try {
-    const userAccountId = getUserAccountIdFromRequest(req);
+    const userAccountId = getUserAccountIdFromRequest(req)
     if (!userAccountId) {
-      throw new ApiError(401, 'Unauthorized');
+      throw new ApiError(401, 'Unauthorized')
     }
-    const reportId = req.params.reportId;
-    const { collectorUserAccountId } = req.body;
+    const reportId = req.params.reportId
+    const { collectorUserAccountId } = req.body
 
     if (!collectorUserAccountId) {
-      throw new ApiError(400, 'Missing collectorUserAccountId in request body.');
+      throw new ApiError(400, 'Missing collectorUserAccountId in request body.')
     }
 
-    const result = await enterpriseReportService.assignReport(reportId, collectorUserAccountId, userAccountId);
+    const result = await enterpriseReportService.assignReport(reportId, collectorUserAccountId, userAccountId)
 
-    res.status(200).json(result);
+    res.status(200).json(result)
   } catch (error) {
-    next(error);
+    next(error)
   }
 }
 
@@ -90,4 +90,4 @@ module.exports = {
   rejectReport,
   assignReport,
   getAllReports
-};
+}
