@@ -230,6 +230,18 @@ async function updateWorkingStatus(userAccountId, isWorking) {
   await db.execute('UPDATE useraccount SET is_working = ? WHERE user_account_id = ?', [status, userAccountId])
 }
 
+async function getWorkingStatus(userAccountId) {
+  const [rows] = await db.execute('SELECT is_working AS isWorking FROM useraccount WHERE user_account_id = ? LIMIT 1', [
+    userAccountId
+  ])
+
+  if (!rows[0]) {
+    return false
+  }
+
+  return rows[0].isWorking === 1
+}
+
 // ==================== DELETE (Soft) ====================
 
 async function softDeleteUser(userAccountId) {
@@ -305,5 +317,6 @@ module.exports = {
   countByRole,
   findAvailableCollectors,
   getWorkingCollectors,
-  updateWorkingStatus
+  updateWorkingStatus,
+  getWorkingStatus
 }

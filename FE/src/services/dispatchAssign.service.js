@@ -93,9 +93,15 @@ export async function getDispatchAssign(reportId) {
     throw new Error("Không tìm thấy báo cáo để gán collector");
   }
 
-  const collectors = Array.isArray(collectorsResponse?.data)
-    ? collectorsResponse.data.map(mapCollectorToPopupItem)
-    : [];
+  const collectorRows = Array.isArray(collectorsResponse)
+    ? collectorsResponse
+    : Array.isArray(collectorsResponse?.data)
+      ? collectorsResponse.data
+      : Array.isArray(collectorsResponse?.collectors)
+        ? collectorsResponse.collectors
+        : [];
+
+  const collectors = collectorRows.map(mapCollectorToPopupItem);
 
   return {
     selectedReport: mapReportToSelectedReport(report, normalizedReportId),
