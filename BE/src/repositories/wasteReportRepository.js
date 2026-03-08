@@ -20,7 +20,16 @@ const { ROLES } = require('../utils/constants')
  * @param {number|null} params.weight
  * @returns {{ wasteReportId: string, status: 'PENDING' }}
  */
-async function createReport({ citizenId, citizenUserAccountId, wasteTypeId, gpsLat, gpsLng, description, weight, fileUri }) {
+async function createReport({
+  citizenId,
+  citizenUserAccountId,
+  wasteTypeId,
+  gpsLat,
+  gpsLng,
+  description,
+  weight,
+  fileUri
+}) {
   const PENDING_STATUS_ID = 1
 
   // ── 1. Validate wasteType (outside transaction — read-only) ────────
@@ -51,7 +60,18 @@ async function createReport({ citizenId, citizenUserAccountId, wasteTypeId, gpsL
         (waste_report_id, citizen_id, waste_type_id, report_status_type_id,
          assigned_collector_id, gps_lat, gps_lng, description, weight, file_uri, created_at)
        VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)`,
-      [wasteReportId, citizenId, wasteTypeId, PENDING_STATUS_ID, gpsLat, gpsLng, description, weight ?? 0, fileUri || null, createdAt]
+      [
+        wasteReportId,
+        citizenId,
+        wasteTypeId,
+        PENDING_STATUS_ID,
+        gpsLat,
+        gpsLng,
+        description,
+        weight ?? 0,
+        fileUri || null,
+        createdAt
+      ]
     )
 
     await connection.execute(
