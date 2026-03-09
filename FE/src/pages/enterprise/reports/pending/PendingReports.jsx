@@ -1,8 +1,39 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import "./pendingReports.css";
 import { useNavigate } from "react-router-dom";
 import { usePendingReports } from "@/hooks/usePendingReports";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import {
   assignTaskToCollector,
   getDispatchAssign,
@@ -12,68 +43,83 @@ import {
   getAllReportAssignmentHistory,
 } from "@/services/reportAssignmentHistory.service";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { vi } from "date-fns/locale";
 import {
-  FaSearch,
-  FaBell,
-  FaUserCircle,
-  FaDownload,
-  FaHistory,
-  FaChevronLeft,
-  FaChevronRight,
-  FaMapMarkerAlt,
-  FaClock,
-} from "react-icons/fa";
-
-const Select = ({ value, onChange, options }) => (
-  <select
-    className="pr-select"
-    value={value}
-    onChange={(e) => onChange(e.target.value)}
-  >
-    {options.map((o) => (
-      <option key={o} value={o}>
-        {o}
-      </option>
-    ))}
-  </select>
-);
-
-const Tag = ({ tone, children }) => (
-  <span className={`pr-tag pr-tag-${tone}`}>{children}</span>
-);
-
-const Sla = ({ tone, text }) => (
-  <span className={`pr-sla pr-sla-${tone}`}>
-    <span className="pr-slaDot" />
-    {text}
-  </span>
-);
-
-const ActionBtn = ({ tone, children, onClick, disabled, title }) => (
-  <button
-    className={`pr-action pr-action-${tone}`}
-    onClick={onClick}
-    disabled={disabled}
-    title={title}
-    type="button"
-  >
-    {children}
-  </button>
-);
+  Search,
+  Download,
+  History,
+  ChevronLeft,
+  ChevronRight,
+  MapPin,
+  Clock3,
+  Calendar,
+} from "lucide-react";
 
 const CollectorAvatar = ({ name }) => {
   const parts = String(name || "")
     .split(" ")
     .filter(Boolean);
   const seed = (parts[0]?.[0] || "") + (parts[parts.length - 1]?.[0] || "");
-  return <div className="pr-assignAvatar">{seed.toUpperCase()}</div>;
+  return (
+    <div className="h-9 w-9 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-xs font-semibold">
+      {seed.toUpperCase()}
+    </div>
+  );
 };
 
 const ProgressBar = ({ percent }) => (
-  <div className="pr-assignProgress">
-    <div className="pr-assignProgressFill" style={{ width: `${percent}%` }} />
+  <div className="h-2 w-full rounded bg-muted overflow-hidden">
+    <div
+      className="h-full bg-primary transition-all"
+      style={{ width: `${percent}%` }}
+    />
   </div>
 );
+
+function formatDateTime(value) {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "-";
+  return format(d, "dd/MM/yyyy HH:mm", { locale: vi });
+}
+
+function getStatusClass(status) {
+  if (
+    status === "ACCEPTED" ||
+    status === "ASSIGNED" ||
+    status === "IN_PROGRESS"
+  ) {
+    return "bg-orange-100 text-orange-700 border-orange-200";
+  }
+  if (status === "REJECTED") {
+    return "bg-red-100 text-red-700 border-red-200";
+  }
+  if (status === "COLLECTED") {
+    return "bg-green-100 text-green-700 border-green-200";
+  }
+  return "bg-slate-100 text-slate-700 border-slate-200";
+}
+
+function FilterSelect({ value, onChange, options, placeholder }) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className="flex-1">
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectGroup>
+          {options.map((o) => (
+            <SelectItem key={o} value={o}>
+              {o}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
+  );
+}
 
 export default function PendingReports() {
   const navigate = useNavigate();
@@ -85,7 +131,7 @@ export default function PendingReports() {
     acting,
     exporting,
     q,
-    ward,
+    createdAt,
     wasteType,
     wasteSubType,
     weight,
@@ -94,7 +140,7 @@ export default function PendingReports() {
     page,
     pageSize,
     setQ,
-    setWard,
+    setCreatedAt,
     setWasteType,
     setWasteSubType,
     setWeight,
@@ -140,10 +186,6 @@ export default function PendingReports() {
     return arr;
   }, [page, totalPages]);
 
-  const wards = useMemo(
-    () => data?.filters?.wards || ["Tất cả Người dùng"],
-    [data],
-  );
   const wasteTypes = useMemo(
     () => data?.filters?.wasteTypes || ["Tất cả loại rác"],
     [data],
@@ -279,247 +321,273 @@ export default function PendingReports() {
   );
 
   return (
-    <div className="pr">
-      <div className="pr-topbar">
-        <div className="pr-searchWrap">
-          <FaSearch className="pr-searchIcon" />
-          <input
-            className="pr-search"
-            placeholder="Tìm kiếm mã báo cáo, tên công dân..."
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-        </div>
-
-        <div className="pr-topRight">
-          <button className="pr-iconBtn" type="button" title="Thông báo">
-            <FaBell />
-          </button>
-          <button className="pr-iconBtn" type="button" title="Tài khoản">
-            <FaUserCircle />
-          </button>
-        </div>
-      </div>
-
-      <div className="pr-head">
-        <div>
-          <h1>Danh sách Báo cáo</h1>
-          <p>
-            Hiển thị {data?.result?.total ?? 0} báo cáo theo bộ lọc hiện tại
-          </p>
-        </div>
-
-        <div className="pr-headActions">
-          <button
-            className="pr-historyBtn"
-            type="button"
-            onClick={() => {
-              refreshAssignmentHistory();
-              setHistoryPopupOpen(true);
-            }}
-          >
-            <FaHistory /> Lịch sử
-          </button>
-
-          <button
-            className="pr-export"
-            type="button"
-            onClick={exportExcel}
-            disabled={exporting}
-          >
-            <FaDownload /> {exporting ? "Đang xuất..." : "Xuất báo cáo (Excel)"}
-          </button>
-        </div>
-      </div>
-
-      <div className="pr-filtersRow">
-        <Select value={ward} onChange={setWard} options={wards} />
-        <Select
-          value={wasteType}
-          onChange={setWasteType}
-          options={wasteTypes}
-        />
-        <Select
-          value={wasteSubType}
-          onChange={setWasteSubType}
-          options={wasteSubTypes}
-        />
-        <Select value={weight} onChange={setWeight} options={weights} />
-        <Select value={status} onChange={setStatus} options={statuses} />
-
-        <div className="pr-sort">
-          <span>Sắp xếp theo:</span>
-          <Select value={sort} onChange={setSort} options={sorts} />
-        </div>
-      </div>
-
-      <div className="pr-card">
-        {loading && <div className="pr-state">Đang tải...</div>}
-        {error && <div className="pr-state pr-error">Lỗi: {error}</div>}
-
-        {!loading && !error && (
-          <>
-            <div className="pr-table">
-              <div className="pr-tr pr-th">
-                <div>MÃ BÁO CÁO</div>
-                <div>CÔNG DÂN (TÊN/SĐT)</div>
-                <div>LOẠI RÁC</div>
-                <div>TRẠNG THÁI</div>
-                <div>HÀNH ĐỘNG</div>
-              </div>
-
-              {rows.map((r) => (
-                <div className="pr-tr" key={r.code}>
-                  <div>
-                    <button
-                      type="button"
-                      className="pr-codeBtn pr-mono pr-strong"
-                      onClick={() =>
-                        navigate(
-                          `/enterprise/reports/detail/${toReportId(r.code)}`,
-                          {
-                            state: { selectedFrom: "pending-list" },
-                          },
-                        )
-                      }
-                    >
-                      {r.code}
-                    </button>
-                  </div>
-                  <div>
-                    <div className="pr-strong">{r.ward}</div>
-                    <div className="pr-sub">{r.district}</div>
-                  </div>
-                  <div>
-                    <Tag tone={r.wasteTone}>{r.waste}</Tag>
-                  </div>
-                  <div>{r.status || "-"}</div>
-
-                  <div className="pr-actions flex">
-                    <ActionBtn
-                      tone="ghost"
-                      disabled={acting === r.code}
-                      onClick={() =>
-                        navigate(
-                          `/enterprise/reports/detail/${toReportId(r.code)}`,
-                          {
-                            state: { selectedFrom: "pending-list" },
-                          },
-                        )
-                      }
-                    >
-                      Chi tiết
-                    </ActionBtn>
-                    {r.actions.includes("accept") && (
-                      <ActionBtn
-                        tone="warn"
-                        disabled={acting === r.code || !r.canAccept}
-                        title={
-                          r.canAccept
-                            ? "Chấp nhận báo cáo"
-                            : "Báo cáo đã quá hạn SLA nên không thể chấp nhận"
-                        }
-                        onClick={() => doAction(r.code, "accept")}
-                      >
-                        {acting === r.code ? "..." : "Chấp nhận"}
-                      </ActionBtn>
-                    )}
-                    <ActionBtn
-                      tone="ok"
-                      disabled={acting === r.code || !r.canAssign}
-                      title={
-                        r.canAssign
-                          ? "Gán collector"
-                          : r.status === "ASSIGNED"
-                            ? "Báo cáo đã được gán collector"
-                            : "Cần chấp nhận báo cáo trước khi gán"
-                      }
-                      onClick={() => handleAssignPopupOpen(r.code)}
-                    >
-                      {r.status === "ASSIGNED" ? "Đã gán" : "Gán"}
-                    </ActionBtn>
-                    {r.actions.includes("reject") && (
-                      <ActionBtn
-                        tone="ghost"
-                        disabled={acting === r.code}
-                        onClick={() => doAction(r.code, "reject")}
-                      >
-                        {acting === r.code ? "..." : "Từ chối"}
-                      </ActionBtn>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="pr-footer">
-              <div className="pr-footText">
-                Hiển thị {rows.length} trên {total} báo cáo
-              </div>
-
-              <div className="pr-pagination">
-                <button
-                  className="pr-pageBtn"
-                  disabled={page === 1}
-                  onClick={() => setPage(page - 1)}
-                  type="button"
-                >
-                  <FaChevronLeft />
-                </button>
-
-                {pages.map((p, idx) =>
-                  p === "..." ? (
-                    <span className="pr-ellipsis" key={`e-${idx}`}>
-                      …
-                    </span>
-                  ) : (
-                    <button
-                      key={p}
-                      className={`pr-pageNum ${p === page ? "is-active" : ""}`}
-                      onClick={() => setPage(p)}
-                      type="button"
-                    >
-                      {p}
-                    </button>
-                  ),
-                )}
-
-                <button
-                  className="pr-pageBtn"
-                  disabled={page === totalPages}
-                  onClick={() => setPage(page + 1)}
-                  type="button"
-                >
-                  <FaChevronRight />
-                </button>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-      <div className="pr-bulk">
-        <div className="pr-bulkIcon">✓</div>
-
-        <div className="pr-bulkBody">
-          <div className="pr-bulkTitle">Xác nhận xử lý hàng loạt?</div>
-          <div className="pr-bulkDesc">
-            Chức năng này cho phép bạn cập nhật nhiều báo cáo cùng sau khi kiểm
-            tra tất cả.
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <div>
+            <CardTitle>Danh sách báo cáo</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Hiển thị {data?.result?.total ?? 0} báo cáo theo bộ lọc hiện tại
+            </p>
           </div>
-        </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                refreshAssignmentHistory();
+                setHistoryPopupOpen(true);
+              }}
+            >
+              <History className="size-4" /> Lịch sử
+            </Button>
+            <Button
+              variant="outline"
+              onClick={exportExcel}
+              disabled={exporting}
+            >
+              <Download className="size-4" />
+              {exporting ? "Đang xuất..." : "Xuất báo cáo"}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="relative lg:col-span-2">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                placeholder="Tìm mã báo cáo, tên công dân..."
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+            </div>
 
-        <div className="pr-bulkActions">
-          <button className="pr-bulkBtn pr-bulkBtnGhost" type="button">
-            Chọn tất cả
-          </button>
-          <button className="pr-bulkBtn pr-bulkBtnOk" type="button">
-            Chấp nhận hàng loạt
-          </button>
-          <button className="pr-bulkBtn pr-bulkBtnReject" type="button">
-            Từ chối hàng loạt
-          </button>
-        </div>
-      </div>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "justify-start text-left font-normal",
+                    !createdAt && "text-muted-foreground",
+                  )}
+                >
+                  <Calendar className="mr-2 size-4" />
+                  {createdAt
+                    ? format(createdAt, "dd/MM/yyyy", { locale: vi })
+                    : "Lọc theo ngày tạo"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarComponent
+                  mode="single"
+                  selected={createdAt}
+                  onSelect={setCreatedAt}
+                  initialFocus
+                  locale={vi}
+                />
+              </PopoverContent>
+            </Popover>
+
+            <Button variant="ghost" onClick={() => setCreatedAt(undefined)}>
+              Bỏ lọc ngày
+            </Button>
+
+            <div className="md:col-span-2 lg:col-span-4 flex flex-wrap gap-3">
+              <FilterSelect
+                value={wasteType}
+                onChange={setWasteType}
+                options={wasteTypes}
+                placeholder="Loại rác"
+              />
+
+              <FilterSelect
+                value={wasteSubType}
+                onChange={setWasteSubType}
+                options={wasteSubTypes}
+                placeholder="Đơn vị rác"
+              />
+              <FilterSelect
+                value={weight}
+                onChange={setWeight}
+                options={weights}
+                placeholder="Cân nặng"
+              />
+              <FilterSelect
+                value={status}
+                onChange={setStatus}
+                options={statuses}
+                placeholder="Trạng thái"
+              />
+            </div>
+          </div>
+
+          {error && (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              Lỗi: {error}
+            </div>
+          )}
+
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Mã báo cáo</TableHead>
+                <TableHead>Công dân</TableHead>
+                <TableHead>Loại rác</TableHead>
+                <TableHead>Ngày tạo</TableHead>
+                <TableHead>Trạng thái</TableHead>
+                <TableHead className="text-right">Hành động</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-24 text-center">
+                    Đang tải...
+                  </TableCell>
+                </TableRow>
+              ) : rows.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={7}
+                    className="h-24 text-center text-muted-foreground"
+                  >
+                    Không có báo cáo nào
+                  </TableCell>
+                </TableRow>
+              ) : (
+                rows.map((r) => (
+                  <TableRow key={r.code}>
+                    <TableCell>
+                      <Button
+                        type="button"
+                        variant="link"
+                        className="px-0"
+                        onClick={() =>
+                          navigate(
+                            `/enterprise/reports/detail/${toReportId(r.code)}`,
+                            {
+                              state: { selectedFrom: "pending-list" },
+                            },
+                          )
+                        }
+                      >
+                        {r.code}
+                      </Button>
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-medium">{r.ward}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {r.district}
+                      </div>
+                    </TableCell>
+                    <TableCell>{r.waste}</TableCell>
+                    <TableCell>{formatDateTime(r.createdAt)}</TableCell>
+                    <TableCell>
+                      <Badge className={cn("border", getStatusClass(r.status))}>
+                        {r.status || "-"}
+                      </Badge>
+                    </TableCell>
+
+                    <TableCell>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={acting === r.code}
+                          onClick={() =>
+                            navigate(
+                              `/enterprise/reports/detail/${toReportId(r.code)}`,
+                              {
+                                state: { selectedFrom: "pending-list" },
+                              },
+                            )
+                          }
+                        >
+                          Chi tiết
+                        </Button>
+
+                        {r.actions.includes("accept") && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-orange-700 border-orange-300 hover:bg-orange-50"
+                            disabled={acting === r.code || !r.canAccept}
+                            onClick={() => doAction(r.code, "accept")}
+                          >
+                            {acting === r.code ? "..." : "Chấp nhận"}
+                          </Button>
+                        )}
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                          disabled={acting === r.code || !r.canAssign}
+                          onClick={() => handleAssignPopupOpen(r.code)}
+                        >
+                          {r.status === "ASSIGNED" ? "Đã gán" : "Gán"}
+                        </Button>
+
+                        {r.actions.includes("reject") && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={acting === r.code}
+                            onClick={() => doAction(r.code, "reject")}
+                          >
+                            {acting === r.code ? "..." : "Từ chối"}
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              Hiển thị {rows.length} trên {total} báo cáo
+            </p>
+
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                disabled={page === 1}
+                onClick={() => setPage(page - 1)}
+              >
+                <ChevronLeft className="size-4" />
+              </Button>
+              {pages.map((p, idx) =>
+                p === "..." ? (
+                  <span className="px-2" key={`e-${idx}`}>
+                    ...
+                  </span>
+                ) : (
+                  <Button
+                    key={p}
+                    variant={p === page ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setPage(p)}
+                  >
+                    {p}
+                  </Button>
+                ),
+              )}
+              <Button
+                variant="outline"
+                size="icon"
+                disabled={page === totalPages}
+                onClick={() => setPage(page + 1)}
+              >
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Dialog open={isAssignPopupOpen} onOpenChange={handleAssignPopupChange}>
         <DialogContent
@@ -531,110 +599,118 @@ export default function PendingReports() {
             overflow: "auto",
           }}
         >
-          <div className="pr-assignDialog">
-            <div className="pr-assignHead">
+          <div>
+            <div className="flex items-start justify-between gap-4 p-6 border-b">
               <div>
-                <h2>Gán collector cho báo cáo #{assigningReportId || "-"}</h2>
-                <p>
+                <h2 className="text-xl font-semibold">
+                  Gán collector cho báo cáo #{assigningReportId || "-"}
+                </h2>
+                <p className="text-sm text-muted-foreground mt-1">
                   Chọn collector phù hợp dựa trên khoảng cách và tải công việc.
                 </p>
               </div>
-              <button
+              <Button
                 type="button"
-                className="pr-action pr-action-ghost"
+                variant="outline"
                 onClick={() =>
                   navigate(`/enterprise/reports/detail/${assigningReportId}`)
                 }
                 disabled={!assigningReportId}
               >
                 Xem chi tiết
-              </button>
+              </Button>
             </div>
 
             {assignLoading && (
-              <div className="pr-assignState">
+              <div className="p-6 text-sm text-muted-foreground">
                 Đang tải danh sách collector...
               </div>
             )}
             {!assignLoading && assignError && (
-              <div className="pr-assignState pr-assignError">
-                Lỗi: {assignError}
-              </div>
+              <div className="p-6 text-sm text-red-600">Lỗi: {assignError}</div>
             )}
 
             {!assignLoading && !assignError && selectedReport && (
               <>
-                <div className="pr-assignReport">
-                  <div className="pr-assignReportTitle">
+                <div className="mx-6 mt-6 rounded-lg border p-4 space-y-2">
+                  <div className="font-medium">
                     Báo cáo #{selectedReport.id} • {selectedReport.status}
                   </div>
-                  <div className="pr-assignReportMeta">
-                    <FaMapMarkerAlt />
+                  <div className="text-sm text-muted-foreground flex items-center gap-2">
+                    <MapPin className="size-4" />
                     <span>{selectedReport.address}</span>
                   </div>
-                  <div className="pr-assignReportMeta">
-                    <FaClock />
+                  <div className="text-sm text-muted-foreground flex items-center gap-2">
+                    <Clock3 className="size-4" />
                     <span>{selectedReport.weightEstimate}</span>
                   </div>
                 </div>
 
                 {!collectors.length ? (
-                  <div className="pr-assignState">
+                  <div className="p-6 text-sm text-muted-foreground">
                     Hiện chưa có collector khả dụng.
                   </div>
                 ) : (
-                  <div className="pr-assignList">
-                    <div className="pr-assignRow pr-assignRowHead">
-                      <div>COLLECTOR</div>
-                      <div>KHOẢNG CÁCH</div>
-                      <div>TẢI CÔNG VIỆC</div>
-                      <div>THAO TÁC</div>
-                    </div>
-
-                    {collectors.map((collector) => (
-                      <div className="pr-assignRow" key={collector.id}>
-                        <div className="pr-assignCollector">
-                          <CollectorAvatar name={collector.name} />
-                          <div>
-                            <div className="pr-strong">{collector.name}</div>
-                            <div className="pr-sub">
-                              {collector.id} • {collector.status}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div>
-                          <div className="pr-strong">
-                            {collector.distanceKm.toFixed(1)} km
-                          </div>
-                          <div className="pr-sub">{collector.etaText}</div>
-                        </div>
-
-                        <div>
-                          <div className="pr-sub">
-                            {collector.tasks}/{collector.maxTasks} tasks •{" "}
-                            {collector.loadPercent}%
-                          </div>
-                          <ProgressBar percent={collector.loadPercent} />
-                        </div>
-
-                        <div>
-                          <button
-                            type="button"
-                            className="pr-action pr-action-ok"
-                            disabled={
-                              !collector.canAssign ||
-                              assigningCollectorId === collector.id
-                            }
-                            onClick={() => handleAssignCollector(collector)}
-                          >
-                            {assigningCollectorId === collector.id
-                              ? "..."
-                              : "Gán"}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="p-6 pt-4">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Collector</TableHead>
+                          <TableHead>Khoảng cách</TableHead>
+                          <TableHead>Tải công việc</TableHead>
+                          <TableHead className="text-right">Thao tác</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {collectors.map((collector) => (
+                          <TableRow key={collector.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <CollectorAvatar name={collector.name} />
+                                <div>
+                                  <div className="font-medium">
+                                    {collector.name}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {collector.id} • {collector.status}
+                                  </div>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="font-medium">
+                                {collector.distanceKm.toFixed(1)} km
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {collector.etaText}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="text-xs text-muted-foreground mb-1">
+                                {collector.tasks}/{collector.maxTasks} tasks •{" "}
+                                {collector.loadPercent}%
+                              </div>
+                              <ProgressBar percent={collector.loadPercent} />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                type="button"
+                                size="sm"
+                                disabled={
+                                  !collector.canAssign ||
+                                  assigningCollectorId === collector.id
+                                }
+                                onClick={() => handleAssignCollector(collector)}
+                              >
+                                {assigningCollectorId === collector.id
+                                  ? "..."
+                                  : "Gán"}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   </div>
                 )}
               </>
@@ -653,34 +729,43 @@ export default function PendingReports() {
             overflow: "auto",
           }}
         >
-          <div className="pr-historyDialog">
-            <div className="pr-historyHead">
-              <h2>Toàn bộ lịch sử đã gán report</h2>
-              <p>Tổng số lần gán: {assignmentHistoryRows.length}</p>
-            </div>
+          <div className="p-6 space-y-4">
+            <DialogHeader>
+              <DialogTitle>Toàn bộ lịch sử đã gán report</DialogTitle>
+              <DialogDescription>
+                Tổng số lần gán: {assignmentHistoryRows.length}
+              </DialogDescription>
+            </DialogHeader>
 
             {!assignmentHistoryRows.length ? (
-              <div className="pr-historyEmpty">
+              <div className="text-sm text-muted-foreground">
                 Chưa có lịch sử gán report nào.
               </div>
             ) : (
-              <div className="pr-historyTable">
-                <div className="pr-historyTr pr-historyTh">
-                  <div>THỜI ĐIỂM</div>
-                  <div>BÁO CÁO</div>
-                  <div>NHÂN VIÊN COLLECTOR</div>
-                  <div>MÃ NHÂN VIÊN</div>
-                </div>
-
-                {assignmentHistoryRows.map((item) => (
-                  <div className="pr-historyTr" key={item.id}>
-                    <div>{item.assignedAtText || item.assignedAt || "-"}</div>
-                    <div className="pr-strong">#{item.reportId}</div>
-                    <div>{item.collectorName || "-"}</div>
-                    <div>{item.collectorId || "-"}</div>
-                  </div>
-                ))}
-              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Thời điểm</TableHead>
+                    <TableHead>Báo cáo</TableHead>
+                    <TableHead>Nhân viên collector</TableHead>
+                    <TableHead>Mã nhân viên</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {assignmentHistoryRows.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell>
+                        {item.assignedAtText || item.assignedAt || "-"}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        #{item.reportId}
+                      </TableCell>
+                      <TableCell>{item.collectorName || "-"}</TableCell>
+                      <TableCell>{item.collectorId || "-"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             )}
           </div>
         </DialogContent>

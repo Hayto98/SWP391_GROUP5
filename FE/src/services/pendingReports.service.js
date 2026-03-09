@@ -3,17 +3,11 @@ import { request } from "./apiClient";
 const MAX_PENDING_FETCH = 500;
 const SLA_TOTAL_MINUTES = 4 * 60;
 
-const ALL_WARD = "Tất cả Người dùng";
 const ALL_WASTE_TYPE = "Tất cả loại rác";
 const ALL_WASTE_SUBTYPE = "Tất cả đơn vị rác";
 const ALL_WEIGHT = "Tất cả cân nặng";
 const ALL_STATUS = "Tất cả trạng thái";
 
-const ALL_WARD_OPTIONS = new Set([
-  ALL_WARD,
-  "Tất cả Quận",
-  "Tất cả người dùng",
-]);
 const ALL_WASTE_TYPE_OPTIONS = new Set([ALL_WASTE_TYPE, "Tất cả"]);
 const ALL_WASTE_SUBTYPE_OPTIONS = new Set([
   ALL_WASTE_SUBTYPE,
@@ -24,13 +18,26 @@ const ALL_WEIGHT_OPTIONS = new Set([ALL_WEIGHT, "Tất cả"]);
 const ALL_STATUS_OPTIONS = new Set([ALL_STATUS, "Tất cả"]);
 
 const DEFAULT_FILTERS = {
-  wards: [ALL_WARD],
   wasteTypes: [ALL_WASTE_TYPE],
   wasteSubTypes: [ALL_WASTE_SUBTYPE],
   weights: [ALL_WEIGHT, "< 20kg", "20kg", "20–50kg", "> 50kg", "> 20kg"],
   statuses: [ALL_STATUS],
-  sorts: ["Hết hạn SLA", "Mới nhất", "Khối lượng lớn"],
+  sorts: ["Mới nhất", "Hết hạn SLA", "Khối lượng lớn"],
 };
+
+function formatCreatedDateLabel(value) {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("vi-VN");
+}
+
+function isSameDay(a, b) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
 
 function getAuthHeaders() {
   const token = localStorage.getItem("accessToken");
@@ -128,9 +135,6 @@ function getWasteSubTypeName(wasteLabel) {
 }
 
 function buildFilters(allRows) {
-  const uniqueCitizenNames = [
-    ...new Set(allRows.map((row) => row.ward).filter(Boolean)),
-  ];
   const uniqueWasteTypes = [
     ...new Set(allRows.map((row) => row.waste).filter(Boolean)),
   ];
@@ -144,7 +148,6 @@ function buildFilters(allRows) {
   ];
 
   return {
-    wards: [ALL_WARD, ...uniqueCitizenNames],
     wasteTypes: [ALL_WASTE_TYPE, ...uniqueWasteTypes],
     wasteSubTypes: [ALL_WASTE_SUBTYPE, ...uniqueWasteSubTypes],
     weights: DEFAULT_FILTERS.weights,
@@ -156,15 +159,17 @@ function buildFilters(allRows) {
 function applyClientFilters(rows, params = {}) {
   const {
     q = "",
-    ward = ALL_WARD,
+    createdAt,
     wasteType = ALL_WASTE_TYPE,
     wasteSubType = ALL_WASTE_SUBTYPE,
     weight = ALL_WEIGHT,
     status = ALL_STATUS,
-    sort = "Hết hạn SLA",
+    sort = "Mới nhất",
   } = params;
 
-  const isAllWard = ALL_WARD_OPTIONS.has(String(ward || "").trim());
+  const createdAtDate = createdAt ? new Date(createdAt) : null;
+  const hasCreatedAtFilter =
+    createdAtDate && !Number.isNaN(createdAtDate.getTime());
   const isAllWasteType = ALL_WASTE_TYPE_OPTIONS.has(
     String(wasteType || "").trim(),
   );
@@ -185,8 +190,12 @@ function applyClientFilters(rows, params = {}) {
     );
   }
 
-  if (!isAllWard) {
-    nextRows = nextRows.filter((row) => row.ward === ward);
+  if (hasCreatedAtFilter) {
+    nextRows = nextRows.filter((row) => {
+      const rowDate = new Date(row.createdAt || 0);
+      if (Number.isNaN(rowDate.getTime())) return false;
+      return isSameDay(rowDate, createdAtDate);
+    });
   }
 
   if (!isAllWasteType) {

@@ -7,12 +7,12 @@ import {
 
 export function usePendingReports() {
   const [q, setQ] = useState("");
-  const [ward, setWard] = useState("Tất cả Người dùng");
+  const [createdAt, setCreatedAt] = useState(undefined);
   const [wasteType, setWasteType] = useState("Tất cả loại rác");
   const [wasteSubType, setWasteSubType] = useState("Tất cả đơn vị rác");
   const [weight, setWeight] = useState("Tất cả cân nặng");
   const [status, setStatus] = useState("Tất cả trạng thái");
-  const [sort, setSort] = useState("Hết hạn SLA");
+  const [sort, setSort] = useState("Mới nhất");
 
   const [page, setPage] = useState(1);
   const [pageSize] = useState(5);
@@ -26,7 +26,7 @@ export function usePendingReports() {
   const params = useMemo(
     () => ({
       q,
-      ward,
+      createdAt,
       wasteType,
       wasteSubType,
       weight,
@@ -35,7 +35,17 @@ export function usePendingReports() {
       page,
       pageSize,
     }),
-    [q, ward, wasteType, wasteSubType, weight, status, sort, page, pageSize],
+    [
+      q,
+      createdAt,
+      wasteType,
+      wasteSubType,
+      weight,
+      status,
+      sort,
+      page,
+      pageSize,
+    ],
   );
 
   const load = useCallback(async () => {
@@ -57,7 +67,7 @@ export function usePendingReports() {
 
   useEffect(() => {
     setPage(1);
-  }, [q, ward, wasteType, wasteSubType, weight, status, sort]);
+  }, [q, createdAt, wasteType, wasteSubType, weight, status, sort]);
 
   const doAction = useCallback(async (code, action) => {
     setActing(code);
@@ -162,7 +172,7 @@ export function usePendingReports() {
     acting,
     exporting,
     q,
-    ward,
+    createdAt,
     wasteType,
     wasteSubType,
     weight,
@@ -171,7 +181,7 @@ export function usePendingReports() {
     page,
     pageSize,
     setQ,
-    setWard,
+    setCreatedAt,
     setWasteType,
     setWasteSubType,
     setWeight,
