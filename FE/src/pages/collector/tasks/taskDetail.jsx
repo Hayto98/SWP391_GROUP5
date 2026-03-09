@@ -385,7 +385,18 @@ function TaskDetail() {
                 min="0"
                 step="0.1"
                 value={actualQuantity}
-                onChange={(e) => setActualQuantity(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === "") {
+                    setActualQuantity("");
+                    return;
+                  }
+
+                  const parsed = Number(value);
+                  if (Number.isNaN(parsed) || parsed < 0) return;
+
+                  setActualQuantity(value);
+                }}
                 placeholder="Ví dụ: 4"
               />
             </div>
