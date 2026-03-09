@@ -74,10 +74,6 @@ export const navByRole = {
           title: "Cấu hình điểm thưởng",
           url: "/enterprise/rewards-config/rules",
         },
-        {
-          title: "Khu vực phục vụ",
-          url: "/enterprise/service-areas",
-        },
       ],
     },
     {

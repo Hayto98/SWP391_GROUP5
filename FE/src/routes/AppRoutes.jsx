@@ -27,7 +27,6 @@ import EnterpriseCollectors from "@/pages/enterprise/employees/collectors/Collec
 import EnterpriseRewardsConfig from "@/pages/enterprise/rewards-config/RewardsConfig";
 import EnterpriseAcceptWasteConfig from "@/pages/enterprise/rewards-config/accept-waste/AcceptWasteConfig";
 import EnterpriseRewardSlaRules from "@/pages/enterprise/rewards-config/rules/RewardSlaRules";
-import EnterpriseServiceAreas from "@/pages/enterprise/service-areas/ServiceAreas";
 import EnterpriseProgressTracking from "@/pages/enterprise/monitoring/monitoring/ProgressTracking";
 import EnterpriseCollectionAnalytics from "@/pages/enterprise/analytics/collection-report/CollectionAnalytics";
 import EnterpriseComplaintsEscalation from "@/pages/enterprise/complaints/ComplaintsEscalation";
@@ -134,7 +133,6 @@ function AppRoutes() {
                 path="rewards-config/rules"
                 element={<EnterpriseRewardSlaRules />}
               />
-              <Route path="service-areas" element={<EnterpriseServiceAreas />} />
               <Route
                 path="complaints/escalation"
                 element={<EnterpriseComplaintsEscalation />}
