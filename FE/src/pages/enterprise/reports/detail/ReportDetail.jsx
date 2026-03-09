@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./reportDetail.css";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useReportDetail } from "../../../../hooks/useReportDetail";
@@ -12,21 +12,31 @@ import {
   assignTaskToCollector,
   getDispatchAssign,
 } from "../../../../services/dispatchAssign.service";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import ImageSection from "@/components/ui/image-section";
+import { Textarea } from "@/components/ui/textarea";
 import CollectionReportDetail from "../collection-detail/CollectionReportDetail";
 import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {
-  FaCheck,
-  FaMapMarkerAlt,
-  FaPhoneAlt,
-  FaUserCircle,
-  FaExclamationTriangle,
-  FaBoxOpen,
-  FaClock,
-} from "react-icons/fa";
+  AlertTriangle,
+  Check,
+  Clock3,
+  MapPin,
+  Package,
+  Phone,
+  UserRound,
+} from "lucide-react";
 import { toast } from "sonner";
 
 // Fix default marker icon for Leaflet in Vite/React environments.
@@ -40,29 +50,67 @@ L.Icon.Default.mergeOptions({
     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
 
-const Stat = ({ icon, label, value, tone }) => (
-  <div className="rd-stat">
-    <div className={`rd-statIcon rd-statIcon-${tone}`}>{icon}</div>
-    <div className="rd-statMeta">
-      <div className="rd-statLabel">{label}</div>
-      <div className={`rd-statValue rd-statValue-${tone}`}>{value}</div>
-    </div>
-  </div>
+const STATUS_BADGE_CLASS = {
+  PENDING: "bg-amber-50 text-amber-700 border-amber-200",
+  ACCEPTED: "bg-blue-50 text-blue-700 border-blue-200",
+  ASSIGNED: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  COLLECTED: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  REJECTED: "bg-red-50 text-red-700 border-red-200",
+};
+
+const STAT_ICON_CLASS = {
+  green: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  orange: "bg-amber-50 text-amber-700 border-amber-200",
+  muted: "bg-slate-100 text-slate-700 border-slate-200",
+};
+
+const TIMELINE_DOT_CLASS = {
+  done: "bg-emerald-500 border-emerald-500",
+  active: "bg-white border-emerald-500",
+  todo: "bg-white border-slate-300",
+};
+
+const StatCard = ({ icon, label, value, tone = "muted" }) => (
+  <Card className="py-0">
+    <CardContent className="flex items-center gap-3 p-4">
+      <div
+        className={[
+          "flex h-10 w-10 items-center justify-center rounded-lg border",
+          STAT_ICON_CLASS[tone] || STAT_ICON_CLASS.muted,
+        ].join(" ")}
+      >
+        {icon}
+      </div>
+      <div>
+        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+        <p className="text-sm font-semibold">{value}</p>
+      </div>
+    </CardContent>
+  </Card>
 );
 
-const TimelineItem = ({ item }) => (
-  <div className="rd-tlItem">
-    <div className={`rd-tlDot rd-tlDot-${item.state}`} />
-    <div className="rd-tlBody">
-      <div className="rd-tlTitle">{item.title}</div>
-      <div className="rd-tlTime">{item.time}</div>
-    </div>
+const TimelineItem = ({ item, isLast }) => (
+  <div className="relative pl-6">
+    <span
+      className={[
+        "absolute left-0 top-1.5 h-3 w-3 rounded-full border-2",
+        TIMELINE_DOT_CLASS[item?.state] || TIMELINE_DOT_CLASS.todo,
+      ].join(" ")}
+    />
+    {!isLast && (
+      <span
+        className="absolute top-5 w-px bg-border"
+        style={{ left: 5, height: "calc(100% - 8px)" }}
+      />
+    )}
+    <p className="text-sm font-semibold">{item?.title || "-"}</p>
+    <p className="text-xs text-muted-foreground">{item?.time || "-"}</p>
   </div>
 );
 
 function ReportMapCanvas({ center, location }) {
   return (
-    <MapContainer center={center} zoom={13} className="rd-mapCanvas">
+    <MapContainer center={center} zoom={13} className="h-full w-full">
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -78,12 +126,8 @@ function ReportMapCanvas({ center, location }) {
 export default function ReportDetail() {
   const navigate = useNavigate();
   const location = useLocation();
-  const DEST_LAT = Number(
-    import.meta.env.VITE_HCMC_POST_OFFICE_LAT || 10.779784,
-  );
-  const DEST_LNG = Number(
-    import.meta.env.VITE_HCMC_POST_OFFICE_LNG || 106.699173,
-  );
+  const DEST_LAT = Number(import.meta.env.VITE_HCMC_POST_OFFICE_LAT || 10.779784);
+  const DEST_LNG = Number(import.meta.env.VITE_HCMC_POST_OFFICE_LNG || 106.699173);
 
   const destination = useMemo(
     () => ({ lat: DEST_LAT, lng: DEST_LNG }),
@@ -136,6 +180,8 @@ export default function ReportDetail() {
   }, [data?.location?.lat, data?.location?.lng]);
 
   const openDirections = () => {
+    if (!data?.location) return;
+
     const origin = `${data.location.lat},${data.location.lng}`;
     const dest = `${destination.lat},${destination.lng}`;
     const url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(dest)}&travelmode=driving`;
@@ -243,10 +289,9 @@ export default function ReportDetail() {
       setAssigningCollectorId("");
     }
   };
+
   const timelineItems = useMemo(() => {
-    const baseTimeline = Array.isArray(data?.timeline)
-      ? [...data.timeline]
-      : [];
+    const baseTimeline = Array.isArray(data?.timeline) ? [...data.timeline] : [];
     if (!latestAssignment) return baseTimeline;
 
     const assignTitle = `Đã phân công cho ${latestAssignment.collectorName}`;
@@ -287,9 +332,30 @@ export default function ReportDetail() {
     return baseTimeline;
   }, [data?.timeline, latestAssignment]);
 
-  if (loading) return <div style={{ padding: 16 }}>Đang tải...</div>;
-  if (error)
-    return <div style={{ padding: 16, color: "#991b1b" }}>Lỗi: {error}</div>;
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <Card>
+          <CardContent className="flex h-24 items-center justify-center text-sm text-muted-foreground">
+            Đang tải...
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <Card>
+          <CardContent className="flex h-24 items-center justify-center text-sm text-red-600">
+            Lỗi: {error}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (!data) return null;
 
   const citizenImage =
@@ -300,119 +366,136 @@ export default function ReportDetail() {
   const collectorImage = data?.collectorImages?.[0] || null;
   const selectedFrom = location.state?.selectedFrom;
   const selectedFromText =
-    selectedFrom === "pending-list"
-      ? "Danh sách chờ xử lý"
-      : "Chi tiết báo cáo";
+    selectedFrom === "pending-list" ? "Danh sách chờ xử lý" : "Chi tiết báo cáo";
   const assignedCollectorName =
     location.state?.assignedCollectorName || latestAssignment?.collectorName;
   const assignedAtText = latestAssignment?.assignedAtText;
 
   return (
-    <div className="rd">
-      <div className="rd-breadcrumb">
-        <button
+    <div className="space-y-6">
+      <div className="text-xs text-muted-foreground">
+        <Button
+          variant="link"
+          className="h-auto p-0 text-xs text-muted-foreground"
           type="button"
-          className="rd-breadcrumbLink"
           onClick={() => navigate("/enterprise/reports")}
         >
           Báo cáo
-        </button>
+        </Button>
         <span> / </span>
-        <button
+        <Button
+          variant="link"
+          className="h-auto p-0 text-xs text-muted-foreground"
           type="button"
-          className="rd-breadcrumbLink"
           onClick={() => navigate("/enterprise/reports")}
         >
           Chờ xử lý
-        </button>
+        </Button>
         <span> / </span>
         <span>Chi tiết #{data.id}</span>
       </div>
 
-      <div className="rd-head">
-        <div>
-          <div className="rd-titleRow">
-            <h1>Report #{data.id}</h1>
-            <span className="rd-status">{data.status}</span>
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <CardTitle className="text-xl lg:text-2xl">Report #{data.id}</CardTitle>
+                <Badge
+                  variant="outline"
+                  className={
+                    STATUS_BADGE_CLASS[rawStatus] ||
+                    "bg-slate-100 text-slate-700 border-slate-200"
+                  }
+                >
+                  {data.status || rawStatus || "-"}
+                </Badge>
+              </div>
+
+              <CardDescription>Gửi lúc {data.createdAt}</CardDescription>
+              <p className="text-sm text-muted-foreground">Nguồn mở: {selectedFromText}</p>
+
+              {rawStatus === "REJECTED" && (
+                <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                  Lý do từ chối: {rejectReasonText}
+                </p>
+              )}
+
+              {assignedCollectorName && (
+                <p className="text-sm text-muted-foreground">
+                  Đã gán cho collector: {assignedCollectorName}
+                  {assignedAtText ? ` (${assignedAtText})` : ""}
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                type="button"
+                disabled={!canAccept || actionLoading !== ""}
+                title={
+                  canAccept
+                    ? "Chấp nhận báo cáo"
+                    : "Chỉ có thể chấp nhận khi báo cáo đang PENDING"
+                }
+                onClick={() => handleAction("accept")}
+              >
+                {actionLoading === "accept" ? "..." : "Chấp nhận"}
+              </Button>
+
+              <Button
+                variant="outline"
+                className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                type="button"
+                disabled={!canAssign || actionLoading !== ""}
+                title={
+                  canAssign
+                    ? "Gán collector"
+                    : rawStatus === "ASSIGNED"
+                      ? "Báo cáo đã được gán collector"
+                      : "Cần chấp nhận báo cáo trước khi gán"
+                }
+                onClick={openAssignPopup}
+              >
+                {rawStatus === "ASSIGNED" ? "Đã gán" : "Gán"}
+              </Button>
+
+              <Button
+                variant="outline"
+                className="border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                type="button"
+                disabled={!canReject || actionLoading !== ""}
+                title={
+                  canReject
+                    ? "Từ chối báo cáo"
+                    : "Chỉ có thể từ chối khi báo cáo đang PENDING"
+                }
+                onClick={openRejectPopup}
+              >
+                {actionLoading === "reject" ? "..." : "Từ chối"}
+              </Button>
+
+              <Button
+                variant="outline"
+                className="gap-2"
+                type="button"
+                onClick={() => setCollectionPopupOpen(true)}
+              >
+                <Package className="size-4" />
+                Xem thu gom
+              </Button>
+
+              <Button type="button" onClick={() => navigate("/enterprise/reports")}>
+                Quay về
+              </Button>
+            </div>
           </div>
-          <div className="rd-sub">Gửi lúc {data.createdAt}</div>
-          <div className="rd-sub">Nguồn mở: {selectedFromText}</div>
-          {rawStatus === "REJECTED" && (
-            <div className="rd-rejectReason">
-              Lý do từ chối: {rejectReasonText}
-            </div>
-          )}
-          {assignedCollectorName && (
-            <div className="rd-sub">
-              Đã gán cho collector: {assignedCollectorName}
-              {assignedAtText ? ` (${assignedAtText})` : ""}
-            </div>
-          )}
-        </div>
+        </CardHeader>
+      </Card>
 
-        <div className="rd-headActions">
-          <button
-            className="rd-btnWarn"
-            type="button"
-            disabled={!canAccept || actionLoading !== ""}
-            title={
-              canAccept
-                ? "Chấp nhận báo cáo"
-                : "Chỉ có thể chấp nhận khi báo cáo đang PENDING"
-            }
-            onClick={() => handleAction("accept")}
-          >
-            {actionLoading === "accept" ? "..." : "Chấp nhận"}
-          </button>
-          <button
-            className="rd-btnOk"
-            type="button"
-            disabled={!canAssign || actionLoading !== ""}
-            title={
-              canAssign
-                ? "Gán collector"
-                : rawStatus === "ASSIGNED"
-                  ? "Báo cáo đã được gán collector"
-                  : "Cần chấp nhận báo cáo trước khi gán"
-            }
-            onClick={openAssignPopup}
-          >
-            {rawStatus === "ASSIGNED" ? "Đã gán" : "Gán"}
-          </button>
-          <button
-            className="rd-btnGhost"
-            type="button"
-            disabled={!canReject || actionLoading !== ""}
-            title={
-              canReject
-                ? "Từ chối báo cáo"
-                : "Chỉ có thể từ chối khi báo cáo đang PENDING"
-            }
-            onClick={openRejectPopup}
-          >
-            {actionLoading === "reject" ? "..." : "Từ chối"}
-          </button>
-          <button
-            className="rd-btnGhost"
-            type="button"
-            onClick={() => setCollectionPopupOpen(true)}
-          >
-            <FaBoxOpen /> Xem thu gom
-          </button>
-          <button
-            className="rd-btnPrimary"
-            type="button"
-            onClick={() => navigate("/enterprise/reports")}
-          >
-            Quay về
-          </button>
-        </div>
-      </div>
-
-      <Dialog
-        open={isCollectionPopupOpen}
-        onOpenChange={setCollectionPopupOpen}
-      >
+      <Dialog open={isCollectionPopupOpen} onOpenChange={setCollectionPopupOpen}>
         <DialogContent
           className="max-w-none overflow-hidden p-0"
           style={{ width: "95vw", maxWidth: 1200, height: "85vh" }}
@@ -425,33 +508,22 @@ export default function ReportDetail() {
 
       <Dialog open={isAssignPopupOpen} onOpenChange={setAssignPopupOpen}>
         <DialogContent
-          className="max-w-none p-0 z-500"
-          style={{
-            width: "94vw",
-            maxWidth: 980,
-            maxHeight: "86vh",
-            overflow: "auto",
-          }}
+          className="max-w-none p-0"
+          style={{ width: "94vw", maxWidth: 980, maxHeight: "86vh", overflow: "auto" }}
         >
-          <div className="rd-assignDialog ">
+          <div className="rd-assignDialog">
             <div className="rd-assignHead">
               <div>
                 <h2>Gán collector cho báo cáo #{routeReportId}</h2>
-                <p>
-                  Chọn collector phù hợp dựa trên khoảng cách và tải công việc.
-                </p>
+                <p>Chọn collector phù hợp dựa trên khoảng cách và tải công việc.</p>
               </div>
             </div>
 
             {assignLoading && (
-              <div className="rd-assignState">
-                Đang tải danh sách collector...
-              </div>
+              <div className="rd-assignState">Đang tải danh sách collector...</div>
             )}
             {!assignLoading && assignError && (
-              <div className="rd-assignState rd-assignError">
-                Lỗi: {assignError}
-              </div>
+              <div className="rd-assignState rd-assignError">Lỗi: {assignError}</div>
             )}
 
             {!assignLoading && !assignError && selectedReport && (
@@ -461,19 +533,17 @@ export default function ReportDetail() {
                     Báo cáo #{selectedReport.id} • {selectedReport.status}
                   </div>
                   <div className="rd-assignReportMeta">
-                    <FaMapMarkerAlt />
+                    <MapPin className="size-4" />
                     <span>{selectedReport.address}</span>
                   </div>
                   <div className="rd-assignReportMeta">
-                    <FaClock />
+                    <Clock3 className="size-4" />
                     <span>{selectedReport.weightEstimate}</span>
                   </div>
                 </div>
 
                 {!collectors.length ? (
-                  <div className="rd-assignState">
-                    Hiện chưa có collector khả dụng.
-                  </div>
+                  <div className="rd-assignState">Hiện chưa có collector khả dụng.</div>
                 ) : (
                   <div className="rd-assignListTable">
                     <div className="rd-assignRow rd-assignRowHead">
@@ -502,24 +572,21 @@ export default function ReportDetail() {
                         </div>
 
                         <div className="rd-sub">
-                          {collector.tasks}/{collector.maxTasks} tasks •{" "}
-                          {collector.loadPercent}%
+                          {collector.tasks}/{collector.maxTasks} tasks • {collector.loadPercent}%
                         </div>
 
                         <div>
-                          <button
+                          <Button
                             type="button"
-                            className="rd-btnOk"
+                            variant="outline"
+                            className="h-8 border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                             disabled={
-                              !collector.canAssign ||
-                              assigningCollectorId === collector.id
+                              !collector.canAssign || assigningCollectorId === collector.id
                             }
                             onClick={() => handleAssignCollector(collector)}
                           >
-                            {assigningCollectorId === collector.id
-                              ? "..."
-                              : "Gán"}
-                          </button>
+                            {assigningCollectorId === collector.id ? "..." : "Gán"}
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -532,13 +599,13 @@ export default function ReportDetail() {
       </Dialog>
 
       <Dialog open={isRejectPopupOpen} onOpenChange={setRejectPopupOpen}>
-        <DialogContent className="max-w-lg p-0 z-500">
+        <DialogContent className="max-w-lg p-0">
           <div className="rd-rejectDialog">
             <h3>Lý do từ chối báo cáo #{routeReportId}</h3>
             <p>Nhập lý do để gửi kèm khi từ chối báo cáo.</p>
 
-            <textarea
-              className="rd-rejectTextarea"
+            <Textarea
+              className="mt-3 min-h-28 bg-white text-foreground"
               placeholder="Ví dụ: Báo cáo không đúng loại rác hoặc thông tin chưa hợp lệ..."
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
@@ -547,178 +614,181 @@ export default function ReportDetail() {
             />
 
             <div className="rd-rejectActions">
-              <button
+              <Button
                 type="button"
-                className="rd-btnGhost"
+                variant="outline"
                 onClick={() => setRejectPopupOpen(false)}
                 disabled={actionLoading === "reject"}
               >
                 Hủy
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className="rd-btnWarn"
+                variant="outline"
+                className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
                 onClick={submitReject}
                 disabled={actionLoading === "reject"}
               >
-                {actionLoading === "reject"
-                  ? "Đang gửi..."
-                  : "Xác nhận từ chối"}
-              </button>
+                {actionLoading === "reject" ? "Đang gửi..." : "Xác nhận từ chối"}
+              </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      <div className="rd-topGrid">
-        <div className="rd-card rd-photo">
-          <div className="rd-photoInner" style={{ padding: 12 }}>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-                gap: 12,
-              }}
-            >
-              <ImageSection
-                title="Hình ảnh từ người dân"
-                image={citizenImage}
-              />
-              <ImageSection
-                title="Hình ảnh từ collector"
-                image={collectorImage}
-              />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Hình ảnh đối chứng</CardTitle>
+            <CardDescription>Ảnh người dân gửi và ảnh collector chụp tại hiện trường</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 md:grid-cols-2">
+              <ImageSection title="Hình ảnh từ người dân" image={citizenImage} />
+              <ImageSection title="Hình ảnh từ collector" image={collectorImage} />
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        <div className="rd-card rd-map">
-          <div className="rd-mapInner">
-            <ReportMapCanvas
-              center={center}
-              location={data.location}
-              destination={destination}
-            />
-
-            <div className="rd-mapInfo">
-              <div className="rd-mapInfoTop">
-                <div className="rd-mapTitle">TỌA ĐỘ GPS</div>
-                <div className="rd-mapCoord">
-                  {data.location.lat.toFixed(6)}, {data.location.lng.toFixed(6)}
-                </div>
-              </div>
-
-              <button
-                className="rd-mapBtn"
-                type="button"
-                onClick={openDirections}
-              >
-                Xem đường đi
-              </button>
+        <Card>
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <CardTitle>Thông tin vị trí</CardTitle>
+              <CardDescription>
+                {center.lat.toFixed(6)}, {center.lng.toFixed(6)}
+              </CardDescription>
             </div>
-          </div>
-        </div>
-
-        <div className="rd-statRow">
-          <Stat
-            tone="green"
-            icon={<FaCheck />}
-            label="LOẠI CHẤT THẢI"
-            value={data.wasteType}
-          />
-          <Stat
-            tone="green"
-            icon={<FaCheck />}
-            label="KHỐI LƯỢNG ƯỚC TÍNH"
-            value={data.weightEstimate}
-          />
-          <Stat
-            tone="green"
-            icon={<FaCheck />}
-            label="KHỐI LƯỢNG THỰC TẾ"
-            value={
-              data.actualQuantity !== null && data.actualQuantity !== undefined
-                ? `${data.actualQuantity} ${data.unitType || ""}`
-                : "Chưa cập nhật"
-            }
-          />
-          <Stat
-            tone="muted"
-            icon={<FaUserCircle />}
-            label="NGƯỜI BÁO CÁO"
-            value={data.reporter?.name || "Không rõ"}
-          />
-          <Stat
-            tone="orange"
-            icon={<FaExclamationTriangle />}
-            label="MỨC ĐỘ ƯU TIÊN"
-            value={data.priority}
-          />
-        </div>
+            <Button variant="outline" type="button" onClick={openDirections}>
+              Xem đường đi
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="overflow-hidden rounded-xl border" style={{ height: 280 }}>
+              <ReportMapCanvas center={center} location={data.location} />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {resolvedAddress || data.address || "Chưa có địa chỉ chi tiết"}
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
-      <div className="rd-bottomGrid">
-        <div className="rd-leftCol">
-          <div className="rd-card rd-section">
-            <div className="rd-secTitle">Ghi chú từ người dân</div>
-            <div className="rd-note">
-              {data.note || data.description || "-"}
-            </div>
-          </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <StatCard
+          tone="green"
+          icon={<Check className="size-4" />}
+          label="Loại chất thải"
+          value={data.wasteType}
+        />
+        <StatCard
+          tone="green"
+          icon={<Check className="size-4" />}
+          label="Khối lượng ước tính"
+          value={data.weightEstimate}
+        />
+        <StatCard
+          tone="green"
+          icon={<Check className="size-4" />}
+          label="Khối lượng thực tế"
+          value={
+            data.actualQuantity !== null && data.actualQuantity !== undefined
+              ? `${data.actualQuantity} ${data.unitType || ""}`
+              : "Chưa cập nhật"
+          }
+        />
+        <StatCard
+          tone="muted"
+          icon={<UserRound className="size-4" />}
+          label="Người báo cáo"
+          value={data.reporter?.name || "Không rõ"}
+        />
+        <StatCard
+          tone="orange"
+          icon={<AlertTriangle className="size-4" />}
+          label="Mức độ ưu tiên"
+          value={data.priority}
+        />
+      </div>
 
-          <div className="rd-card rd-section">
-            <div className="rd-secTitle">Địa chỉ chi tiết</div>
-            <div className="rd-address">
-              <FaMapMarkerAlt />
-              <span>
-                {resolvedAddress || data.address || "Chưa có địa chỉ chi tiết"}
-              </span>
-            </div>
+      <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Ghi chú từ người dân</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="rounded-lg border bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                {data.note || data.description || "-"}
+              </p>
+            </CardContent>
+          </Card>
 
-            <div className="rd-contact">
-              <div className="rd-contactItem">
-                <FaUserCircle />
-                <span>{data.reporter?.name || "Không rõ"}</span>
+          <Card>
+            <CardHeader>
+              <CardTitle>Thông tin liên hệ và địa chỉ</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-start gap-2 text-sm text-slate-700">
+                <MapPin className="mt-0.5 size-4 text-muted-foreground" />
+                <span>{resolvedAddress || data.address || "Chưa có địa chỉ chi tiết"}</span>
               </div>
-              <div className="rd-contactItem">
-                <FaPhoneAlt />
-                <span>{data.reporter?.phone || "Không có SĐT"}</span>
-              </div>
-            </div>
 
-            <div className="rd-contact" style={{ marginTop: 10 }}>
-              <div className="rd-contactItem">
-                <FaUserCircle />
-                <span>
-                  Collector: {data.collector?.fullname || "Chưa gán"}
-                  {data.collector?.phone ? ` (${data.collector.phone})` : ""}
-                </span>
-              </div>
-              <div className="rd-contactItem">
-                <FaCheck />
-                <span>
-                  Trạng thái: {data.status} | Số lượng thực tế:{" "}
-                  {data.actualQuantity ?? "-"} {data.unitType || ""}
-                </span>
-              </div>
-              {rawStatus === "REJECTED" && (
-                <div className="rd-contactItem rd-contactItemReject">
-                  <FaClock />
-                  <span>Lý do từ chối: {rejectReasonText}</span>
+              <div className="grid gap-2 md:grid-cols-2">
+                <div className="flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-medium">
+                  <UserRound className="size-4 text-muted-foreground" />
+                  <span>{data.reporter?.name || "Không rõ"}</span>
                 </div>
+                <div className="flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-medium">
+                  <Phone className="size-4 text-muted-foreground" />
+                  <span>{data.reporter?.phone || "Không có SĐT"}</span>
+                </div>
+              </div>
+
+              <div className="grid gap-2 md:grid-cols-2">
+                <div className="flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-medium">
+                  <UserRound className="size-4 text-muted-foreground" />
+                  <span>
+                    Collector: {data.collector?.fullname || "Chưa gán"}
+                    {data.collector?.phone ? ` (${data.collector.phone})` : ""}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-medium">
+                  <Check className="size-4 text-muted-foreground" />
+                  <span>
+                    Trạng thái: {data.status} | SL thực tế: {data.actualQuantity ?? "-"} {data.unitType || ""}
+                  </span>
+                </div>
+              </div>
+
+              {rawStatus === "REJECTED" && (
+                <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                  Lý do từ chối: {rejectReasonText}
+                </p>
               )}
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
 
-        <div className="rd-card rd-timeline">
-          <div className="rd-secTitle">Lịch sử hoạt động</div>
-          <div className="rd-tlList">
-            {timelineItems.map((t, idx) => (
-              <TimelineItem key={idx} item={t} />
-            ))}
-          </div>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Lịch sử hoạt động</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {timelineItems.length ? (
+              <div className="space-y-4">
+                {timelineItems.map((item, idx) => (
+                  <TimelineItem
+                    key={`${item?.title || "timeline"}-${idx}`}
+                    item={item}
+                    isLast={idx === timelineItems.length - 1}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Chưa có mốc hoạt động</p>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
