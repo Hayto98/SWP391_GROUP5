@@ -19,14 +19,14 @@ import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {
-  FaCheck,
-  FaMapMarkerAlt,
-  FaPhoneAlt,
-  FaUserCircle,
-  FaExclamationTriangle,
-  FaBoxOpen,
-  FaClock,
-} from "react-icons/fa";
+  AlertTriangle,
+  Check,
+  Clock3,
+  MapPin,
+  Package,
+  Phone,
+  UserRound,
+} from "lucide-react";
 import { toast } from "sonner";
 
 // Fix default marker icon for Leaflet in Vite/React environments.
@@ -397,7 +397,7 @@ export default function ReportDetail() {
             type="button"
             onClick={() => setCollectionPopupOpen(true)}
           >
-            <FaBoxOpen /> Xem thu gom
+            <Package className="size-4" /> Xem thu gom
           </button>
           <button
             className="rd-btnPrimary"
@@ -461,11 +461,11 @@ export default function ReportDetail() {
                     Báo cáo #{selectedReport.id} • {selectedReport.status}
                   </div>
                   <div className="rd-assignReportMeta">
-                    <FaMapMarkerAlt />
+                    <MapPin className="size-4" />
                     <span>{selectedReport.address}</span>
                   </div>
                   <div className="rd-assignReportMeta">
-                    <FaClock />
+                    <Clock3 className="size-4" />
                     <span>{selectedReport.weightEstimate}</span>
                   </div>
                 </div>
@@ -622,19 +622,19 @@ export default function ReportDetail() {
         <div className="rd-statRow">
           <Stat
             tone="green"
-            icon={<FaCheck />}
+            icon={<Check className="size-4" />}
             label="LOẠI CHẤT THẢI"
             value={data.wasteType}
           />
           <Stat
             tone="green"
-            icon={<FaCheck />}
+            icon={<Check className="size-4" />}
             label="KHỐI LƯỢNG ƯỚC TÍNH"
             value={data.weightEstimate}
           />
           <Stat
             tone="green"
-            icon={<FaCheck />}
+            icon={<Check className="size-4" />}
             label="KHỐI LƯỢNG THỰC TẾ"
             value={
               data.actualQuantity !== null && data.actualQuantity !== undefined
@@ -644,13 +644,13 @@ export default function ReportDetail() {
           />
           <Stat
             tone="muted"
-            icon={<FaUserCircle />}
+            icon={<UserRound className="size-4" />}
             label="NGƯỜI BÁO CÁO"
             value={data.reporter?.name || "Không rõ"}
           />
           <Stat
             tone="orange"
-            icon={<FaExclamationTriangle />}
+            icon={<AlertTriangle className="size-4" />}
             label="MỨC ĐỘ ƯU TIÊN"
             value={data.priority}
           />
@@ -669,7 +669,7 @@ export default function ReportDetail() {
           <div className="rd-card rd-section">
             <div className="rd-secTitle">Địa chỉ chi tiết</div>
             <div className="rd-address">
-              <FaMapMarkerAlt />
+              <MapPin className="size-4" />
               <span>
                 {resolvedAddress || data.address || "Chưa có địa chỉ chi tiết"}
               </span>
@@ -677,25 +677,25 @@ export default function ReportDetail() {
 
             <div className="rd-contact">
               <div className="rd-contactItem">
-                <FaUserCircle />
+                <UserRound className="size-4" />
                 <span>{data.reporter?.name || "Không rõ"}</span>
               </div>
               <div className="rd-contactItem">
-                <FaPhoneAlt />
+                <Phone className="size-4" />
                 <span>{data.reporter?.phone || "Không có SĐT"}</span>
               </div>
             </div>
 
             <div className="rd-contact" style={{ marginTop: 10 }}>
               <div className="rd-contactItem">
-                <FaUserCircle />
+                <UserRound className="size-4" />
                 <span>
                   Collector: {data.collector?.fullname || "Chưa gán"}
                   {data.collector?.phone ? ` (${data.collector.phone})` : ""}
                 </span>
               </div>
               <div className="rd-contactItem">
-                <FaCheck />
+                <Check className="size-4" />
                 <span>
                   Trạng thái: {data.status} | Số lượng thực tế:{" "}
                   {data.actualQuantity ?? "-"} {data.unitType || ""}
@@ -703,7 +703,7 @@ export default function ReportDetail() {
               </div>
               {rawStatus === "REJECTED" && (
                 <div className="rd-contactItem rd-contactItemReject">
-                  <FaClock />
+                  <Clock3 className="size-4" />
                   <span>Lý do từ chối: {rejectReasonText}</span>
                 </div>
               )}

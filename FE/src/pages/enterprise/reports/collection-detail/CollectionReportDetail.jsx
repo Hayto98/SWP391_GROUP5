@@ -2,8 +2,8 @@ import React, { useMemo, useState } from "react";
 import "./collectionReportDetail.css";
 import { useNavigate, useParams } from "react-router-dom";
 import { useCollectionReportDetail } from "../../../../hooks/useCollectionReportDetail";
-import { FaSearch, FaMapMarkerAlt, FaStar } from "react-icons/fa";
 import { GoogleMap, Marker, useJsApiLoader } from "@react-google-maps/api";
+import { MapPin, Search, Star } from "lucide-react";
 
 const StatBox = ({ label, value, tone }) => (
   <div className={`crd-box crd-box-${tone}`}>
@@ -57,7 +57,7 @@ export default function CollectionReportDetail({ reportId: reportIdProp, isPopup
         {!isPopup && (
           <div className="crd-topbar">
             <div className="crd-searchWrap">
-              <FaSearch className="crd-searchIcon" />
+              <Search className="crd-searchIcon" />
               <input className="crd-search" placeholder={data.searchHint} />
             </div>
 
@@ -124,7 +124,7 @@ export default function CollectionReportDetail({ reportId: reportIdProp, isPopup
                 </div>
               </div>
               <div className="crd-addr">
-                <FaMapMarkerAlt /> <span>{data.location.address}</span>
+                <MapPin className="size-4" /> <span>{data.location.address}</span>
               </div>
             </div>
           </div>
@@ -195,7 +195,7 @@ export default function CollectionReportDetail({ reportId: reportIdProp, isPopup
 
             <div className="crd-cMeta">
               <div className="crd-cMetaItem">
-                <FaStar /> <b>{data.collectorCard.rating}</b>
+                <Star className="size-4" /> <b>{data.collectorCard.rating}</b>
               </div>
               <div className="crd-cMetaItem">
                 <b>{data.collectorCard.completed}</b> task
