@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Badge } from "@/components/ui/badge";
 import { usePendingReports } from "@/hooks/usePendingReports";
 import {
   Dialog,
@@ -165,6 +166,8 @@ export default function PendingReports() {
   const total = data?.result?.total || 0;
   const rows = data?.result?.rows || [];
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const startItem = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const endItem = Math.min(page * pageSize, total);
   const toReportId = (code) => String(code || "").replace(/^#/, "");
 
   const [isAssignPopupOpen, setAssignPopupOpen] = useState(false);

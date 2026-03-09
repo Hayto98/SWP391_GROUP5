@@ -1,23 +1,29 @@
-import React from "react";
-import "./acceptWasteConfig.css";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { useAcceptWasteConfig } from "@/hooks/useAcceptWasteConfig";
 import {
-  FaCheck,
-  FaSearch,
-  FaChevronRight,
-  FaRecycle,
-  FaFileAlt,
-  FaWineBottle,
-  FaCog,
-  FaBolt,
-} from "react-icons/fa";
+  Check,
+  Cog,
+  FileText,
+  Loader2,
+  Recycle,
+  Wine,
+  Zap,
+} from "lucide-react";
 
 const IconByType = ({ type }) => {
-  if (type === "paper") return <FaFileAlt />;
-  if (type === "recycle") return <FaRecycle />;
-  if (type === "glass") return <FaWineBottle />;
-  if (type === "metal") return <FaCog />;
-  return <FaBolt />;
+  if (type === "paper") return FileText;
+  if (type === "recycle") return Recycle;
+  if (type === "glass") return Wine;
+  if (type === "metal") return Cog;
+  return Zap;
 };
 
 export default function AcceptWasteConfig() {
@@ -28,6 +34,8 @@ export default function AcceptWasteConfig() {
   if (error)
     return <div style={{ padding: 16, color: "#991b1b" }}>Lỗi: {error}</div>;
   if (!data) return null;
+
+  const percent = Math.max(0, Math.min(100, Math.round(storagePercent || 0)));
 
   return (
     <div className="awc">

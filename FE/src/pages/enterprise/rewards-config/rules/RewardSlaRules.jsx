@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -28,11 +35,20 @@ function AddWasteTypeModal({ open, onClose, onConfirm, adding }) {
   const [unit, setUnit] = useState("");
   const [localErr, setLocalErr] = useState("");
 
+  useEffect(() => {
+    if (!open) {
+      setName("");
+      setUnit("");
+      setLocalErr("");
+    }
+  }, [open]);
+
   const handleSubmit = async () => {
     if (!name.trim()) {
       setLocalErr("Vui lòng nhập tên loại rác");
       return;
     }
+
     if (!unit.trim()) {
       setLocalErr("Vui lòng nhập đơn vị tính");
       return;
@@ -123,19 +139,33 @@ function EditWasteTypeModal({ open, onClose, onConfirm, adding, wasteItem }) {
   const [desc, setDesc] = useState(wasteItem?.description || "");
   const [localErr, setLocalErr] = useState("");
 
+  useEffect(() => {
+    if (!open || !wasteItem) return;
+
+    setWasteTypeName(wasteItem.name || "");
+    setUnitType(wasteItem.unitType || "KG");
+    setPoints(wasteItem.factor || 0);
+    setVariance(wasteItem.allowed_variance_percent || 0);
+    setDesc(wasteItem.description || "");
+    setLocalErr("");
+  }, [open, wasteItem]);
+
   const handleSubmit = async () => {
     if (!wasteTypeName.trim()) {
       setLocalErr("Vui lòng nhập tên loại rác");
       return;
     }
+
     if (Number(points) <= 0) {
       setLocalErr("Hệ số điểm phải lớn hơn 0");
       return;
     }
+
     if (Number(variance) < 0) {
       setLocalErr("Tỷ lệ sai số không được âm");
       return;
     }
+
     if (!unitType.trim()) {
       setLocalErr("Vui lòng nhập đơn vị tính");
       return;
@@ -275,13 +305,37 @@ export default function RewardSlaRules() {
     saving,
     adding,
     error,
+    dirty,
+    save,
+    reset,
     updateWasteFactor,
     addWasteType,
     removeWasteType,
     editWasteType,
   } = useRewardSlaRules();
 
-  if (loading) return <div style={{ padding: 16 }}>Đang tải...</div>;
+  const operationBusy = adding || saving;
+
+  const footerMeta = useMemo(
+    () => [
+      `PHIÊN BẢN: ${draft?.version || "-"}`,
+      "HỆ THỐNG ĐANG HOẠT ĐỘNG",
+      `CẬP NHẬT CUỐI: ${draft?.updatedAt || "-"}`,
+    ],
+    [draft?.updatedAt, draft?.version],
+  );
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="flex h-24 items-center justify-center gap-2 text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" />
+          Đang tải...
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (!draft) return null;
 
   return (
@@ -423,13 +477,13 @@ export default function RewardSlaRules() {
             <Button
               variant="outline"
               onClick={() => setWasteToDelete(null)}
-              disabled={saving || adding}
+              disabled={operationBusy}
             >
               Hủy
             </Button>
             <Button
               variant="destructive"
-              disabled={saving || adding}
+              disabled={operationBusy}
               onClick={async () => {
                 const res = await removeWasteType(wasteToDelete.id);
                 if (res?.ok) setWasteToDelete(null);

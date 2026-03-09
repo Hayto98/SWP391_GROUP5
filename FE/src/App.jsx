@@ -4,7 +4,6 @@ import AppRoutes from "./routes/AppRoutes";
 import AppErrorBoundary from "./components/AppErrorBoundary";
 import EnterpriseOverview from "./pages/enterprise/overview/EnterpriseOverview";
 import AcceptWasteConfig from "./pages/enterprise/rewards-config/accept-waste/AcceptWasteConfig";
-import ServiceAreas from "./pages/enterprise/service-areas/ServiceAreas";
 import PendingReports from "./pages/enterprise/reports/pending/PendingReports";
 import ReportDetail from "./pages/enterprise/reports/detail/ReportDetail";
 import Collectors from "./pages/enterprise/employees/collectors/Collectors";
@@ -18,7 +17,6 @@ import EnterpriseProfileOverview from "./pages/enterprise/profile/overview/Enter
 const reviewPages = {
   EnterpriseOverview,
   AcceptWasteConfig,
-  ServiceAreas,
   PendingReports,
   ReportDetail,
   Collectors,

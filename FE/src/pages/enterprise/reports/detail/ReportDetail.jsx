@@ -11,6 +11,15 @@ import {
   assignTaskToCollector,
   getDispatchAssign,
 } from "../../../../services/dispatchAssign.service";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,6 +35,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import ImageSection from "@/components/ui/image-section";
+import { Textarea } from "@/components/ui/textarea";
 import CollectionReportDetail from "../collection-detail/CollectionReportDetail";
 import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
 import L from "leaflet";
@@ -169,6 +179,8 @@ export default function ReportDetail() {
   }, [data?.location?.lat, data?.location?.lng]);
 
   const openDirections = () => {
+    if (!data?.location) return;
+
     const origin = `${data.location.lat},${data.location.lng}`;
     const dest = `${destination.lat},${destination.lng}`;
     const url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(dest)}&travelmode=driving`;
@@ -276,6 +288,7 @@ export default function ReportDetail() {
       setAssigningCollectorId("");
     }
   };
+
   const timelineItems = useMemo(() => {
     const baseTimeline = Array.isArray(data?.timeline)
       ? [...data.timeline]
@@ -320,9 +333,30 @@ export default function ReportDetail() {
     return baseTimeline;
   }, [data?.timeline, latestAssignment]);
 
-  if (loading) return <div style={{ padding: 16 }}>Đang tải...</div>;
-  if (error)
-    return <div style={{ padding: 16, color: "#991b1b" }}>Lỗi: {error}</div>;
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <Card>
+          <CardContent className="flex h-24 items-center justify-center text-sm text-muted-foreground">
+            Đang tải...
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <Card>
+          <CardContent className="flex h-24 items-center justify-center text-sm text-red-600">
+            Lỗi: {error}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (!data) return null;
 
   const citizenImage =
@@ -467,7 +501,7 @@ export default function ReportDetail() {
 
       <Dialog open={isAssignPopupOpen} onOpenChange={setAssignPopupOpen}>
         <DialogContent
-          className="max-w-none p-0 z-500"
+          className="max-w-none p-0"
           style={{
             width: "94vw",
             maxWidth: 980,
