@@ -226,9 +226,20 @@ function EditWasteTypeModal({ open, onClose, onConfirm, adding, wasteItem }) {
             <Input
               id="edit-waste-points"
               type="number"
+              min={0}
               value={points}
               onChange={(e) => {
-                setPoints(e.target.value);
+                const value = e.target.value;
+                if (value === "") {
+                  setPoints("");
+                  setLocalErr("");
+                  return;
+                }
+
+                const parsed = Number(value);
+                if (Number.isNaN(parsed) || parsed < 0) return;
+
+                setPoints(value);
                 setLocalErr("");
               }}
               disabled={adding}
@@ -242,9 +253,20 @@ function EditWasteTypeModal({ open, onClose, onConfirm, adding, wasteItem }) {
             <Input
               id="edit-waste-variance"
               type="number"
+              min={0}
               value={variance}
               onChange={(e) => {
-                setVariance(e.target.value);
+                const value = e.target.value;
+                if (value === "") {
+                  setVariance("");
+                  setLocalErr("");
+                  return;
+                }
+
+                const parsed = Number(value);
+                if (Number.isNaN(parsed) || parsed < 0) return;
+
+                setVariance(value);
                 setLocalErr("");
               }}
               disabled={adding}
@@ -301,7 +323,6 @@ export default function RewardSlaRules() {
     dirty,
     save,
     reset,
-    updateWasteFactor,
     addWasteType,
     removeWasteType,
     editWasteType,
@@ -390,11 +411,10 @@ export default function RewardSlaRules() {
                       <Input
                         className="w-24 text-right"
                         value={w.factor}
-                        onChange={(e) =>
-                          updateWasteFactor(w.id, Number(e.target.value || 0))
-                        }
                         type="number"
                         step="0.1"
+                        min={0}
+                        readOnly
                         disabled={!w.rewardConfigId}
                       />
                       <Button

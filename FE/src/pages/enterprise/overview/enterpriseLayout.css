@@ -1,119 +1,149 @@
-:root{
-    --bg:#f5f7f7;
-    --card:#ffffff;
-    --text:#0f172a;
-    --muted:#6b7280;
-    --border:#e5e7eb;
-    --green:#22c55e;
-    --green2:#16a34a;
-    --shadow: 0 10px 30px rgba(15,23,42,0.06);
+:root {
+  --bg: #f5f7f7;
+  --card: #ffffff;
+  --text: #0f172a;
+  --muted: oklch(0.9846 0.0017 247.8389);
+  --border: #e5e7eb;
+  --green: #22c55e;
+  --green2: #16a34a;
+  --shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+}
+
+.el {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 250px 1fr;
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    Arial,
+    sans-serif;
+}
+
+.el-sidebar {
+  background: var(--card);
+  border-right: 1px solid var(--border);
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.el-appMark {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+.el-appMark__logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #dcfce7;
+  color: var(--green2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+}
+.el-appMark__name {
+  font-weight: 900;
+  font-size: 14px;
+}
+.el-appMark__sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.el-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px;
+}
+
+.el-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px;
+  border-radius: 12px;
+  color: var(--text);
+  text-decoration: none;
+  border: 1px solid transparent;
+}
+.el-item__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #334155;
+}
+.el-item__label {
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.el-item:hover {
+  background: #f8fafc;
+  border-color: var(--border);
+}
+
+.el-item.is-active {
+  background: #ecfdf5;
+  border-color: #bbf7d0;
+}
+.el-item.is-active .el-item__icon {
+  background: #dcfce7;
+  border-color: #bbf7d0;
+  color: var(--green2);
+}
+
+.el-sidebar__bottom {
+  margin-top: auto;
+  padding: 8px 6px 0;
+}
+
+.el-setting {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #f8fafc;
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 800;
+}
+.el-setting:hover {
+  filter: brightness(0.98);
+}
+
+.el-main {
+  padding: 16px 16px 28px;
+}
+
+@media (max-width: 900px) {
+  .el {
+    grid-template-columns: 1fr;
   }
-  
-  .el{
-    min-height:100vh;
-    display:grid;
-    grid-template-columns: 250px 1fr;
-    background: var(--bg);
-    color: var(--text);
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  .el-sidebar {
+    display: none;
   }
-  
-  .el-sidebar{
-    background: var(--card);
-    border-right: 1px solid var(--border);
-    padding: 14px 12px;
-    display:flex;
-    flex-direction:column;
-    gap:14px;
+  .el-main {
+    padding: 12px;
   }
-  
-  .el-appMark{
-    display:flex;
-    gap:10px;
-    align-items:center;
-    padding:10px;
-    border:1px solid var(--border);
-    border-radius:14px;
-    box-shadow: var(--shadow);
-  }
-  .el-appMark__logo{
-    width:36px;height:36px;border-radius:10px;
-    background:#dcfce7;color:var(--green2);
-    display:flex;align-items:center;justify-content:center;
-    font-weight:900;
-  }
-  .el-appMark__name{font-weight:900;font-size:14px;}
-  .el-appMark__sub{font-size:12px;color:var(--muted);margin-top:2px;}
-  
-  .el-nav{
-    display:flex;
-    flex-direction:column;
-    gap:6px;
-    padding: 4px;
-  }
-  
-  .el-item{
-    display:flex;
-    align-items:center;
-    gap:10px;
-    padding:10px 10px;
-    border-radius:12px;
-    color: var(--text);
-    text-decoration:none;
-    border: 1px solid transparent;
-  }
-  .el-item__icon{
-    width:32px;height:32px;border-radius:10px;
-    background:#f1f5f9;
-    border:1px solid var(--border);
-    display:flex;align-items:center;justify-content:center;
-    color:#334155;
-  }
-  .el-item__label{
-    font-weight:800;
-    font-size:13px;
-  }
-  
-  .el-item:hover{
-    background:#f8fafc;
-    border-color: var(--border);
-  }
-  
-  .el-item.is-active{
-    background:#ecfdf5;
-    border-color:#bbf7d0;
-  }
-  .el-item.is-active .el-item__icon{
-    background:#dcfce7;
-    border-color:#bbf7d0;
-    color: var(--green2);
-  }
-  
-  .el-sidebar__bottom{
-    margin-top:auto;
-    padding: 8px 6px 0;
-  }
-  
-  .el-setting{
-    display:flex;
-    align-items:center;
-    gap:10px;
-    padding:10px 10px;
-    border-radius:12px;
-    border:1px solid var(--border);
-    background:#f8fafc;
-    color: var(--text);
-    text-decoration:none;
-    font-weight:800;
-  }
-  .el-setting:hover{filter:brightness(0.98);}
-  
-  .el-main{
-    padding: 16px 16px 28px;
-  }
-  
-  @media (max-width: 900px){
-    .el{grid-template-columns: 1fr;}
-    .el-sidebar{display:none;}
-    .el-main{padding:12px;}
-  }
+}

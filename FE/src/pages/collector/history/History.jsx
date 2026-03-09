@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  Calendar,
   Download,
   Loader2,
   MapPin,
@@ -32,6 +33,20 @@ import {
 } from "@/components/ui/table";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Dialog,
   DialogContent,
@@ -64,6 +79,16 @@ function toCsvValue(value) {
   return `"${raw.replace(/"/g, '""')}"`;
 }
 
+function toLocalDateKey(value) {
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function History() {
   const [allJobs, setAllJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -73,6 +98,9 @@ function History() {
   const [detailArea, setDetailArea] = useState("Không rõ vị trí");
 
   const [currentPage, setCurrentPage] = useState(1);
+  const [keyword, setKeyword] = useState("");
+  const [wasteTypeFilter, setWasteTypeFilter] = useState("ALL");
+  const [selectedDate, setSelectedDate] = useState(undefined);
 
   useEffect(() => {
     const fetchReports = async () => {
@@ -104,7 +132,8 @@ function History() {
               wasteType: item?.wasteType?.name || "Không xác định",
               weight: item.weight,
               unitType: item.unitType,
-              collectedAt: item.collectedAt || item.updatedAt,
+
+              collectedAt: item.reportedAt,
             };
           }),
         );
@@ -122,7 +151,7 @@ function History() {
   }, []);
 
   // chỉ lấy collected
-  const filtered = useMemo(() => {
+  const collectedJobs = useMemo(() => {
     return allJobs
       .filter((job) => job.status === "COLLECTED")
       .sort((a, b) => {
@@ -133,6 +162,54 @@ function History() {
         return bTime - aTime;
       });
   }, [allJobs]);
+
+  const wasteTypeOptions = useMemo(() => {
+    const unique = new Set(
+      collectedJobs.map((job) => (job.wasteType || "").trim()).filter(Boolean),
+    );
+
+    return Array.from(unique).sort((a, b) => a.localeCompare(b, "vi"));
+  }, [collectedJobs]);
+
+  const filtered = useMemo(() => {
+    const normalizedKeyword = keyword.trim().toLowerCase();
+
+    return collectedJobs.filter((job) => {
+      const byKeyword =
+        normalizedKeyword.length === 0 ||
+        String(job.id || "")
+          .toLowerCase()
+          .includes(normalizedKeyword) ||
+        String(job.wasteType || "")
+          .toLowerCase()
+          .includes(normalizedKeyword) ||
+        String(job.area || "")
+          .toLowerCase()
+          .includes(normalizedKeyword);
+
+      const byWasteType =
+        wasteTypeFilter === "ALL" || job.wasteType === wasteTypeFilter;
+
+      let byTime = true;
+
+      if (selectedDate) {
+        const selectedKey = toLocalDateKey(selectedDate);
+        const collectedKey = toLocalDateKey(job.collectedAt);
+
+        if (!selectedKey || !collectedKey) {
+          byTime = false;
+        } else {
+          byTime = collectedKey === selectedKey;
+        }
+      }
+
+      return byKeyword && byWasteType && byTime;
+    });
+  }, [collectedJobs, keyword, wasteTypeFilter, selectedDate]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [keyword, wasteTypeFilter, selectedDate]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
 
@@ -252,6 +329,57 @@ function History() {
         </CardHeader>
 
         <CardContent>
+          <div className="mb-4 gap-3 md:grid-cols-3 flex">
+            <Input
+              className="flex-1"
+              placeholder="Tìm mã báo cáo, loại rác, khu vực..."
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+            />
+
+            <Select value={wasteTypeFilter} onValueChange={setWasteTypeFilter}>
+              <SelectTrigger className="flex-1">
+                <SelectValue placeholder="Tất cả loại rác" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Tất cả loại rác</SelectItem>
+                {wasteTypeOptions.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="flex-1 justify-start">
+                  <Calendar className="mr-2 size-4" />
+                  {selectedDate
+                    ? selectedDate.toLocaleDateString("vi-VN")
+                    : "Lọc theo ngày"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarComponent
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={setSelectedDate}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setSelectedDate(undefined);
+              }}
+            >
+              Bỏ lọc ngày
+            </Button>
+          </div>
+
           <Table>
             <TableHeader>
               <TableRow>
@@ -293,7 +421,6 @@ function History() {
 
                     <TableCell>
                       <div className="flex items-center gap-1 text-sm max-w-75">
-                        <MapPin className="size-3 text-muted-foreground" />
                         <span className="truncate">{job.area}</span>
                       </div>
                     </TableCell>
