@@ -1,29 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { useReportDetail } from "../../../../hooks/useReportDetail";
-import { reverseGeocode } from "../../../../services/geocodingService";
-import {
-  getLatestReportAssignment,
-  recordReportAssignment,
-} from "../../../../services/reportAssignmentHistory.service";
-import { updatePendingReportStatus } from "../../../../services/pendingReports.service";
-import {
-  assignTaskToCollector,
-  getDispatchAssign,
-} from "../../../../services/dispatchAssign.service";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import ImageSection from "@/components/ui/image-section";
+import { Separator } from "@/components/ui/separator";
 import {
   Table,
   TableBody,
@@ -32,23 +12,33 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import ImageSection from "@/components/ui/image-section";
-import { Textarea } from "@/components/ui/textarea";
-import CollectionReportDetail from "../collection-detail/CollectionReportDetail";
-import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {
   Check,
-  MapPin,
-  Phone,
   CircleUserRound,
-  PackageOpen,
   Clock3,
+  MapPin,
+  PackageOpen,
+  Phone,
 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
+import { useReportDetail } from "../../../../hooks/useReportDetail";
+import {
+  assignTaskToCollector,
+  getDispatchAssign,
+} from "../../../../services/dispatchAssign.service";
+import { reverseGeocode } from "../../../../services/geocodingService";
+import { updatePendingReportStatus } from "../../../../services/pendingReports.service";
+import {
+  getLatestReportAssignment,
+  recordReportAssignment,
+} from "../../../../services/reportAssignmentHistory.service";
+import CollectionReportDetail from "../collection-detail/CollectionReportDetail";
 
 // Fix default marker icon for Leaflet in Vite/React environments.
 delete L.Icon.Default.prototype._getIconUrl;

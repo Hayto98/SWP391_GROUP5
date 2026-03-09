@@ -153,7 +153,14 @@ async function getReportById(userId, reportId) {
     ? fallbackCitizenImages.map((item) => (item?.file_uri || '').trim()).filter(Boolean)
     : []
 
-  const citizenImages = [...new Set([...joinedUris, ...fallbackUris])].map((fileUri) => ({ file_uri: fileUri }))
+  const reportFileUri = typeof report?.report_file_uri === 'string' ? report.report_file_uri.trim() : ''
+
+  const allCitizenUris = [...joinedUris, ...fallbackUris]
+  if (reportFileUri) {
+    allCitizenUris.push(reportFileUri)
+  }
+
+  const citizenImages = [...new Set(allCitizenUris)].filter(Boolean).map((fileUri) => ({ file_uri: fileUri }))
 
   // 6️⃣ Map DTO (use alias names!)
   return {

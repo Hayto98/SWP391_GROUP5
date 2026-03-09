@@ -130,8 +130,7 @@ async function updateWasteType(wasteTypeId, { wasteTypeName, unitType }) {
  * Business Rules:
  * - wasteType phải tồn tại
  * - Nếu hợp lệ → update is_active = isActive
- * - Nếu set isActive = false → đồng thời inactive RewardConfig
- * - Nếu set isActive = true → không tự động active RewardConfig
+ * - Không tự động thay đổi trạng thái RewardConfig liên quan
  */
 async function toggleWasteTypeStatus(wasteTypeId, isActive) {
   // Validate isActive is boolean
@@ -143,12 +142,6 @@ async function toggleWasteTypeStatus(wasteTypeId, isActive) {
   const existingType = await wasteTypeRepository.findById(wasteTypeId)
   if (!existingType) {
     throw new ApiError(404, 'WasteType không tồn tại')
-  }
-
-  // If deactivating, still allow existing active reports to continue processing.
-  if (isActive === false) {
-    // Inactive related RewardConfig
-    await rewardConfigRepository.setInactiveByWasteTypeId(wasteTypeId)
   }
 
   // Update WasteType active status
@@ -360,7 +353,6 @@ async function createRewardConfig({ wasteTypeId, pointsPerUnit, description, all
  * Business Rules:
  * - rewardConfig tồn tại
  * - pointsPerUnit > 0
- * - Không cho update nếu wasteType đang inactive
  * - Không cho update nếu rewardConfig đang inactive
  */
 async function updateRewardConfig(rewardConfigId, { pointsPerUnit, description, allowedVariancePercent }) {
@@ -373,12 +365,6 @@ async function updateRewardConfig(rewardConfigId, { pointsPerUnit, description, 
   // Check if rewardConfig is active
   if (!existingConfig.isActive) {
     throw new ApiError(400, 'Không thể cập nhật RewardConfig đã inactive')
-  }
-
-  // Check if related wasteType is active
-  const wasteType = await wasteTypeRepository.findById(existingConfig.wasteTypeId)
-  if (!wasteType || !wasteType.isActive) {
-    throw new ApiError(400, 'Không thể cập nhật RewardConfig khi WasteType đã inactive')
   }
 
   // Validate and build update data

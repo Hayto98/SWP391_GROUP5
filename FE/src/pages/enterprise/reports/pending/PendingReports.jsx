@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
-import { usePendingReports } from "@/hooks/usePendingReports";
+import { Button } from "@/components/ui/button";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -9,9 +9,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -21,12 +24,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import {
   Table,
   TableBody,
   TableCell,
@@ -34,29 +31,31 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { usePendingReports } from "@/hooks/usePendingReports";
+import { cn } from "@/lib/utils";
 import {
   assignTaskToCollector,
   getDispatchAssign,
 } from "@/services/dispatchAssign.service";
 import {
-  recordReportAssignment,
   getAllReportAssignmentHistory,
+  recordReportAssignment,
 } from "@/services/reportAssignmentHistory.service";
-import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import {
-  Search,
-  Download,
-  History,
+  Calendar,
   ChevronLeft,
   ChevronRight,
-  MapPin,
   Clock3,
-  Calendar,
+  Download,
+  History,
+  MapPin,
+  Search,
 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 const CollectorAvatar = ({ name }) => {
   const parts = String(name || "")

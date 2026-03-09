@@ -1,12 +1,6 @@
-import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -26,8 +19,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useRewardSlaRules } from "../../../../hooks/useRewardSlaRules";
 
 function AddWasteTypeModal({ open, onClose, onConfirm, adding }) {
@@ -438,9 +431,11 @@ export default function RewardSlaRules() {
       </Card>
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-        <Badge variant="outline">PHIÊN BẢN: {draft.version}</Badge>
-        <Badge variant="outline">HỆ THỐNG ĐANG HOẠT ĐỘNG</Badge>
-        <Badge variant="outline">CẬP NHẬT CUỐI: {draft.updatedAt}</Badge>
+        {footerMeta.map((meta) => (
+          <Badge key={meta} variant="outline">
+            {meta}
+          </Badge>
+        ))}
       </div>
 
       <AddWasteTypeModal

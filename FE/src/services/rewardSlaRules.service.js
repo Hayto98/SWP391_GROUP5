@@ -42,28 +42,31 @@ const FAKE_BASE = {
 };
 
 export async function getRewardSlaRules() {
-  // Lấy danh sách loại rác từ enterprise waste-types API (mock)
-  const res = await getWasteTypes({ isActive: true });
-  const pointsByWaste = (res.data || []).map((wt) => {
-    const rewardConfig = wt.rewardConfig || null;
-    const realFactor = wt.pointsPerUnit ?? rewardConfig?.pointsPerUnit ?? 0;
+  // Lấy toàn bộ waste types (bao gồm active + inactive), nhưng không hiển thị bản ghi đã soft-delete.
+  const res = await getWasteTypes();
+  const pointsByWaste = (res.data || [])
+    .filter((wt) => !(wt?.isDeleted || wt?.is_deleted))
+    .map((wt) => {
+      const rewardConfig = wt.rewardConfig || null;
+      const realFactor = wt.pointsPerUnit ?? rewardConfig?.pointsPerUnit ?? 0;
 
-    return {
-      id: String(wt.wasteTypeId),
-      wasteTypeId: wt.wasteTypeId,
-      rewardConfigId: rewardConfig?.rewardConfigId || null,
-      name: wt.wasteTypeName,
-      desc: `Đơn vị: ${wt.unitType}`,
-      factor: realFactor,
-      allowed_variance_percent:
-        rewardConfig?.allowedVariancePercent ??
-        rewardConfig?.allowed_variance_percent ??
-        0,
-      description: rewardConfig?.description || "",
-      unitType: wt.unitType,
-      hasRewardConfig: Boolean(rewardConfig),
-    };
-  });
+      return {
+        id: String(wt.wasteTypeId),
+        wasteTypeId: wt.wasteTypeId,
+        rewardConfigId: rewardConfig?.rewardConfigId || null,
+        name: wt.wasteTypeName,
+        desc: `Đơn vị: ${wt.unitType}`,
+        factor: realFactor,
+        allowed_variance_percent:
+          rewardConfig?.allowedVariancePercent ??
+          rewardConfig?.allowed_variance_percent ??
+          0,
+        description: rewardConfig?.description || "",
+        unitType: wt.unitType,
+        hasRewardConfig: Boolean(rewardConfig),
+        isActive: Boolean(wt.isActive),
+      };
+    });
   return { ...FAKE_BASE, pointsByWaste };
 }
 

@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import ImageSection from "@/components/ui/image-section";
 import {
   Dialog,
   DialogContent,
@@ -93,6 +94,21 @@ function TaskDetail() {
   const [quantityUnit, setQuantityUnit] = useState("KG");
   const [note, setNote] = useState("");
   const [resultFile, setResultFile] = useState(null);
+  const [resultFilePreview, setResultFilePreview] = useState("");
+
+  useEffect(() => {
+    if (!resultFile) {
+      setResultFilePreview("");
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(resultFile);
+    setResultFilePreview(previewUrl);
+
+    return () => {
+      URL.revokeObjectURL(previewUrl);
+    };
+  }, [resultFile]);
 
   useEffect(() => {
     const fetchDetail = async () => {
@@ -274,11 +290,10 @@ function TaskDetail() {
               {task.images.length > 0 ? (
                 <div className="grid grid-cols-2 gap-3">
                   {task.images.map((image, index) => (
-                    <img
+                    <ImageSection
                       key={`${image.file_uri}-${index}`}
-                      className="w-full h-56 object-cover rounded-xl"
-                      src={image.file_uri}
-                      alt={`Hình hiện trường ${index + 1}`}
+                      title={`Hình hiện trường ${index + 1}`}
+                      image={image}
                     />
                   ))}
                 </div>
@@ -401,6 +416,15 @@ function TaskDetail() {
                 accept="image/*"
                 onChange={(e) => setResultFile(e.target.files?.[0] || null)}
               />
+
+              {resultFilePreview && (
+                <div className="mt-3">
+                  <ImageSection
+                    title="Xem trước ảnh minh chứng"
+                    image={resultFilePreview}
+                  />
+                </div>
+              )}
             </div>
           </div>
 
