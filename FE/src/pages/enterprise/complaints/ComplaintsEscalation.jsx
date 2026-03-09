@@ -1,23 +1,96 @@
-import React from "react";
-import "./complaintsEscalation.css";
-import { useComplaints } from "../../../hooks/useComplaints";
-import { FaSearch, FaDownload, FaChevronDown, FaPaperPlane } from "react-icons/fa";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
+import { useComplaints } from "@/hooks/useComplaints";
+import {
+  AlertTriangle,
+  Bell,
+  Download,
+  Loader2,
+  Search,
+  Send,
+  UserRound,
+} from "lucide-react";
 
-const Tab = ({ active, children, onClick }) => (
-  <button type="button" className={`cex-tab ${active ? "is-active" : ""}`} onClick={onClick}>
-    {children}
-  </button>
-);
+const severityTone = {
+  CAO: "border-red-200 bg-red-50 text-red-700",
+  "TRUNG BÌNH": "border-amber-200 bg-amber-50 text-amber-700",
+  THẤP: "border-emerald-200 bg-emerald-50 text-emerald-700",
+};
 
-const Severity = ({ v }) => (
-  <span className={`cex-sev ${v === "CAO" ? "is-high" : v === "TRUNG BÌNH" ? "is-mid" : "is-low"}`}>{v}</span>
-);
+const statusTone = {
+  "Chờ xử lý": "border-blue-200 bg-blue-50 text-blue-700",
+  "Đang xử lý": "border-amber-200 bg-amber-50 text-amber-700",
+  "Đã giải quyết": "border-emerald-200 bg-emerald-50 text-emerald-700",
+};
 
-const Status = ({ v }) => (
-  <span className={`cex-st ${v === "Chờ xử lý" ? "is-pending" : v === "Đang xử lý" ? "is-proc" : "is-done"}`}>
-    {v.toUpperCase()}
-  </span>
-);
+const reasonTone = {
+  "Sai khối lượng": "border-red-200 bg-red-50 text-red-700",
+  "Bỏ lỡ thu gom": "border-orange-200 bg-orange-50 text-orange-700",
+  "Thái độ NV": "border-purple-200 bg-purple-50 text-purple-700",
+};
+
+const timelineDotTone = {
+  citizen: "bg-slate-800",
+  system: "bg-emerald-500",
+  status: "bg-blue-500",
+};
+
+function SeverityBadge({ value }) {
+  return (
+    <Badge
+      variant="outline"
+      className={severityTone[value] || "border-slate-200 bg-slate-100 text-slate-700"}
+    >
+      {value || "-"}
+    </Badge>
+  );
+}
+
+function StatusBadge({ value }) {
+  return (
+    <Badge
+      variant="outline"
+      className={statusTone[value] || "border-slate-200 bg-slate-100 text-slate-700"}
+    >
+      {String(value || "-").toUpperCase()}
+    </Badge>
+  );
+}
+
+function ReasonBadge({ value }) {
+  return (
+    <Badge
+      variant="outline"
+      className={reasonTone[value] || "border-slate-200 bg-slate-100 text-slate-700"}
+    >
+      {value || "-"}
+    </Badge>
+  );
+}
 
 export default function ComplaintsEscalation() {
   const {
@@ -41,147 +114,245 @@ export default function ComplaintsEscalation() {
     list,
   } = useComplaints();
 
-  if (loading) return <div style={{ padding: 16 }}>Đang tải...</div>;
-  if (error) return <div style={{ padding: 16, color: "#991b1b" }}>Lỗi: {error}</div>;
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="flex h-24 items-center justify-center gap-2 text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" />
+          Đang tải dữ liệu khiếu nại...
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="border-red-200">
+        <CardContent className="py-6 text-red-700">Lỗi: {error}</CardContent>
+      </Card>
+    );
+  }
+
   if (!data) return null;
 
   return (
-    <div className="cex-shell">
-      <main className="cex-main">
-        <div className="cex-topbar">
-          <div className="cex-searchWrap">
-            <FaSearch className="cex-searchIcon" />
-            <input
-              className="cex-search"
+    <div className="space-y-6">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-lg font-bold tracking-tight lg:text-2xl">Quản lý khiếu nại và escalation</h1>
+          <p className="mt-1 text-sm text-green-600">
+            Theo dõi và giải quyết các khiếu nại từ người dân và đối tác.
+          </p>
+        </div>
+
+        <Button type="button" variant="outline">
+          <Download className="size-4" />
+          Xuất báo cáo
+        </Button>
+      </div>
+
+      <Card>
+        <CardContent className="flex flex-col gap-3 py-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative w-full lg:max-w-xl">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
               placeholder="Tìm kiếm mã báo cáo, lý do hoặc khách hàng..."
               value={q}
               onChange={(e) => setQ(e.target.value)}
+              className="pl-9"
             />
           </div>
 
-          <div className="cex-topRight">
-            <button className="cex-iconBtn" type="button">🔔</button>
-            <button className="cex-iconBtn" type="button">👤</button>
+          <div className="flex gap-2 self-end lg:self-auto">
+            <Button variant="outline" size="icon" type="button" title="Thông báo">
+              <Bell className="size-4" />
+            </Button>
+            <Button variant="outline" size="icon" type="button" title="Tài khoản">
+              <UserRound className="size-4" />
+            </Button>
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        <div className="cex-head">
-          <div>
-            <h1>Quản lý Khiếu nại &amp; Escalation</h1>
-            <p>Theo dõi và giải quyết các khiếu nại từ người dân và đối tác.</p>
-          </div>
-
-          <button className="cex-export" type="button">
-            <FaDownload /> Xuất báo cáo
-          </button>
-        </div>
-
-        <div className="cex-controls">
-          <div className="cex-tabs">
-            {data.tabs.map((t) => (
-              <Tab key={t.key} active={tab === t.key} onClick={() => setTab(t.key)}>
-                {t.label}
-              </Tab>
+      <Card>
+        <CardContent className="flex flex-col gap-3 py-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap gap-2">
+            {data.tabs.map((item) => (
+              <Button
+                key={item.key}
+                type="button"
+                size="sm"
+                variant={tab === item.key ? "default" : "outline"}
+                onClick={() => setTab(item.key)}
+              >
+                {item.label}
+              </Button>
             ))}
           </div>
 
-          <div className="cex-rightControls">
-            <div className="cex-dd">
-              <select className="cex-ddSel" value={reason} onChange={(e) => setReason(e.target.value)}>
-                {data.reasons.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
+          <div className="w-full lg:w-64">
+            <Select value={reason} onValueChange={setReason}>
+              <SelectTrigger>
+                <SelectValue placeholder="Lý do" />
+              </SelectTrigger>
+              <SelectContent align="end">
+                {data.reasons.map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {item}
+                  </SelectItem>
                 ))}
-              </select>
-              <FaChevronDown className="cex-ddIco" />
-            </div>
+              </SelectContent>
+            </Select>
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        <div className="cex-grid">
-          <section className="cex-card">
-            <div className="cex-table">
-              <div className="cex-tr cex-th">
-                <div>MÃ BÁO CÁO</div>
-                <div>LÝ DO</div>
-                <div>NGÀY GỬI</div>
-                <div>TRẠNG THÁI</div>
-                <div>MỨC ĐỘ</div>
-              </div>
+      <div className="grid gap-4 xl:grid-cols-[1.25fr_1fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Danh sách khiếu nại</CardTitle>
+            <CardDescription>Chọn một dòng để xem timeline và thao tác xử lý chi tiết.</CardDescription>
+          </CardHeader>
 
-              {list.map((r) => (
-                <button
-                  key={r.id}
-                  type="button"
-                  className={`cex-tr cex-rowBtn ${selectedId === r.id ? "is-selected" : ""}`}
-                  onClick={() => pick(r.id)}
-                >
-                  <div className="cex-idCell">
-                    <div className="cex-idMain">{r.id}</div>
-                    <div className="cex-idSub">{r.citizen}</div>
-                  </div>
-                  <div className={`cex-reason ${r.reason === "Sai khối lượng" ? "is-red" : r.reason === "Bỏ lỡ thu gom" ? "is-orange" : "is-purple"}`}>
-                    {r.reason}
-                  </div>
-                  <div className="cex-date">{r.createdAt}</div>
-                  <div><Status v={r.status} /></div>
-                  <div><Severity v={r.severity} /></div>
-                </button>
-              ))}
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Mã báo cáo</TableHead>
+                  <TableHead>Lý do</TableHead>
+                  <TableHead>Ngày gửi</TableHead>
+                  <TableHead>Trạng thái</TableHead>
+                  <TableHead>Mức độ</TableHead>
+                </TableRow>
+              </TableHeader>
+
+              <TableBody>
+                {list.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-6 text-center text-muted-foreground">
+                      Không có khiếu nại phù hợp bộ lọc.
+                    </TableCell>
+                  </TableRow>
+                )}
+
+                {list.map((item) => (
+                  <TableRow
+                    key={item.id}
+                    className={[
+                      "cursor-pointer",
+                      selectedId === item.id && "bg-slate-50",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    onClick={() => pick(item.id)}
+                  >
+                    <TableCell>
+                      <div>
+                        <p className="font-semibold">{item.id}</p>
+                        <p className="text-xs text-muted-foreground">{item.citizen}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <ReasonBadge value={item.reason} />
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{item.createdAt}</TableCell>
+                    <TableCell>
+                      <StatusBadge value={item.status} />
+                    </TableCell>
+                    <TableCell>
+                      <SeverityBadge value={item.severity} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="text-base">Chi tiết khiếu nại</CardTitle>
+              {detail?.urgent && (
+                <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
+                  <AlertTriangle className="size-3" />
+                  URGENTLY REQUIRED
+                </Badge>
+              )}
             </div>
-          </section>
+            <CardDescription>
+              Mã báo cáo: <b>{detail?.id || "-"}</b> · {detail?.createdAt || "-"}
+            </CardDescription>
+          </CardHeader>
 
-          <aside className="cex-card cex-detail">
-            <div className="cex-detailHead">
-              <div className="cex-detailTitle">Chi tiết Khiếu nại</div>
-              {detail?.urgent && <span className="cex-urgent">URGENTLY REQUIRED</span>}
-            </div>
+          <CardContent className="space-y-4">
+            <div className="max-h-72 space-y-3 overflow-auto rounded-md border p-3">
+              {(detail?.timeline || []).map((item, index) => (
+                <div key={`${item.who}-${index}`} className="flex items-start gap-3">
+                  <span
+                    className={[
+                      "mt-1 inline-block size-2.5 rounded-full",
+                      timelineDotTone[item.tone] || "bg-slate-400",
+                    ].join(" ")}
+                  />
 
-            <div className="cex-detailMeta">
-              <div>Mã báo cáo: <b>{detail?.id}</b></div>
-              <div>{detail?.createdAt}</div>
-            </div>
-
-            <div className="cex-thread">
-              {(detail?.timeline || []).map((m, idx) => (
-                <div className="cex-msg" key={idx}>
-                  <div className={`cex-msgDot ${m.tone}`} />
-                  <div className="cex-msgBody">
-                    <div className="cex-msgTop">
-                      <div className={`cex-msgWho ${m.tone}`}>{m.who}</div>
-                      <div className="cex-msgTime">{m.time}</div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold">{item.who}</p>
+                      <span className="text-xs text-muted-foreground">{item.time}</span>
                     </div>
-                    {m.text && <div className="cex-msgText">{m.text}</div>}
+                    {item.text && <p className="mt-1 text-sm text-slate-700">{item.text}</p>}
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="cex-actionsBox">
-              <div className="cex-actionsTitle">Đề xuất hành động:</div>
-              <button className="cex-actionPrimary" type="button" disabled={sending}>
+            <div className="space-y-2 rounded-md border p-3">
+              <p className="text-sm font-semibold">Đề xuất hành động</p>
+
+              <Button type="button" className="w-full" disabled={sending}>
                 XỬ LÝ TRỰC TIẾP
-              </button>
-              <button className="cex-actionDanger" type="button" onClick={escalate} disabled={sending}>
-                GỬI LÊN HỆ THỐNG (ESCALATE)
-              </button>
+              </Button>
+
+              <Button
+                type="button"
+                variant="destructive"
+                className="w-full"
+                onClick={escalate}
+                disabled={sending || !selectedId}
+              >
+                {sending ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    ĐANG GỬI...
+                  </>
+                ) : (
+                  "GỬI LÊN HỆ THỐNG (ESCALATE)"
+                )}
+              </Button>
             </div>
 
-            <div className="cex-inputBox">
-              <textarea
-                className="cex-textarea"
+            <div className="flex items-end gap-2">
+              <Textarea
                 placeholder="Nhập ghi chú hoặc phản hồi cho citizen..."
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
+                className="min-h-20"
               />
-              <button className="cex-send" type="button" onClick={send} disabled={sending || !message.trim()}>
-                <FaPaperPlane />
-              </button>
+
+              <Button
+                type="button"
+                size="icon"
+                onClick={send}
+                disabled={sending || !message.trim() || !selectedId}
+                title="Gửi phản hồi"
+              >
+                {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+              </Button>
             </div>
-          </aside>
-        </div>
-      </main>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
