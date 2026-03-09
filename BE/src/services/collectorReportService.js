@@ -134,11 +134,26 @@ async function getReportById(userId, reportId) {
   // ✅ No status restriction — collector can view their report at any status
   // (ASSIGNED, IN_PROGRESS, COLLECTED). Ownership check above is sufficient.
 
-  // 5️⃣ Fetch images & collected record
-  const [images, collectedRecord] = await Promise.all([
+  // 5️⃣ Fetch citizen images + collected record.
+  // Primary source: joined GROUP_CONCAT from findReportForCollector.
+  // Fallback source: direct read from reportattachment table.
+  const [fallbackCitizenImages, collectedRecord] = await Promise.all([
     collectorReportRepository.findImagesByReportId(reportId),
     collectorReportRepository.findCollectedRecord(reportId, userId)
   ])
+
+  const joinedUris = report.citizen_image_uris
+    ? report.citizen_image_uris
+        .split('|||')
+        .map((value) => value.trim())
+        .filter(Boolean)
+    : []
+
+  const fallbackUris = Array.isArray(fallbackCitizenImages)
+    ? fallbackCitizenImages.map((item) => (item?.file_uri || '').trim()).filter(Boolean)
+    : []
+
+  const citizenImages = [...new Set([...joinedUris, ...fallbackUris])].map((fileUri) => ({ file_uri: fileUri }))
 
   // 6️⃣ Map DTO (use alias names!)
   return {
@@ -173,7 +188,11 @@ async function getReportById(userId, reportId) {
         lng: report.lng !== null ? Number(report.lng) : null
       },
 
-      images,
+      // Backward-compatible key used by current FE pages.
+      images: citizenImages,
+
+      // Explicit alias to clarify these are original citizen report images.
+      citizenImages,
 
       collectorImages: collectedRecord
         ? [collectedRecord.file_uri, ...(collectedRecord.completion_images || [])].filter(Boolean)

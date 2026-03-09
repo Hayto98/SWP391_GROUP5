@@ -192,6 +192,20 @@ async function getReportById(reportId) {
     throw new ApiError(404, 'Không tìm thấy báo cáo rác thải.')
   }
 
+  const attachments = Array.isArray(report?.attachments) ? report.attachments : []
+
+  // Citizen images are sourced from reportattachment in wasteReportRepository.findReportById.
+  // Normalize to a single response format for FE: { file_uri }.
+  const citizenImagesSource = Array.isArray(report?.images)
+    ? report.images
+    : attachments.map((item) => ({ file_uri: item?.fileUri || item?.file_uri || null }))
+
+  const citizenImages = citizenImagesSource
+    .map((item) => ({
+      file_uri: item?.file_uri || item?.fileUri || item?.url || null
+    }))
+    .filter((item) => Boolean(item.file_uri))
+
   return {
     success: true,
     data: {
@@ -224,8 +238,9 @@ async function getReportById(reportId) {
       unitType: report?.unitType ?? report?.wasteType?.unitType ?? null,
       status: report?.status ?? null,
       createdAt: report?.createdAt ?? null,
-      attachments: Array.isArray(report?.attachments) ? report.attachments : [],
-      images: Array.isArray(report?.attachments) ? report.attachments.map((item) => ({ fileUri: item.fileUri })) : [],
+      attachments,
+      images: citizenImages,
+      citizenImages,
       assignedCollector: report?.assignedCollector || null,
       collectorImages: Array.isArray(report?.collectorImages) ? report.collectorImages : [],
       collectedRecord: report?.collectedRecord || null,
