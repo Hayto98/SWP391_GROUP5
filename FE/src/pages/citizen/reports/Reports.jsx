@@ -3,6 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectGroup,
@@ -217,6 +225,8 @@ function Reports() {
   const [editTargetReport, setEditTargetReport] = useState(null);
   const [editSaving, setEditSaving] = useState(false);
   const [deletingReportId, setDeletingReportId] = useState(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteTargetReport, setDeleteTargetReport] = useState(null);
   const [wasteTypes, setWasteTypes] = useState([]);
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -302,14 +312,26 @@ function Reports() {
     }
   };
 
-  const handleDeleteReport = async (report) => {
-    const confirmed = window.confirm("Bạn có chắc muốn xóa báo cáo này?");
-    if (!confirmed) return;
+  const handleOpenDeleteDialog = (report) => {
+    setDeleteTargetReport(report);
+    setDeleteDialogOpen(true);
+  };
 
-    setDeletingReportId(report.id);
+  const handleCloseDeleteDialog = () => {
+    if (deletingReportId) return;
+    setDeleteDialogOpen(false);
+    setDeleteTargetReport(null);
+  };
+
+  const handleConfirmDeleteReport = async () => {
+    if (!deleteTargetReport?.id) return;
+
+    setDeletingReportId(deleteTargetReport.id);
     try {
-      await deleteReportById(report.id);
+      await deleteReportById(deleteTargetReport.id);
       toast.success("Xóa báo cáo thành công");
+      setDeleteDialogOpen(false);
+      setDeleteTargetReport(null);
       await fetchReports();
     } catch (error) {
       toast.error(error.message || "Xóa báo cáo thất bại");
@@ -450,7 +472,6 @@ function Reports() {
                         className="flex items-center gap-1 text-sm max-w-85"
                         title={report.location}
                       >
-                        <MapPin className="size-3 text-muted-foreground" />
                         <span className="truncate">{report.location}</span>
                       </div>
                     </TableCell>
@@ -489,7 +510,7 @@ function Reports() {
                               size="sm"
                               variant="outline"
                               className="gap-1 text-red-600 border-red-300 hover:bg-red-50"
-                              onClick={() => handleDeleteReport(report)}
+                              onClick={() => handleOpenDeleteDialog(report)}
                               disabled={deletingReportId === report.id}
                             >
                               <Trash2 className="size-3" />
@@ -517,6 +538,34 @@ function Reports() {
         saving={editSaving}
         wasteTypes={wasteTypes}
       />
+
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Xác nhận xóa báo cáo</DialogTitle>
+            <DialogDescription>
+              Bạn có chắc muốn xóa báo cáo này không? Hành động này không thể
+              hoàn tác.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={handleCloseDeleteDialog}
+              disabled={Boolean(deletingReportId)}
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDeleteReport}
+              disabled={Boolean(deletingReportId)}
+            >
+              {deletingReportId ? "Đang xóa..." : "Xóa"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

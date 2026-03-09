@@ -1,13 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -26,19 +19,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Loader2,
-  Pencil,
-  Plus,
-  Save,
-  Trash2,
-  XCircle,
-} from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useRewardSlaRules } from "../../../../hooks/useRewardSlaRules";
 
-function AddWasteTypeDialog({ open, onOpenChange, onConfirm, adding }) {
+function AddWasteTypeModal({ open, onClose, onConfirm, adding }) {
   const [name, setName] = useState("");
   const [unit, setUnit] = useState("");
   const [localErr, setLocalErr] = useState("");
@@ -69,17 +54,19 @@ function AddWasteTypeDialog({ open, onOpenChange, onConfirm, adding }) {
     });
 
     if (res?.ok) {
-      onOpenChange(false);
+      setName("");
+      setUnit("");
+      onClose();
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Thêm loại rác mới</DialogTitle>
           <DialogDescription>
-            Tạo loại rác mới để đưa vào cấu hình điểm thưởng.
+            Nhập tên loại rác và đơn vị tính để tạo mới.
           </DialogDescription>
         </DialogHeader>
 
@@ -95,14 +82,13 @@ function AddWasteTypeDialog({ open, onOpenChange, onConfirm, adding }) {
                 setLocalErr("");
               }}
               disabled={adding}
-              autoFocus
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="add-unit-type">Đơn vị tính</Label>
+            <Label htmlFor="add-waste-unit">Đơn vị tính</Label>
             <Input
-              id="add-unit-type"
+              id="add-waste-unit"
               placeholder="VD: KG hoặc LON"
               value={unit}
               onChange={(e) => {
@@ -114,28 +100,21 @@ function AddWasteTypeDialog({ open, onOpenChange, onConfirm, adding }) {
           </div>
 
           {localErr && (
-            <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {localErr}
-            </p>
+            </div>
           )}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={adding}>
+          <Button variant="outline" onClick={onClose} disabled={adding}>
             Hủy
           </Button>
-          <Button onClick={handleSubmit} disabled={adding || !name.trim() || !unit.trim()}>
-            {adding ? (
-              <>
-                <Loader2 className="size-4 animate-spin" />
-                Đang thêm...
-              </>
-            ) : (
-              <>
-                <Plus className="size-4" />
-                Thêm loại rác
-              </>
-            )}
+          <Button
+            onClick={handleSubmit}
+            disabled={adding || !name.trim() || !unit.trim()}
+          >
+            {adding ? "Đang thêm..." : "Thêm loại rác"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -143,12 +122,14 @@ function AddWasteTypeDialog({ open, onOpenChange, onConfirm, adding }) {
   );
 }
 
-function EditWasteTypeDialog({ open, onOpenChange, onConfirm, adding, wasteItem }) {
-  const [wasteTypeName, setWasteTypeName] = useState("");
-  const [unitType, setUnitType] = useState("KG");
-  const [points, setPoints] = useState(0);
-  const [variance, setVariance] = useState(0);
-  const [desc, setDesc] = useState("");
+function EditWasteTypeModal({ open, onClose, onConfirm, adding, wasteItem }) {
+  const [wasteTypeName, setWasteTypeName] = useState(wasteItem?.name || "");
+  const [unitType, setUnitType] = useState(wasteItem?.unitType || "KG");
+  const [points, setPoints] = useState(wasteItem?.factor || 0);
+  const [variance, setVariance] = useState(
+    wasteItem?.allowed_variance_percent || 0,
+  );
+  const [desc, setDesc] = useState(wasteItem?.description || "");
   const [localErr, setLocalErr] = useState("");
 
   useEffect(() => {
@@ -195,21 +176,21 @@ function EditWasteTypeDialog({ open, onOpenChange, onConfirm, adding, wasteItem 
     });
 
     if (res?.ok) {
-      onOpenChange(false);
+      onClose();
     }
   };
 
-  const title = wasteItem?.rewardConfigId
-    ? `Sửa cấu hình: ${wasteItem?.name || ""}`
-    : `Thêm reward config: ${wasteItem?.name || ""}`;
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
+          <DialogTitle>
+            {wasteItem?.rewardConfigId
+              ? `Sửa: ${wasteItem?.name}`
+              : `Thêm reward config: ${wasteItem?.name}`}
+          </DialogTitle>
           <DialogDescription>
-            Cập nhật tên loại rác, đơn vị tính và hệ số điểm thưởng.
+            Cập nhật thông tin loại rác và quy tắc tính điểm.
           </DialogDescription>
         </DialogHeader>
 
@@ -224,14 +205,13 @@ function EditWasteTypeDialog({ open, onOpenChange, onConfirm, adding, wasteItem 
                 setLocalErr("");
               }}
               disabled={adding}
-              autoFocus
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="edit-unit-type">Đơn vị tính</Label>
+            <Label htmlFor="edit-waste-unit">Đơn vị tính</Label>
             <Input
-              id="edit-unit-type"
+              id="edit-waste-unit"
               value={unitType}
               onChange={(e) => {
                 setUnitType(e.target.value);
@@ -241,41 +221,40 @@ function EditWasteTypeDialog({ open, onOpenChange, onConfirm, adding, wasteItem 
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="edit-points">Hệ số điểm ({unitType || "đơn vị"})</Label>
-              <Input
-                id="edit-points"
-                type="number"
-                value={points}
-                onChange={(e) => {
-                  setPoints(e.target.value);
-                  setLocalErr("");
-                }}
-                disabled={adding}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit-variance">Sai số cho phép (%)</Label>
-              <Input
-                id="edit-variance"
-                type="number"
-                value={variance}
-                onChange={(e) => {
-                  setVariance(e.target.value);
-                  setLocalErr("");
-                }}
-                disabled={adding}
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="edit-waste-points">Hệ số điểm</Label>
+            <Input
+              id="edit-waste-points"
+              type="number"
+              value={points}
+              onChange={(e) => {
+                setPoints(e.target.value);
+                setLocalErr("");
+              }}
+              disabled={adding}
+            />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="edit-description">Mô tả quy tắc</Label>
+            <Label htmlFor="edit-waste-variance">
+              Tỷ lệ sai số cho phép (%)
+            </Label>
             <Input
-              id="edit-description"
-              placeholder="VD: 20 điểm mỗi kg"
+              id="edit-waste-variance"
+              type="number"
+              value={variance}
+              onChange={(e) => {
+                setVariance(e.target.value);
+                setLocalErr("");
+              }}
+              disabled={adding}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit-waste-desc">Mô tả quy tắc (Tùy chọn)</Label>
+            <Input
+              id="edit-waste-desc"
               value={desc}
               onChange={(e) => {
                 setDesc(e.target.value);
@@ -286,28 +265,21 @@ function EditWasteTypeDialog({ open, onOpenChange, onConfirm, adding, wasteItem 
           </div>
 
           {localErr && (
-            <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {localErr}
-            </p>
+            </div>
           )}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={adding}>
+          <Button variant="outline" onClick={onClose} disabled={adding}>
             Hủy
           </Button>
-          <Button onClick={handleSubmit} disabled={adding || !wasteTypeName.trim()}>
-            {adding ? (
-              <>
-                <Loader2 className="size-4 animate-spin" />
-                Đang lưu...
-              </>
-            ) : (
-              <>
-                <Save className="size-4" />
-                Cập nhật
-              </>
-            )}
+          <Button
+            onClick={handleSubmit}
+            disabled={adding || !wasteTypeName.trim()}
+          >
+            {adding ? "Đang lưu..." : "Cập nhật"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -315,14 +287,8 @@ function EditWasteTypeDialog({ open, onOpenChange, onConfirm, adding, wasteItem 
   );
 }
 
-function QualityIcon({ tone }) {
-  if (tone === "ok") return <CheckCircle2 className="size-4 text-emerald-600" />;
-  if (tone === "warn") return <AlertTriangle className="size-4 text-amber-600" />;
-  return <XCircle className="size-4 text-red-600" />;
-}
-
 export default function RewardSlaRules() {
-  const [isAddOpen, setAddOpen] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
   const [wasteToDelete, setWasteToDelete] = useState(null);
   const [wasteToEdit, setWasteToEdit] = useState(null);
 
@@ -367,134 +333,93 @@ export default function RewardSlaRules() {
 
   return (
     <div className="space-y-6">
-      <div className="mb-6">
-        <h1 className="text-lg lg:text-2xl font-bold tracking-tight">
-          Cấu hình Quy tắc Điểm thưởng và SLA
-        </h1>
-        <p className="text-green-600 text-sm mt-1">
-          Thiết lập hệ số điểm, sai số cho phép và quy tắc xử lý khối lượng lớn.
-        </p>
+      <div className="text-sm text-muted-foreground">
+        Hệ thống / Quy tắc điểm thưởng
       </div>
 
       <Card>
-        <CardHeader className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
           <div>
-            <CardTitle className="text-base">Hệ số điểm thưởng theo loại rác</CardTitle>
-            <CardDescription>
-              Cập nhật hệ số điểm và metadata cho từng loại rác đang hoạt động.
-            </CardDescription>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => setAddOpen(true)} disabled={operationBusy}>
-              <Plus className="size-4" />
-              Thêm loại rác
-            </Button>
-
-            <Button variant="outline" onClick={reset} disabled={!dirty || operationBusy}>
-              Hoàn tác
-            </Button>
-
-            <Button onClick={save} disabled={!dirty || operationBusy}>
-              {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-              Lưu thay đổi
-            </Button>
-          </div>
-        </CardHeader>
-
-        <CardContent>
-          {error && (
-            <p className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {error}
+            <CardTitle>Cấu hình Quy tắc Điểm thưởng</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Thiết lập hệ số điểm cho các loại rác và quy tắc xử lý cho khối
+              lượng lớn.
             </p>
-          )}
+          </div>
+          <Button
+            onClick={() => setShowAddModal(true)}
+            disabled={adding || saving}
+          >
+            <Plus className="size-4" /> Thêm loại rác mới
+          </Button>
+        </CardHeader>
+      </Card>
 
+      {error && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Hệ số điểm thưởng theo loại rác</CardTitle>
+        </CardHeader>
+        <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Loại rác</TableHead>
-                <TableHead>Mô tả</TableHead>
-                <TableHead>Hệ số điểm</TableHead>
-                <TableHead>Trạng thái</TableHead>
-                <TableHead className="text-right">Thao tác</TableHead>
+                <TableHead>Loại rác thải</TableHead>
+                <TableHead>Mô tả hệ số</TableHead>
+                <TableHead className="text-right">Hệ số điểm</TableHead>
               </TableRow>
             </TableHeader>
-
             <TableBody>
               {draft.pointsByWaste.map((w) => (
                 <TableRow key={w.id}>
+                  <TableCell className="font-medium">{w.name}</TableCell>
                   <TableCell>
-                    <p className="font-semibold">{w.name}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{w.unitType || "-"}</p>
+                    <div className="text-sm text-muted-foreground space-y-1">
+                      <p>{w.desc}</p>
+                      <p>Sai số cho phép: {w.allowed_variance_percent || 0}%</p>
+                      {w.description && <p>Mô tả: {w.description}</p>}
+                    </div>
                   </TableCell>
-
                   <TableCell>
-                    <p className="text-sm text-slate-700">{w.desc}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Sai số cho phép: {w.allowed_variance_percent || 0}%
-                    </p>
-                    {w.description && (
-                      <p className="text-xs text-muted-foreground mt-1">Mô tả: {w.description}</p>
-                    )}
-                  </TableCell>
-
-                  <TableCell>
-                    <Input
-                      className="h-8 w-24 text-right"
-                      value={w.factor}
-                      onChange={(e) => updateWasteFactor(w.id, Number(e.target.value || 0))}
-                      type="number"
-                      step="0.1"
-                      disabled={!w.rewardConfigId}
-                    />
-                  </TableCell>
-
-                  <TableCell>
-                    {w.rewardConfigId ? (
-                      <Badge
-                        variant="outline"
-                        className="border-emerald-200 bg-emerald-50 text-emerald-700"
-                      >
-                        Đã cấu hình
-                      </Badge>
-                    ) : (
-                      <Badge
-                        variant="outline"
-                        className="border-amber-200 bg-amber-50 text-amber-700"
-                      >
-                        Chưa có reward config
-                      </Badge>
-                    )}
-                  </TableCell>
-
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
+                    <div className="flex items-center justify-end gap-2">
+                      <Input
+                        className="w-24 text-right"
+                        value={w.factor}
+                        onChange={(e) =>
+                          updateWasteFactor(w.id, Number(e.target.value || 0))
+                        }
+                        type="number"
+                        step="0.1"
+                        disabled={!w.rewardConfigId}
+                      />
                       <Button
+                        size="icon"
                         variant="outline"
-                        size="icon-sm"
-                        className="size-8"
                         onClick={() => setWasteToEdit(w)}
                         title={
-                          w.rewardConfigId ? "Sửa loại rác" : "Thêm reward config"
+                          w.rewardConfigId
+                            ? "Sửa loại rác"
+                            : "Thêm reward config"
                         }
-                        disabled={operationBusy}
                       >
                         {w.rewardConfigId ? (
                           <Pencil className="size-4" />
                         ) : (
-                          <Plus className="size-4" />
+                          <Plus className="size-4 text-green-600" />
                         )}
                       </Button>
-
                       <Button
+                        size="icon"
                         variant="outline"
-                        size="icon-sm"
-                        className="size-8 border-red-200 text-red-600 hover:bg-red-50"
                         onClick={() => setWasteToDelete(w)}
                         title="Xóa loại rác"
-                        disabled={operationBusy}
                       >
-                        <Trash2 className="size-4" />
+                        <Trash2 className="size-4 text-red-600" />
                       </Button>
                     </div>
                   </TableCell>
@@ -505,71 +430,30 @@ export default function RewardSlaRules() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Quy tắc chất lượng và SLA</CardTitle>
-          <CardDescription>
-            Theo dõi các rule đang áp dụng cho hệ thống điểm thưởng.
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent className="grid gap-4 lg:grid-cols-2">
-          <div className="space-y-2">
-            {draft.qualityRules.map((rule) => (
-              <div
-                key={rule.id}
-                className="flex items-center justify-between rounded-lg border px-3 py-2"
-              >
-                <div className="flex items-center gap-2">
-                  <QualityIcon tone={rule.tone} />
-                  <div>
-                    <p className="text-sm font-semibold">{rule.label}</p>
-                    <p className="text-xs text-muted-foreground">{rule.note}</p>
-                  </div>
-                </div>
-                <Badge variant="outline">x{rule.multiplier}</Badge>
-              </div>
-            ))}
-          </div>
-
-          <div className="space-y-2 rounded-lg border bg-slate-50 p-3">
-            <p className="text-sm font-semibold">SLA khối lượng lớn</p>
-            <p className="text-xs text-muted-foreground">
-              Ngưỡng áp dụng: {draft.slaLargeWeight.thresholdKg} kg
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Hệ số thưởng thêm: x{draft.slaLargeWeight.extraRewardMultiplier}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              SLA xử lý: {draft.slaLargeWeight.slaHours} giờ
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Tự động thông báo quá hạn: {draft.slaLargeWeight.autoNotifyExpired ? "Có" : "Không"}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="flex flex-wrap gap-3 text-xs font-semibold text-muted-foreground">
-        {footerMeta.map((item) => (
-          <span key={item}>{item}</span>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+        {footerMeta.map((meta) => (
+          <Badge key={meta} variant="outline">
+            {meta}
+          </Badge>
         ))}
       </div>
 
-      <AddWasteTypeDialog
-        open={isAddOpen}
-        onOpenChange={setAddOpen}
+      <AddWasteTypeModal
+        open={showAddModal}
+        onClose={() => setShowAddModal(false)}
         onConfirm={addWasteType}
         adding={adding}
       />
 
-      <EditWasteTypeDialog
-        open={!!wasteToEdit}
-        onOpenChange={(open) => !open && setWasteToEdit(null)}
-        onConfirm={editWasteType}
-        adding={adding}
-        wasteItem={wasteToEdit}
-      />
+      {wasteToEdit && (
+        <EditWasteTypeModal
+          open={Boolean(wasteToEdit)}
+          onClose={() => setWasteToEdit(null)}
+          onConfirm={editWasteType}
+          adding={adding}
+          wasteItem={wasteToEdit}
+        />
+      )}
 
       <Dialog
         open={!!wasteToDelete}
@@ -579,8 +463,9 @@ export default function RewardSlaRules() {
           <DialogHeader>
             <DialogTitle>Xác nhận xóa loại rác</DialogTitle>
             <DialogDescription>
-              Bạn có chắc chắn muốn xóa loại rác "<strong>{wasteToDelete?.name}</strong>"?
-              Hành động này không thể hoàn tác.
+              Bạn có chắc chắn muốn xóa loại rác "
+              <strong>{wasteToDelete?.name}</strong>"? Hành động này không thể
+              hoàn tác.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

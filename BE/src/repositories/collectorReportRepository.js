@@ -156,6 +156,7 @@ async function findReportForCollector(reportId) {
       wr.gps_lat      AS lat,
       wr.gps_lng      AS lng,
       wr.weight,
+      wr.file_uri     AS report_file_uri,
       wr.description,
       wr.created_at,
       wt.waste_type_id   AS wasteTypeId,
@@ -165,7 +166,8 @@ async function findReportForCollector(reportId) {
       ua.fullname        AS citizenFullname,
       ua.phone           AS citizenPhone,
       cua.fullname       AS collectorFullname,
-      cua.phone          AS collectorPhone
+      cua.phone          AS collectorPhone,
+      GROUP_CONCAT(ra.file_uri SEPARATOR '|||') AS citizen_image_uris
     FROM wastereport wr
     INNER JOIN wastetype wt
       ON wr.waste_type_id = wt.waste_type_id
@@ -177,7 +179,26 @@ async function findReportForCollector(reportId) {
       ON c.user_account_id = ua.user_account_id
     LEFT JOIN useraccount cua
       ON wr.assigned_collector_id = cua.user_account_id
+    LEFT JOIN reportattachment ra
+      ON ra.waste_report_id = wr.waste_report_id
     WHERE wr.waste_report_id = ?
+    GROUP BY
+      wr.waste_report_id,
+      wr.assigned_collector_id,
+      lat,
+      lng,
+      wr.weight,
+      report_file_uri,
+      wr.description,
+      wr.created_at,
+      wasteTypeId,
+      wasteTypeName,
+      unitType,
+      status,
+      citizenFullname,
+      citizenPhone,
+      collectorFullname,
+      collectorPhone
     `
 
   const [rows] = await db.execute(sql, [reportId])

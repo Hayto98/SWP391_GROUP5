@@ -328,16 +328,28 @@ async function findReportById(reportId) {
     [reportId]
   )
 
+  const normalizeAttachmentUri = (value) => {
+    if (typeof value !== 'string') return null
+    const uri = value.trim()
+    if (!uri) return null
+    return /^https?:\/\//i.test(uri) ? uri : null
+  }
+
   const attachments =
     attachmentRows.length > 0
       ? attachmentRows
-          .filter((item) => !!item.file_uri)
           .map((item) => ({
-            fileUri: item.file_uri,
+            fileUri: normalizeAttachmentUri(item.file_uri),
             uploadedAt: item.uploaded_at
           }))
-      : row.file_uri
-        ? [{ fileUri: row.file_uri }]
+          .filter((item) => Boolean(item.fileUri))
+          .map((item) => ({
+            fileUri: item.fileUri,
+            file_uri: item.fileUri,
+            uploadedAt: item.uploadedAt
+          }))
+      : normalizeAttachmentUri(row.file_uri)
+        ? [{ fileUri: normalizeAttachmentUri(row.file_uri), file_uri: normalizeAttachmentUri(row.file_uri) }]
         : []
 
   const [collectedRows] = await db.execute(

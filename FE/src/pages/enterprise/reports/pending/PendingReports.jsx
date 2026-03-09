@@ -1,21 +1,24 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import "./pendingReports.css";
-import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
-import { usePendingReports } from "@/hooks/usePendingReports";
 import { Button } from "@/components/ui/button";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-} from "@/components/ui/card";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -28,134 +31,105 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { usePendingReports } from "@/hooks/usePendingReports";
+import { cn } from "@/lib/utils";
 import {
   assignTaskToCollector,
   getDispatchAssign,
 } from "@/services/dispatchAssign.service";
 import {
-  recordReportAssignment,
   getAllReportAssignmentHistory,
+  recordReportAssignment,
 } from "@/services/reportAssignmentHistory.service";
-import { toast } from "sonner";
+import { format } from "date-fns";
+import { vi } from "date-fns/locale";
 import {
+  Calendar,
   ChevronLeft,
   ChevronRight,
   Clock3,
   Download,
   History,
-  Loader2,
   MapPin,
+  Search,
 } from "lucide-react";
-
-const FilterSelect = ({ value, onChange, options, placeholder }) => {
-  const baseItems = Array.from(
-    new Set(
-      (options || []).filter(
-        (option) => typeof option === "string" && option.trim() !== "",
-      ),
-    ),
-  );
-  const items =
-    value && !baseItems.includes(value) ? [value, ...baseItems] : baseItems;
-
-  return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="w-full">
-        <SelectValue placeholder={placeholder || "Chọn"} />
-      </SelectTrigger>
-      <SelectContent align="start">
-        {items.map((option) => (
-          <SelectItem key={option} value={option}>
-            {option}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-};
-
-const wasteToneClass = {
-  blue: "bg-blue-50 text-blue-700 border-blue-200",
-  green: "bg-green-50 text-green-700 border-green-200",
-  gray: "bg-slate-100 text-slate-700 border-slate-200",
-  purple: "bg-purple-50 text-purple-700 border-purple-200",
-};
-
-const slaToneClass = {
-  orange: "bg-orange-50 text-orange-700 border-orange-200",
-  red: "bg-red-50 text-red-700 border-red-200",
-  muted: "bg-slate-100 text-slate-700 border-slate-200",
-};
-
-const statusToneClass = {
-  PENDING: "bg-amber-50 text-amber-700 border-amber-200",
-  ACCEPTED: "bg-blue-50 text-blue-700 border-blue-200",
-  ASSIGNED: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  REJECTED: "bg-red-50 text-red-700 border-red-200",
-};
-
-const WasteBadge = ({ tone, children }) => (
-  <Badge
-    variant="outline"
-    className={wasteToneClass[tone] || wasteToneClass.gray}
-  >
-    {children}
-  </Badge>
-);
-
-const SlaBadge = ({ sla }) => {
-  if (!sla?.text) return <span className="text-muted-foreground">-</span>;
-
-  return (
-    <Badge variant="outline" className={slaToneClass[sla.tone] || slaToneClass.muted}>
-      {sla.text}
-    </Badge>
-  );
-};
-
-const StatusBadge = ({ status }) => (
-  <Badge
-    variant="outline"
-    className={statusToneClass[status] || "bg-slate-100 text-slate-700 border-slate-200"}
-  >
-    {status || "-"}
-  </Badge>
-);
-
-const ActionBtn = ({ tone, children, onClick, disabled, title }) => (
-  <Button
-    variant="outline"
-    size="sm"
-    className={[
-      "h-8 px-3 text-xs font-semibold",
-      tone === "warn" && "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100",
-      tone === "ok" && "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
-      tone === "ghost" && "border-slate-200 text-slate-700 hover:bg-slate-100",
-    ]
-      .filter(Boolean)
-      .join(" ")}
-    onClick={onClick}
-    disabled={disabled}
-    title={title}
-    type="button"
-  >
-    {children}
-  </Button>
-);
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 const CollectorAvatar = ({ name }) => {
   const parts = String(name || "")
     .split(" ")
     .filter(Boolean);
   const seed = (parts[0]?.[0] || "") + (parts[parts.length - 1]?.[0] || "");
-  return <div className="pr-assignAvatar">{seed.toUpperCase()}</div>;
+  return (
+    <div className="h-9 w-9 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-xs font-semibold">
+      {seed.toUpperCase()}
+    </div>
+  );
 };
 
 const ProgressBar = ({ percent }) => (
-  <div className="pr-assignProgress">
-    <div className="pr-assignProgressFill" style={{ width: `${percent}%` }} />
+  <div className="h-2 w-full rounded bg-muted overflow-hidden">
+    <div
+      className="h-full bg-primary transition-all"
+      style={{ width: `${percent}%` }}
+    />
   </div>
 );
+
+function formatDateTime(value) {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "-";
+  return format(d, "dd/MM/yyyy HH:mm", { locale: vi });
+}
+
+function getStatusClass(status) {
+  if (
+    status === "ACCEPTED" ||
+    status === "ASSIGNED" ||
+    status === "IN_PROGRESS"
+  ) {
+    return "bg-orange-100 text-orange-700 border-orange-200";
+  }
+  if (status === "REJECTED") {
+    return "bg-red-100 text-red-700 border-red-200";
+  }
+  if (status === "COLLECTED") {
+    return "bg-green-100 text-green-700 border-green-200";
+  }
+  return "bg-slate-100 text-slate-700 border-slate-200";
+}
+
+const STATUS_FILTER_OPTIONS = [
+  { value: "Tất cả trạng thái", label: "Tất cả trạng thái" },
+  { value: "PENDING", label: "Chờ duyệt" },
+  { value: "ACCEPTED", label: "Đã chấp nhận" },
+  { value: "ASSIGNED", label: "Đã gán" },
+  { value: "IN_PROGRESS", label: "Đang xử lý" },
+  { value: "COLLECTED", label: "Đã thu gom" },
+  { value: "REJECTED", label: "Đã từ chối" },
+];
+
+function FilterSelect({ value, onChange, options, placeholder }) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className="flex-1">
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectGroup>
+          {options.map((o) => (
+            <SelectItem key={o} value={o}>
+              {o}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
+  );
+}
 
 export default function PendingReports() {
   const navigate = useNavigate();
@@ -167,7 +141,7 @@ export default function PendingReports() {
     acting,
     exporting,
     q,
-    ward,
+    createdAt,
     wasteType,
     wasteSubType,
     weight,
@@ -176,7 +150,7 @@ export default function PendingReports() {
     page,
     pageSize,
     setQ,
-    setWard,
+    setCreatedAt,
     setWasteType,
     setWasteSubType,
     setWeight,
@@ -224,10 +198,6 @@ export default function PendingReports() {
     return arr;
   }, [page, totalPages]);
 
-  const wards = useMemo(
-    () => data?.filters?.wards || ["Tất cả Người dùng"],
-    [data],
-  );
   const wasteTypes = useMemo(
     () => data?.filters?.wasteTypes || ["Tất cả loại rác"],
     [data],
@@ -238,10 +208,6 @@ export default function PendingReports() {
   );
   const weights = useMemo(
     () => data?.filters?.weights || ["Tất cả cân nặng"],
-    [data],
-  );
-  const statuses = useMemo(
-    () => data?.filters?.statuses || ["Tất cả trạng thái"],
     [data],
   );
   const sorts = useMemo(() => data?.filters?.sorts || ["Hết hạn SLA"], [data]);
@@ -364,232 +330,229 @@ export default function PendingReports() {
 
   return (
     <div className="space-y-6">
-      <div className="mb-6">
-        <h1 className="text-lg lg:text-2xl font-bold tracking-tight">
-          Danh sách Báo cáo
-        </h1>
-        <p className="text-green-600 text-sm mt-1">
-          Hiển thị {total} báo cáo theo bộ lọc hiện tại
-        </p>
-      </div>
-
       <Card>
-        <CardHeader className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
           <div>
-            <CardDescription>Báo cáo chờ xử lý</CardDescription>
-            <p className="text-3xl font-bold">{total}</p>
+            <CardTitle>Danh sách báo cáo</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Hiển thị {data?.result?.total ?? 0} báo cáo theo bộ lọc hiện tại
+            </p>
           </div>
-
-          <div className="flex flex-wrap gap-2">
+          <div className="flex gap-2">
             <Button
               variant="outline"
-              className="gap-2"
-              type="button"
               onClick={() => {
                 refreshAssignmentHistory();
                 setHistoryPopupOpen(true);
               }}
             >
-              <History className="size-4" />
-              Lịch sử
+              <History className="size-4" /> Lịch sử
             </Button>
-
             <Button
               variant="outline"
-              className="gap-2"
-              type="button"
               onClick={exportExcel}
               disabled={exporting}
             >
               <Download className="size-4" />
-              {exporting ? "Đang xuất..." : "Xuất báo cáo (Excel)"}
+              {exporting ? "Đang xuất..." : "Xuất báo cáo"}
             </Button>
           </div>
         </CardHeader>
-
-        <CardContent>
-          <FieldGroup className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6 xl:items-end">
-            <Field className="xl:col-span-2">
-              <FieldLabel>Tìm kiếm</FieldLabel>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="relative lg:col-span-2">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
               <Input
+                className="pl-9"
+                placeholder="Tìm mã báo cáo, tên công dân..."
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Tìm kiếm mã báo cáo, tên công dân..."
               />
-            </Field>
+            </div>
 
-            <Field>
-              <FieldLabel>Công dân</FieldLabel>
-              <FilterSelect value={ward} onChange={setWard} options={wards} />
-            </Field>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "justify-start text-left font-normal",
+                    !createdAt && "text-muted-foreground",
+                  )}
+                >
+                  <Calendar className="mr-2 size-4" />
+                  {createdAt
+                    ? format(createdAt, "dd/MM/yyyy", { locale: vi })
+                    : "Lọc theo ngày tạo"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarComponent
+                  mode="single"
+                  selected={createdAt}
+                  onSelect={setCreatedAt}
+                  initialFocus
+                  locale={vi}
+                />
+              </PopoverContent>
+            </Popover>
 
-            <Field>
-              <FieldLabel>Loại rác</FieldLabel>
+            <Button variant="ghost" onClick={() => setCreatedAt(undefined)}>
+              Bỏ lọc ngày
+            </Button>
+
+            <div className="md:col-span-2 lg:col-span-4 flex flex-wrap gap-3">
               <FilterSelect
                 value={wasteType}
                 onChange={setWasteType}
                 options={wasteTypes}
+                placeholder="Loại rác"
               />
-            </Field>
 
-            <Field>
-              <FieldLabel>Đơn vị</FieldLabel>
               <FilterSelect
                 value={wasteSubType}
                 onChange={setWasteSubType}
                 options={wasteSubTypes}
+                placeholder="Đơn vị rác"
               />
-            </Field>
-
-            <Field>
-              <FieldLabel>Khối lượng</FieldLabel>
               <FilterSelect
                 value={weight}
                 onChange={setWeight}
                 options={weights}
+                placeholder="Cân nặng"
               />
-            </Field>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Trạng thái" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {STATUS_FILTER_OPTIONS.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
-            <Field>
-              <FieldLabel>Trạng thái</FieldLabel>
-              <FilterSelect
-                value={status}
-                onChange={setStatus}
-                options={statuses}
-              />
-            </Field>
+          {error && (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              Lỗi: {error}
+            </div>
+          )}
 
-            <Field className="md:col-span-2 xl:col-span-1">
-              <FieldLabel>Sắp xếp</FieldLabel>
-              <FilterSelect value={sort} onChange={setSort} options={sorts} />
-            </Field>
-          </FieldGroup>
-        </CardContent>
-
-        <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Mã báo cáo</TableHead>
                 <TableHead>Công dân</TableHead>
                 <TableHead>Loại rác</TableHead>
-                <TableHead>SLA</TableHead>
+                <TableHead>Ngày tạo</TableHead>
                 <TableHead>Trạng thái</TableHead>
-                <TableHead className="text-right">Thao tác</TableHead>
+                <TableHead className="text-right">Hành động</TableHead>
               </TableRow>
             </TableHeader>
-
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-32 text-center">
-                    <div className="inline-flex items-center gap-2 text-muted-foreground">
-                      <Loader2 className="size-4 animate-spin" />
-                      Đang tải dữ liệu...
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : error ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="h-20 text-center text-red-600">
-                    Lỗi: {error}
+                  <TableCell colSpan={7} className="h-24 text-center">
+                    Đang tải...
                   </TableCell>
                 </TableRow>
               ) : rows.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={7}
                     className="h-24 text-center text-muted-foreground"
                   >
-                    Không có báo cáo nào phù hợp
+                    Không có báo cáo nào
                   </TableCell>
                 </TableRow>
               ) : (
                 rows.map((r) => (
                   <TableRow key={r.code}>
-                    <TableCell className="font-medium text-cyan-600">
+                    <TableCell>
                       <Button
+                        type="button"
                         variant="link"
-                        className="h-auto p-0 text-cyan-600"
+                        className="px-0"
                         onClick={() =>
-                          navigate(`/enterprise/reports/detail/${toReportId(r.code)}`, {
-                            state: { selectedFrom: "pending-list" },
-                          })
+                          navigate(
+                            `/enterprise/reports/detail/${toReportId(r.code)}`,
+                            {
+                              state: { selectedFrom: "pending-list" },
+                            },
+                          )
                         }
                       >
                         {r.code}
                       </Button>
                     </TableCell>
-
                     <TableCell>
                       <div className="font-medium">{r.ward}</div>
-                      <div className="text-sm text-muted-foreground">{r.district}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {r.district}
+                      </div>
+                    </TableCell>
+                    <TableCell>{r.waste}</TableCell>
+                    <TableCell>{formatDateTime(r.createdAt)}</TableCell>
+                    <TableCell>
+                      <Badge className={cn("border", getStatusClass(r.status))}>
+                        {r.status || "-"}
+                      </Badge>
                     </TableCell>
 
                     <TableCell>
-                      <WasteBadge tone={r.wasteTone}>{r.waste}</WasteBadge>
-                    </TableCell>
-
-                    <TableCell>
-                      <SlaBadge sla={r.sla} />
-                    </TableCell>
-
-                    <TableCell>
-                      <StatusBadge status={r.status} />
-                    </TableCell>
-
-                    <TableCell className="text-right">
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <ActionBtn
-                          tone="ghost"
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
                           disabled={acting === r.code}
                           onClick={() =>
-                            navigate(`/enterprise/reports/detail/${toReportId(r.code)}`, {
-                              state: { selectedFrom: "pending-list" },
-                            })
+                            navigate(
+                              `/enterprise/reports/detail/${toReportId(r.code)}`,
+                              {
+                                state: { selectedFrom: "pending-list" },
+                              },
+                            )
                           }
                         >
                           Chi tiết
-                        </ActionBtn>
+                        </Button>
 
                         {r.actions.includes("accept") && (
-                          <ActionBtn
-                            tone="warn"
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-orange-700 border-orange-300 hover:bg-orange-50"
                             disabled={acting === r.code || !r.canAccept}
-                            title={
-                              r.canAccept
-                                ? "Chấp nhận báo cáo"
-                                : "Báo cáo đã quá hạn SLA nên không thể chấp nhận"
-                            }
                             onClick={() => doAction(r.code, "accept")}
                           >
                             {acting === r.code ? "..." : "Chấp nhận"}
-                          </ActionBtn>
+                          </Button>
                         )}
 
-                        <ActionBtn
-                          tone="ok"
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-emerald-700 border-emerald-300 hover:bg-emerald-50"
                           disabled={acting === r.code || !r.canAssign}
-                          title={
-                            r.canAssign
-                              ? "Gán collector"
-                              : r.status === "ASSIGNED"
-                                ? "Báo cáo đã được gán collector"
-                                : "Cần chấp nhận báo cáo trước khi gán"
-                          }
                           onClick={() => handleAssignPopupOpen(r.code)}
                         >
                           {r.status === "ASSIGNED" ? "Đã gán" : "Gán"}
-                        </ActionBtn>
+                        </Button>
 
                         {r.actions.includes("reject") && (
-                          <ActionBtn
-                            tone="ghost"
+                          <Button
+                            variant="outline"
+                            size="sm"
                             disabled={acting === r.code}
                             onClick={() => doAction(r.code, "reject")}
                           >
                             {acting === r.code ? "..." : "Từ chối"}
-                          </ActionBtn>
+                          </Button>
                         )}
                       </div>
                     </TableCell>
@@ -599,57 +562,46 @@ export default function PendingReports() {
             </TableBody>
           </Table>
 
-          {!loading && !error && total > 0 && (
-            <div className="mt-4 flex flex-col items-center justify-between gap-4 border-t pt-4 sm:flex-row">
-              <p className="text-xs text-muted-foreground">
-                Hiển thị <span className="font-semibold text-foreground">{startItem}-{endItem}</span> trên{" "}
-                <span className="font-semibold text-foreground">{total}</span> báo cáo
-              </p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              Hiển thị {rows.length} trên {total} báo cáo
+            </p>
 
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="size-8"
-                  disabled={page === 1}
-                  onClick={() => setPage(page - 1)}
-                  type="button"
-                >
-                  <ChevronLeft className="size-4" />
-                </Button>
-
-                {pages.map((p, idx) =>
-                  p === "..." ? (
-                    <span className="px-2 text-muted-foreground" key={`ellipsis-${idx}`}>
-                      ...
-                    </span>
-                  ) : (
-                    <Button
-                      key={p}
-                      variant={p === page ? "default" : "outline"}
-                      size="icon"
-                      className="size-8"
-                      type="button"
-                      onClick={() => setPage(p)}
-                    >
-                      {p}
-                    </Button>
-                  ),
-                )}
-
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="size-8"
-                  disabled={page === totalPages}
-                  onClick={() => setPage(page + 1)}
-                  type="button"
-                >
-                  <ChevronRight className="size-4" />
-                </Button>
-              </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                disabled={page === 1}
+                onClick={() => setPage(page - 1)}
+              >
+                <ChevronLeft className="size-4" />
+              </Button>
+              {pages.map((p, idx) =>
+                p === "..." ? (
+                  <span className="px-2" key={`e-${idx}`}>
+                    ...
+                  </span>
+                ) : (
+                  <Button
+                    key={p}
+                    variant={p === page ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setPage(p)}
+                  >
+                    {p}
+                  </Button>
+                ),
+              )}
+              <Button
+                variant="outline"
+                size="icon"
+                disabled={page === totalPages}
+                onClick={() => setPage(page + 1)}
+              >
+                <ChevronRight className="size-4" />
+              </Button>
             </div>
-          )}
+          </div>
         </CardContent>
       </Card>
 
@@ -663,109 +615,118 @@ export default function PendingReports() {
             overflow: "auto",
           }}
         >
-          <div className="pr-assignDialog">
-            <div className="pr-assignHead">
+          <div>
+            <div className="flex items-start justify-between gap-4 p-6 border-b">
               <div>
-                <h2>Gán collector cho báo cáo #{assigningReportId || "-"}</h2>
-                <p>
+                <h2 className="text-xl font-semibold">
+                  Gán collector cho báo cáo #{assigningReportId || "-"}
+                </h2>
+                <p className="text-sm text-muted-foreground mt-1">
                   Chọn collector phù hợp dựa trên khoảng cách và tải công việc.
                 </p>
               </div>
-              <button
+              <Button
                 type="button"
-                className="pr-action pr-action-ghost"
+                variant="outline"
                 onClick={() =>
                   navigate(`/enterprise/reports/detail/${assigningReportId}`)
                 }
                 disabled={!assigningReportId}
               >
                 Xem chi tiết
-              </button>
+              </Button>
             </div>
 
             {assignLoading && (
-              <div className="pr-assignState">
+              <div className="p-6 text-sm text-muted-foreground">
                 Đang tải danh sách collector...
               </div>
             )}
             {!assignLoading && assignError && (
-              <div className="pr-assignState pr-assignError">
-                Lỗi: {assignError}
-              </div>
+              <div className="p-6 text-sm text-red-600">Lỗi: {assignError}</div>
             )}
 
             {!assignLoading && !assignError && selectedReport && (
               <>
-                <div className="pr-assignReport">
-                  <div className="pr-assignReportTitle">
+                <div className="mx-6 mt-6 rounded-lg border p-4 space-y-2">
+                  <div className="font-medium">
                     Báo cáo #{selectedReport.id} • {selectedReport.status}
                   </div>
-                  <div className="pr-assignReportMeta">
+                  <div className="text-sm text-muted-foreground flex items-center gap-2">
                     <MapPin className="size-4" />
                     <span>{selectedReport.address}</span>
                   </div>
-                  <div className="pr-assignReportMeta">
+                  <div className="text-sm text-muted-foreground flex items-center gap-2">
                     <Clock3 className="size-4" />
                     <span>{selectedReport.weightEstimate}</span>
                   </div>
                 </div>
 
                 {!collectors.length ? (
-                  <div className="pr-assignState">
+                  <div className="p-6 text-sm text-muted-foreground">
                     Hiện chưa có collector khả dụng.
                   </div>
                 ) : (
-                  <div className="pr-assignList">
-                    <div className="pr-assignRow pr-assignRowHead">
-                      <div>COLLECTOR</div>
-                      <div>KHOẢNG CÁCH</div>
-                      <div>TẢI CÔNG VIỆC</div>
-                      <div>THAO TÁC</div>
-                    </div>
-
-                    {collectors.map((collector) => (
-                      <div className="pr-assignRow" key={collector.id}>
-                        <div className="pr-assignCollector">
-                          <CollectorAvatar name={collector.name} />
-                          <div>
-                            <div className="pr-strong">{collector.name}</div>
-                            <div className="pr-sub">
-                              {collector.id} • {collector.status}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div>
-                          <div className="pr-strong">
-                            {collector.distanceKm.toFixed(1)} km
-                          </div>
-                          <div className="pr-sub">{collector.etaText}</div>
-                        </div>
-
-                        <div>
-                          <div className="pr-sub">
-                            {collector.tasks}/{collector.maxTasks} tasks •{" "}
-                            {collector.loadPercent}%
-                          </div>
-                          <ProgressBar percent={collector.loadPercent} />
-                        </div>
-
-                        <div>
-                          <ActionBtn
-                            tone="ok"
-                            disabled={
-                              !collector.canAssign ||
-                              assigningCollectorId === collector.id
-                            }
-                            onClick={() => handleAssignCollector(collector)}
-                          >
-                            {assigningCollectorId === collector.id
-                              ? "..."
-                              : "Gán"}
-                          </ActionBtn>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="p-6 pt-4">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Collector</TableHead>
+                          <TableHead>Khoảng cách</TableHead>
+                          <TableHead>Tải công việc</TableHead>
+                          <TableHead className="text-right">Thao tác</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {collectors.map((collector) => (
+                          <TableRow key={collector.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <CollectorAvatar name={collector.name} />
+                                <div>
+                                  <div className="font-medium">
+                                    {collector.name}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {collector.id} • {collector.status}
+                                  </div>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="font-medium">
+                                {collector.distanceKm.toFixed(1)} km
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {collector.etaText}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="text-xs text-muted-foreground mb-1">
+                                {collector.tasks}/{collector.maxTasks} tasks •{" "}
+                                {collector.loadPercent}%
+                              </div>
+                              <ProgressBar percent={collector.loadPercent} />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                type="button"
+                                size="sm"
+                                disabled={
+                                  !collector.canAssign ||
+                                  assigningCollectorId === collector.id
+                                }
+                                onClick={() => handleAssignCollector(collector)}
+                              >
+                                {assigningCollectorId === collector.id
+                                  ? "..."
+                                  : "Gán"}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   </div>
                 )}
               </>
@@ -784,34 +745,43 @@ export default function PendingReports() {
             overflow: "auto",
           }}
         >
-          <div className="pr-historyDialog">
-            <div className="pr-historyHead">
-              <h2>Toàn bộ lịch sử đã gán report</h2>
-              <p>Tổng số lần gán: {assignmentHistoryRows.length}</p>
-            </div>
+          <div className="p-6 space-y-4">
+            <DialogHeader>
+              <DialogTitle>Toàn bộ lịch sử đã gán report</DialogTitle>
+              <DialogDescription>
+                Tổng số lần gán: {assignmentHistoryRows.length}
+              </DialogDescription>
+            </DialogHeader>
 
             {!assignmentHistoryRows.length ? (
-              <div className="pr-historyEmpty">
+              <div className="text-sm text-muted-foreground">
                 Chưa có lịch sử gán report nào.
               </div>
             ) : (
-              <div className="pr-historyTable">
-                <div className="pr-historyTr pr-historyTh">
-                  <div>THỜI ĐIỂM</div>
-                  <div>BÁO CÁO</div>
-                  <div>NHÂN VIÊN COLLECTOR</div>
-                  <div>MÃ NHÂN VIÊN</div>
-                </div>
-
-                {assignmentHistoryRows.map((item) => (
-                  <div className="pr-historyTr" key={item.id}>
-                    <div>{item.assignedAtText || item.assignedAt || "-"}</div>
-                    <div className="pr-strong">#{item.reportId}</div>
-                    <div>{item.collectorName || "-"}</div>
-                    <div>{item.collectorId || "-"}</div>
-                  </div>
-                ))}
-              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Thời điểm</TableHead>
+                    <TableHead>Báo cáo</TableHead>
+                    <TableHead>Nhân viên collector</TableHead>
+                    <TableHead>Mã nhân viên</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {assignmentHistoryRows.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell>
+                        {item.assignedAtText || item.assignedAt || "-"}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        #{item.reportId}
+                      </TableCell>
+                      <TableCell>{item.collectorName || "-"}</TableCell>
+                      <TableCell>{item.collectorId || "-"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             )}
           </div>
         </DialogContent>

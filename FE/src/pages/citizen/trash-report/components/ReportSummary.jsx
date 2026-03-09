@@ -3,6 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Camera, X } from "lucide-react";
 import { useRef } from "react";
 import ImageSection from "@/components/ui/image-section";
+import { toast } from "sonner";
+
+const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 
 function ReportSummary({
   description,
@@ -20,11 +23,19 @@ function ReportSummary({
 
   const handleFileChange = (e) => {
     const selectedFiles = Array.from(e.target.files || []);
+    const oversizedFiles = selectedFiles.filter(
+      (file) => file.size > MAX_FILE_SIZE_BYTES,
+    );
+
+    if (oversizedFiles.length > 0) {
+      toast.warning("Ảnh vượt quá 5MB. Vui lòng chọn ảnh dưới 5MB.");
+    }
+
     const validFiles = selectedFiles.filter((file) => {
       const isValidType = ["image/jpeg", "image/png", "image/jpg"].includes(
         file.type,
       );
-      const isValidSize = file.size <= 5 * 1024 * 1024;
+      const isValidSize = file.size <= MAX_FILE_SIZE_BYTES;
       return isValidType && isValidSize;
     });
 
@@ -45,11 +56,19 @@ function ReportSummary({
   const handleDrop = (e) => {
     e.preventDefault();
     const droppedFiles = Array.from(e.dataTransfer.files || []);
+    const oversizedFiles = droppedFiles.filter(
+      (file) => file.size > MAX_FILE_SIZE_BYTES,
+    );
+
+    if (oversizedFiles.length > 0) {
+      toast.warning("Ảnh vượt quá 5MB. Vui lòng chọn ảnh dưới 5MB.");
+    }
+
     const validFiles = droppedFiles.filter((file) => {
       const isValidType = ["image/jpeg", "image/png", "image/jpg"].includes(
         file.type,
       );
-      const isValidSize = file.size <= 5 * 1024 * 1024;
+      const isValidSize = file.size <= MAX_FILE_SIZE_BYTES;
       return isValidType && isValidSize;
     });
 

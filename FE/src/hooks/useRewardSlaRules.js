@@ -143,72 +143,91 @@ export function useRewardSlaRules() {
    * Cập nhật loại rác + reward config theo đúng API enterprise.
    * - rewardConfig đã tồn tại: PUT /enterprise/reward-config/:id
    * - rewardConfig chưa tồn tại: POST /enterprise/reward-config
-   * - luôn cập nhật WasteType: PUT /enterprise/waste-types/:id
+   * - chỉ cập nhật WasteType khi tên/đơn vị thay đổi: PUT /enterprise/waste-types/:id
    */
-  const editWasteType = useCallback(async (payload) => {
-    setAdding(true);
-    setError("");
-    try {
-      let rewardConfigId = payload.rewardConfigId || null;
+  const editWasteType = useCallback(
+    async (payload) => {
+      setAdding(true);
+      setError("");
+      try {
+        let rewardConfigId = payload.rewardConfigId || null;
 
-      if (rewardConfigId) {
-        await updateRewardConfigById(rewardConfigId, {
-          wasteTypeId: payload.wasteTypeId,
-          pointsPerUnit: payload.pointsPerUnit,
-          allowed_variance_percent: payload.allowed_variance_percent,
-          description: payload.description,
-        });
-      } else {
-        const created = await createRewardConfig({
-          wasteTypeId: payload.wasteTypeId,
-          pointsPerUnit: payload.pointsPerUnit,
-          allowed_variance_percent: payload.allowed_variance_percent,
-          description: payload.description,
-        });
-        rewardConfigId =
-          created?.data?.reward_config_id ||
-          created?.data?.rewardConfigId ||
-          null;
+        if (rewardConfigId) {
+          await updateRewardConfigById(rewardConfigId, {
+            wasteTypeId: payload.wasteTypeId,
+            pointsPerUnit: payload.pointsPerUnit,
+            allowed_variance_percent: payload.allowed_variance_percent,
+            description: payload.description,
+          });
+        } else {
+          const created = await createRewardConfig({
+            wasteTypeId: payload.wasteTypeId,
+            pointsPerUnit: payload.pointsPerUnit,
+            allowed_variance_percent: payload.allowed_variance_percent,
+            description: payload.description,
+          });
+          rewardConfigId =
+            created?.data?.reward_config_id ||
+            created?.data?.rewardConfigId ||
+            null;
+        }
+
+        const currentWaste = draft?.pointsByWaste?.find(
+          (w) => String(w.wasteTypeId) === String(payload.wasteTypeId),
+        );
+        const nextName = String(payload.waste_type_name || "").trim();
+        const nextUnit = String(payload.unit_type || "")
+          .trim()
+          .toUpperCase();
+        const currentName = String(currentWaste?.name || "").trim();
+        const currentUnit = String(currentWaste?.unitType || "")
+          .trim()
+          .toUpperCase();
+        const shouldUpdateWasteType =
+          !currentWaste || nextName !== currentName || nextUnit !== currentUnit;
+
+        if (shouldUpdateWasteType) {
+          await updateWasteType(payload.wasteTypeId, {
+            waste_type_name: payload.waste_type_name,
+            unit_type: payload.unit_type,
+          });
+        }
+
+        // Update draft and origin
+        const upd = (w) =>
+          String(w.wasteTypeId) === String(payload.wasteTypeId) ||
+          String(w.id) === String(payload.wasteTypeId)
+            ? {
+                ...w,
+                rewardConfigId,
+                factor: payload.pointsPerUnit,
+                allowed_variance_percent: payload.allowed_variance_percent,
+                description: payload.description,
+                name: payload.waste_type_name,
+                unitType: payload.unit_type,
+                desc: `Đơn vị: ${payload.unit_type}`,
+                hasRewardConfig: true,
+              }
+            : w;
+
+        setDraft((prev) => ({
+          ...prev,
+          pointsByWaste: prev.pointsByWaste.map(upd),
+        }));
+        setOrigin((prev) => ({
+          ...prev,
+          pointsByWaste: prev.pointsByWaste.map(upd),
+        }));
+        return { ok: true };
+      } catch (e) {
+        setError(e?.message || "Cập nhật loại rác thất bại");
+        return { ok: false };
+      } finally {
+        setAdding(false);
       }
-
-      await updateWasteType(payload.wasteTypeId, {
-        waste_type_name: payload.waste_type_name,
-        unit_type: payload.unit_type,
-      });
-
-      // Update draft and origin
-      const upd = (w) =>
-        String(w.wasteTypeId) === String(payload.wasteTypeId) ||
-        String(w.id) === String(payload.wasteTypeId)
-          ? {
-              ...w,
-              rewardConfigId,
-              factor: payload.pointsPerUnit,
-              allowed_variance_percent: payload.allowed_variance_percent,
-              description: payload.description,
-              name: payload.waste_type_name,
-              unitType: payload.unit_type,
-              desc: `Đơn vị: ${payload.unit_type}`,
-              hasRewardConfig: true,
-            }
-          : w;
-
-      setDraft((prev) => ({
-        ...prev,
-        pointsByWaste: prev.pointsByWaste.map(upd),
-      }));
-      setOrigin((prev) => ({
-        ...prev,
-        pointsByWaste: prev.pointsByWaste.map(upd),
-      }));
-      return { ok: true };
-    } catch (e) {
-      setError(e?.message || "Cập nhật loại rác thất bại");
-      return { ok: false };
-    } finally {
-      setAdding(false);
-    }
-  }, []);
+    },
+    [draft],
+  );
 
   const save = useCallback(async () => {
     if (!draft) return;
