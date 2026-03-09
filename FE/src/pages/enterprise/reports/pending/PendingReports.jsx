@@ -335,15 +335,7 @@ export default function PendingReports() {
           collectorName: assignedCollectorName,
         });
 
-        const reportCodeText = assigningReportCode || `#${assigningReportId}`;
-        toast.success(
-          `Nhân viên ${assignedCollectorName} vừa được gán cho báo cáo ${reportCodeText}.`,
-          {
-            description: assignResult?.assignedAt
-              ? `Mã nhân viên: ${collector.id} • ${new Date(assignResult.assignedAt).toLocaleString("vi-VN")}`
-              : `Mã nhân viên: ${collector.id}`,
-          },
-        );
+        toast.success("Nhân viên được gán thành công");
         refreshAssignmentHistory();
         handleAssignPopupChange(false);
         await reload();
