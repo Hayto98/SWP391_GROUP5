@@ -102,6 +102,16 @@ function getStatusClass(status) {
   return "bg-slate-100 text-slate-700 border-slate-200";
 }
 
+const STATUS_FILTER_OPTIONS = [
+  { value: "Tất cả trạng thái", label: "Tất cả trạng thái" },
+  { value: "PENDING", label: "Chờ duyệt" },
+  { value: "ACCEPTED", label: "Đã chấp nhận" },
+  { value: "ASSIGNED", label: "Đã gán" },
+  { value: "IN_PROGRESS", label: "Đang xử lý" },
+  { value: "COLLECTED", label: "Đã thu gom" },
+  { value: "REJECTED", label: "Đã từ chối" },
+];
+
 function FilterSelect({ value, onChange, options, placeholder }) {
   return (
     <Select value={value} onValueChange={onChange}>
@@ -196,10 +206,6 @@ export default function PendingReports() {
   );
   const weights = useMemo(
     () => data?.filters?.weights || ["Tất cả cân nặng"],
-    [data],
-  );
-  const statuses = useMemo(
-    () => data?.filters?.statuses || ["Tất cả trạng thái"],
     [data],
   );
   const sorts = useMemo(() => data?.filters?.sorts || ["Hết hạn SLA"], [data]);
@@ -412,12 +418,20 @@ export default function PendingReports() {
                 options={weights}
                 placeholder="Cân nặng"
               />
-              <FilterSelect
-                value={status}
-                onChange={setStatus}
-                options={statuses}
-                placeholder="Trạng thái"
-              />
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Trạng thái" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {STATUS_FILTER_OPTIONS.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

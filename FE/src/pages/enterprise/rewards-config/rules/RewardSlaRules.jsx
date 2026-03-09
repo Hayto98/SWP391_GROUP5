@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -7,39 +8,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
-  FaCheckCircle,
-  FaEdit,
-  FaExclamationTriangle,
-  FaPlus,
-  FaSave,
-  FaTimes,
-  FaTimesCircle,
-  FaTrash,
-} from "react-icons/fa";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useRewardSlaRules } from "../../../../hooks/useRewardSlaRules";
-import "./rewardSlaRules.css";
 
-const TopBtn = ({ tone, icon, children, onClick, disabled }) => (
-  <button
-    className={`rs-btn rs-btn-${tone}`}
-    type="button"
-    onClick={onClick}
-    disabled={disabled}
-  >
-    {icon} {children}
-  </button>
-);
-
-const ToneIcon = ({ tone }) => {
-  if (tone === "ok") return <FaCheckCircle />;
-  if (tone === "warn") return <FaExclamationTriangle />;
-  return <FaTimesCircle />;
-};
-
-// ─── Modal thêm loại rác ──────────────────────────────────────────────────────
-function AddWasteTypeModal({ onClose, onConfirm, adding }) {
+function AddWasteTypeModal({ open, onClose, onConfirm, adding }) {
   const [name, setName] = useState("");
   const [unit, setUnit] = useState("");
   const [localErr, setLocalErr] = useState("");
@@ -53,38 +37,35 @@ function AddWasteTypeModal({ onClose, onConfirm, adding }) {
       setLocalErr("Vui lòng nhập đơn vị tính");
       return;
     }
+
     setLocalErr("");
     const res = await onConfirm({
       wasteTypeName: name.trim(),
       unitType: unit.trim().toUpperCase(),
     });
-    if (res?.ok) onClose();
+
+    if (res?.ok) {
+      setName("");
+      setUnit("");
+      onClose();
+    }
   };
 
   return (
-    <div
-      className="rs-modal-overlay"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="rs-modal">
-        <div className="rs-modal-header">
-          <span>Thêm loại rác mới</span>
-          <button
-            className="rs-modal-close"
-            onClick={onClose}
-            disabled={adding}
-          >
-            <FaTimes />
-          </button>
-        </div>
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Thêm loại rác mới</DialogTitle>
+          <DialogDescription>
+            Nhập tên loại rác và đơn vị tính để tạo mới.
+          </DialogDescription>
+        </DialogHeader>
 
-        <div className="rs-modal-body">
-          <div className="rs-field">
-            <label className="rs-label">
-              Tên loại rác <span style={{ color: "#ef4444" }}>*</span>
-            </label>
-            <input
-              className="rs-field-input"
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="add-waste-name">Tên loại rác</Label>
+            <Input
+              id="add-waste-name"
               placeholder="VD: Nhựa HDPE, Cao su..."
               value={name}
               onChange={(e) => {
@@ -92,16 +73,13 @@ function AddWasteTypeModal({ onClose, onConfirm, adding }) {
                 setLocalErr("");
               }}
               disabled={adding}
-              autoFocus
             />
           </div>
 
-          <div className="rs-field">
-            <label className="rs-label">
-              Đơn vị tính <span style={{ color: "#ef4444" }}>*</span>
-            </label>
-            <input
-              className="rs-field-input"
+          <div className="space-y-2">
+            <Label htmlFor="add-waste-unit">Đơn vị tính</Label>
+            <Input
+              id="add-waste-unit"
               placeholder="VD: KG hoặc LON"
               value={unit}
               onChange={(e) => {
@@ -112,47 +90,37 @@ function AddWasteTypeModal({ onClose, onConfirm, adding }) {
             />
           </div>
 
-          {localErr && <div className="rs-field-err">{localErr}</div>}
+          {localErr && (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {localErr}
+            </div>
+          )}
         </div>
 
-        <div className="rs-modal-footer">
-          <button
-            className="rs-btn rs-btn-ghost"
-            type="button"
-            onClick={onClose}
-            disabled={adding}
-          >
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={adding}>
             Hủy
-          </button>
-          <button
-            className="rs-btn rs-btn-primary"
-            type="button"
+          </Button>
+          <Button
             onClick={handleSubmit}
             disabled={adding || !name.trim() || !unit.trim()}
           >
-            {adding ? (
-              "Đang thêm..."
-            ) : (
-              <>
-                <FaPlus /> Thêm loại rác
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
+            {adding ? "Đang thêm..." : "Thêm loại rác"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-// ─── Modal Sửa thông tin điểm rác ─────────────────────────────────────────────
-function EditWasteTypeModal({ onClose, onConfirm, adding, wasteItem }) {
-  const [wasteTypeName, setWasteTypeName] = useState(wasteItem.name || "");
-  const [unitType, setUnitType] = useState(wasteItem.unitType || "KG");
-  const [points, setPoints] = useState(wasteItem.factor || 0);
+function EditWasteTypeModal({ open, onClose, onConfirm, adding, wasteItem }) {
+  const [wasteTypeName, setWasteTypeName] = useState(wasteItem?.name || "");
+  const [unitType, setUnitType] = useState(wasteItem?.unitType || "KG");
+  const [points, setPoints] = useState(wasteItem?.factor || 0);
   const [variance, setVariance] = useState(
-    wasteItem.allowed_variance_percent || 0,
+    wasteItem?.allowed_variance_percent || 0,
   );
-  const [desc, setDesc] = useState(wasteItem.description || "");
+  const [desc, setDesc] = useState(wasteItem?.description || "");
   const [localErr, setLocalErr] = useState("");
 
   const handleSubmit = async () => {
@@ -172,6 +140,7 @@ function EditWasteTypeModal({ onClose, onConfirm, adding, wasteItem }) {
       setLocalErr("Vui lòng nhập đơn vị tính");
       return;
     }
+
     setLocalErr("");
     const res = await onConfirm({
       wasteTypeId: wasteItem.wasteTypeId || wasteItem.id,
@@ -182,54 +151,44 @@ function EditWasteTypeModal({ onClose, onConfirm, adding, wasteItem }) {
       waste_type_name: wasteTypeName.trim(),
       unit_type: unitType.trim(),
     });
-    if (res?.ok) onClose();
+
+    if (res?.ok) {
+      onClose();
+    }
   };
 
   return (
-    <div
-      className="rs-modal-overlay"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="rs-modal">
-        <div className="rs-modal-header">
-          <span>
-            {wasteItem.rewardConfigId
-              ? `Sửa: ${wasteItem.name}`
-              : `Thêm reward config: ${wasteItem.name}`}
-          </span>
-          <button
-            className="rs-modal-close"
-            onClick={onClose}
-            disabled={adding}
-          >
-            <FaTimes />
-          </button>
-        </div>
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {wasteItem?.rewardConfigId
+              ? `Sửa: ${wasteItem?.name}`
+              : `Thêm reward config: ${wasteItem?.name}`}
+          </DialogTitle>
+          <DialogDescription>
+            Cập nhật thông tin loại rác và quy tắc tính điểm.
+          </DialogDescription>
+        </DialogHeader>
 
-        <div className="rs-modal-body">
-          <div className="rs-field">
-            <label className="rs-label">
-              Tên loại rác <span style={{ color: "#ef4444" }}>*</span>
-            </label>
-            <input
-              className="rs-field-input"
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="edit-waste-name">Tên loại rác</Label>
+            <Input
+              id="edit-waste-name"
               value={wasteTypeName}
               onChange={(e) => {
                 setWasteTypeName(e.target.value);
                 setLocalErr("");
               }}
               disabled={adding}
-              autoFocus
             />
           </div>
 
-          <div className="rs-field">
-            <label className="rs-label">
-              Đơn vị tính <span style={{ color: "#ef4444" }}>*</span>
-            </label>
-            <input
-              className="rs-field-input"
-              placeholder="VD: KG, LON, BAO..."
+          <div className="space-y-2">
+            <Label htmlFor="edit-waste-unit">Đơn vị tính</Label>
+            <Input
+              id="edit-waste-unit"
               value={unitType}
               onChange={(e) => {
                 setUnitType(e.target.value);
@@ -239,10 +198,10 @@ function EditWasteTypeModal({ onClose, onConfirm, adding, wasteItem }) {
             />
           </div>
 
-          <div className="rs-field">
-            <label className="rs-label">Hệ số điểm ({unitType})</label>
-            <input
-              className="rs-field-input"
+          <div className="space-y-2">
+            <Label htmlFor="edit-waste-points">Hệ số điểm</Label>
+            <Input
+              id="edit-waste-points"
               type="number"
               value={points}
               onChange={(e) => {
@@ -253,10 +212,12 @@ function EditWasteTypeModal({ onClose, onConfirm, adding, wasteItem }) {
             />
           </div>
 
-          <div className="rs-field">
-            <label className="rs-label">Tỷ lệ sai số cho phép (%)</label>
-            <input
-              className="rs-field-input"
+          <div className="space-y-2">
+            <Label htmlFor="edit-waste-variance">
+              Tỷ lệ sai số cho phép (%)
+            </Label>
+            <Input
+              id="edit-waste-variance"
               type="number"
               value={variance}
               onChange={(e) => {
@@ -267,11 +228,10 @@ function EditWasteTypeModal({ onClose, onConfirm, adding, wasteItem }) {
             />
           </div>
 
-          <div className="rs-field">
-            <label className="rs-label">Mô tả quy tắc (Tùy chọn)</label>
-            <input
-              className="rs-field-input"
-              placeholder="VD: 20 điểm mỗi kg"
+          <div className="space-y-2">
+            <Label htmlFor="edit-waste-desc">Mô tả quy tắc (Tùy chọn)</Label>
+            <Input
+              id="edit-waste-desc"
               value={desc}
               onChange={(e) => {
                 setDesc(e.target.value);
@@ -281,42 +241,31 @@ function EditWasteTypeModal({ onClose, onConfirm, adding, wasteItem }) {
             />
           </div>
 
-          {localErr && <div className="rs-field-err">{localErr}</div>}
+          {localErr && (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {localErr}
+            </div>
+          )}
         </div>
 
-        <div className="rs-modal-footer">
-          <button
-            className="rs-btn rs-btn-ghost"
-            type="button"
-            onClick={onClose}
-            disabled={adding}
-          >
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={adding}>
             Hủy
-          </button>
-          <button
-            className="rs-btn rs-btn-primary"
-            type="button"
+          </Button>
+          <Button
             onClick={handleSubmit}
             disabled={adding || !wasteTypeName.trim()}
           >
-            {adding ? (
-              "Đang lưu..."
-            ) : (
-              <>
-                <FaSave /> Cập nhật
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
+            {adding ? "Đang lưu..." : "Cập nhật"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-
 export default function RewardSlaRules() {
-  const [showModal, setShowModal] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
   const [wasteToDelete, setWasteToDelete] = useState(null);
   const [wasteToEdit, setWasteToEdit] = useState(null);
 
@@ -336,134 +285,120 @@ export default function RewardSlaRules() {
   if (!draft) return null;
 
   return (
-    <div className="rs">
-      <div className="rs-breadcrumb">Hệ thống / Quy tắc điểm thưởng</div>
-
-      <div className="rs-head">
-        <div>
-          <h1>Cấu hình Quy tắc Điểm thưởng &amp; SLA</h1>
-          <p>
-            Thiết lập hệ số điểm cho các loại rác và quy tắc xử lý cho khối
-            lượng lớn.
-          </p>
-        </div>
-
-        <div className="rs-headActions">
-          <TopBtn
-            tone="primary"
-            icon={<FaPlus />}
-            onClick={() => setShowModal(true)}
-            disabled={adding || saving}
-          >
-            Thêm loại rác mới
-          </TopBtn>
-        </div>
+    <div className="space-y-6">
+      <div className="text-sm text-muted-foreground">
+        Hệ thống / Quy tắc điểm thưởng
       </div>
 
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <div>
+            <CardTitle>Cấu hình Quy tắc Điểm thưởng</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Thiết lập hệ số điểm cho các loại rác và quy tắc xử lý cho khối
+              lượng lớn.
+            </p>
+          </div>
+          <Button
+            onClick={() => setShowAddModal(true)}
+            disabled={adding || saving}
+          >
+            <Plus className="size-4" /> Thêm loại rác mới
+          </Button>
+        </CardHeader>
+      </Card>
+
       {error && (
-        <div style={{ padding: 10, color: "#991b1b", fontWeight: 900 }}>
+        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {error}
         </div>
       )}
 
-      <div className="rs-grid">
-        <div className="rs-card">
-          <div className="rs-cardTitle">1. Hệ số điểm thưởng theo loại rác</div>
-
-          <div className="rs-table">
-            <div className="rs-tr rs-th">
-              <div>LOẠI RÁC THẢI</div>
-              <div>MÔ TẢ HỆ SỐ</div>
-              <div>HỆ SỐ ĐIỂM</div>
-            </div>
-
-            {draft.pointsByWaste.map((w) => (
-              <div className="rs-tr" key={w.id}>
-                <div className="rs-strong">{w.name}</div>
-                <div className="rs-sub">
-                  <div>{w.desc}</div>
-                  <div
-                    style={{
-                      fontSize: "0.85em",
-                      color: "#6b7280",
-                      marginTop: "4px",
-                    }}
-                  >
-                    Sai số cho phép: {w.allowed_variance_percent || 0}%
-                  </div>
-                  {w.description && (
-                    <div
-                      style={{
-                        fontSize: "0.85em",
-                        color: "#6b7280",
-                        marginTop: "2px",
-                      }}
-                    >
-                      Mô tả: {w.description}
+      <Card>
+        <CardHeader>
+          <CardTitle>Hệ số điểm thưởng theo loại rác</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Loại rác thải</TableHead>
+                <TableHead>Mô tả hệ số</TableHead>
+                <TableHead className="text-right">Hệ số điểm</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {draft.pointsByWaste.map((w) => (
+                <TableRow key={w.id}>
+                  <TableCell className="font-medium">{w.name}</TableCell>
+                  <TableCell>
+                    <div className="text-sm text-muted-foreground space-y-1">
+                      <p>{w.desc}</p>
+                      <p>Sai số cho phép: {w.allowed_variance_percent || 0}%</p>
+                      {w.description && <p>Mô tả: {w.description}</p>}
                     </div>
-                  )}
-                </div>
-                <div
-                  className="rs-inputWrap"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    justifyContent: "flex-end",
-                  }}
-                >
-                  <input
-                    className="rs-input"
-                    value={w.factor}
-                    onChange={(e) =>
-                      updateWasteFactor(w.id, Number(e.target.value || 0))
-                    }
-                    type="number"
-                    step="0.1"
-                    disabled={!w.rewardConfigId}
-                  />
-                  <button
-                    type="button"
-                    className="rs-del-btn"
-                    onClick={() => setWasteToEdit(w)}
-                    title={
-                      w.rewardConfigId ? "Sửa loại rác" : "Thêm reward config"
-                    }
-                    style={{ color: w.rewardConfigId ? "#3b82f6" : "#16a34a" }}
-                  >
-                    {w.rewardConfigId ? <FaEdit /> : <FaPlus />}
-                  </button>
-                  <button
-                    type="button"
-                    className="rs-del-btn"
-                    onClick={() => setWasteToDelete(w)}
-                    title="Xóa loại rác"
-                  >
-                    <FaTrash />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-2">
+                      <Input
+                        className="w-24 text-right"
+                        value={w.factor}
+                        onChange={(e) =>
+                          updateWasteFactor(w.id, Number(e.target.value || 0))
+                        }
+                        type="number"
+                        step="0.1"
+                        disabled={!w.rewardConfigId}
+                      />
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        onClick={() => setWasteToEdit(w)}
+                        title={
+                          w.rewardConfigId
+                            ? "Sửa loại rác"
+                            : "Thêm reward config"
+                        }
+                      >
+                        {w.rewardConfigId ? (
+                          <Pencil className="size-4" />
+                        ) : (
+                          <Plus className="size-4 text-green-600" />
+                        )}
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        onClick={() => setWasteToDelete(w)}
+                        title="Xóa loại rác"
+                      >
+                        <Trash2 className="size-4 text-red-600" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+        <Badge variant="outline">PHIÊN BẢN: {draft.version}</Badge>
+        <Badge variant="outline">HỆ THỐNG ĐANG HOẠT ĐỘNG</Badge>
+        <Badge variant="outline">CẬP NHẬT CUỐI: {draft.updatedAt}</Badge>
       </div>
 
-      <div className="rs-footerLine">
-        <div>PHIÊN BẢN: {draft.version}</div>
-        <div>HỆ THỐNG ĐANG HOẠT ĐỘNG</div>
-        <div>CẬP NHẬT CUỐI: {draft.updatedAt}</div>
-      </div>
-
-      {showModal && (
-        <AddWasteTypeModal
-          onClose={() => setShowModal(false)}
-          onConfirm={addWasteType}
-          adding={adding}
-        />
-      )}
+      <AddWasteTypeModal
+        open={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onConfirm={addWasteType}
+        adding={adding}
+      />
 
       {wasteToEdit && (
         <EditWasteTypeModal
+          open={Boolean(wasteToEdit)}
           onClose={() => setWasteToEdit(null)}
           onConfirm={editWasteType}
           adding={adding}
