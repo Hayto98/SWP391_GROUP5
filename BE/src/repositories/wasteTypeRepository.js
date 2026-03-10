@@ -1,6 +1,5 @@
 const db = require('../config/database')
 
-
 // ==================== CREATE ====================
 
 /**
@@ -64,7 +63,8 @@ async function findByName(wasteTypeName) {
   const [rows] = await db.execute(
     `SELECT waste_type_id, waste_type_name, unit_type, is_active
      FROM wastetype
-     WHERE LOWER(waste_type_name) = LOWER(?)`,
+     WHERE LOWER(waste_type_name) = LOWER(?)
+       AND IFNULL(is_deleted, 0) = 0`,
     [wasteTypeName]
   )
 
@@ -88,7 +88,9 @@ async function findByNameExcludeId(wasteTypeName, excludeWasteTypeId) {
   const [rows] = await db.execute(
     `SELECT waste_type_id, waste_type_name, unit_type, is_active
      FROM wastetype
-     WHERE LOWER(waste_type_name) = LOWER(?) AND waste_type_id != ?`,
+     WHERE LOWER(waste_type_name) = LOWER(?)
+       AND waste_type_id != ?
+       AND IFNULL(is_deleted, 0) = 0`,
     [wasteTypeName, excludeWasteTypeId]
   )
 
@@ -292,10 +294,10 @@ async function updateWasteType(wasteTypeId, { wasteTypeName, unitType }) {
  * Set WasteType active status
  */
 async function setActiveStatus(wasteTypeId, isActive) {
-  const [result] = await db.execute(
-    `UPDATE wastetype SET is_active = ? WHERE waste_type_id = ?`,
-    [isActive ? 1 : 0, wasteTypeId]
-  )
+  const [result] = await db.execute(`UPDATE wastetype SET is_active = ? WHERE waste_type_id = ?`, [
+    isActive ? 1 : 0,
+    wasteTypeId
+  ])
 
   return result.affectedRows > 0
 }
@@ -304,10 +306,7 @@ async function setActiveStatus(wasteTypeId, isActive) {
  * Soft delete marker for WasteType
  */
 async function setSoftDelete(wasteTypeId) {
-  const [result] = await db.execute(
-    `UPDATE wastetype SET is_deleted = 1 WHERE waste_type_id = ?`,
-    [wasteTypeId]
-  )
+  const [result] = await db.execute(`UPDATE wastetype SET is_deleted = 1 WHERE waste_type_id = ?`, [wasteTypeId])
 
   return result.affectedRows > 0
 }
