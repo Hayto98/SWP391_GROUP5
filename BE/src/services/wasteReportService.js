@@ -3,6 +3,7 @@ const ApiError = require('../errors/ApiError')
 const { v4: uuidv4 } = require('uuid')
 const cloudinary = require('../config/cloudinary')
 const sharp = require('sharp')
+const db = require('../config/database')
 
 // ==================== HELPERS ====================
 
@@ -42,6 +43,21 @@ async function uploadBufferToCloudinary(buffer, mimetype) {
 }
 
 // ==================== CREATE ====================
+
+/**
+ * Generates a formatted report code: WR-YYYY-NNNN
+ */
+async function generateReportCode() {
+  const currentYear = new Date().getFullYear();
+
+  // Atomically fetch numerical sequence
+  const sequenceNumber = await wasteReportRepository.getNextSequence(currentYear);
+
+  // Pad to 4 digits (e.g., 5 becomes '0005')
+  const paddedSequence = String(sequenceNumber).padStart(4, '0');
+
+  return `WR-${currentYear}-${paddedSequence}`;
+}
 
 /**
  * Validate và tạo mới một WasteReport — supports multipart/form-data with image upload.
@@ -100,20 +116,30 @@ async function createReport({
     imageUrl = fileUriFromBody
   }
 
-  // ── Persist ─────────────────────────────────────────────────
-  let created
+  // ── 5. Generate unique Code and Persist using transaction ────
+  let created = null;
+  const connection = await db.getConnection();
   try {
+    await connection.beginTransaction();
+
+    const reportCode = await generateReportCode();
+
     created = await wasteReportRepository.createReport({
       citizenId,
       citizenUserAccountId: userAccountId,
       wasteTypeId: Number(wasteTypeId),
+      reportCode,
       gpsLat,
       gpsLng,
       description: description.trim(),
       weight: weight ?? null,
       fileUri: imageUrl || null
-    })
+    }, connection)
+
+    await connection.commit();
   } catch (error) {
+    if (connection) await connection.rollback();
+
     if (error.code === 'INVALID_WASTE_TYPE') {
       throw new ApiError(400, error.message)
     }
@@ -121,10 +147,13 @@ async function createReport({
       throw new ApiError(400, 'wasteTypeId không tồn tại.')
     }
     throw error
+  } finally {
+    if (connection) connection.release();
   }
 
   return {
     wasteReportId: created.wasteReportId,
+    reportCode: created.reportCode || created?.report_code,
     citizenId,
     wasteTypeId,
     gpsLat,
