@@ -14,22 +14,25 @@ const { ROLES } = require('../utils/constants')
  * @param {string} params.citizenId                - citizen_id (UUID)
  * @param {string} params.citizenUserAccountId     - user_account_id of citizen (for history)
  * @param {number} params.wasteTypeId              - waste_type_id (INT)
+ * @param {string} params.reportCode               - generated report_code WR-YYYY-NNNN
  * @param {number} params.gpsLat
  * @param {number} params.gpsLng
  * @param {string} params.description
  * @param {number|null} params.weight
+ * @param {any} [connection]                       - optional transaction connection
  * @returns {{ wasteReportId: string, status: 'PENDING' }}
  */
 async function createReport({
   citizenId,
   citizenUserAccountId,
   wasteTypeId,
+  reportCode,
   gpsLat,
   gpsLng,
   description,
   weight,
   fileUri
-}) {
+}, existingConnection = null) {
   const PENDING_STATUS_ID = 1
 
   // ── 1. Validate wasteType (outside transaction — read-only) ────────
@@ -50,18 +53,19 @@ async function createReport({
   const createdAt = new Date()
 
   // ── 3. Transaction: insert report + history ────────────────────────
-  const connection = await db.getConnection()
+  const connection = existingConnection || await db.getConnection()
 
   try {
-    await connection.beginTransaction()
+    if (!existingConnection) await connection.beginTransaction()
 
     await connection.execute(
       `INSERT INTO wastereport
-        (waste_report_id, citizen_id, waste_type_id, report_status_type_id,
+        (waste_report_id, report_code, citizen_id, waste_type_id, report_status_type_id,
          assigned_collector_id, gps_lat, gps_lng, description, weight, file_uri, created_at)
-       VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)`,
       [
         wasteReportId,
+        reportCode,
         citizenId,
         wasteTypeId,
         PENDING_STATUS_ID,
@@ -82,16 +86,17 @@ async function createReport({
       [statusHistoryId, wasteReportId, PENDING_STATUS_ID, citizenUserAccountId, createdAt]
     )
 
-    await connection.commit()
+    if (!existingConnection) await connection.commit()
   } catch (error) {
-    await connection.rollback()
+    if (!existingConnection) await connection.rollback()
     throw error
   } finally {
-    connection.release()
+    if (!existingConnection) connection.release()
   }
 
   return {
     wasteReportId,
+    reportCode,
     status: 'PENDING',
     createdAt
   }
@@ -112,6 +117,38 @@ async function createReportAttachment({ reportAttachmentId, wasteReportId, fileU
 // ==================== READ ====================
 
 /**
+ * Lấy số sequence tiếp theo cho năm hiện tại để tạo mã WR-YYYY-NNNN
+ * Sử dụng INSERT ... ON DUPLICATE KEY UPDATE và LAST_INSERT_ID() để đảm bảo atomic sequence
+ */
+async function getNextSequence(year) {
+  const connection = await db.getConnection()
+  try {
+    // 1. Thực thi câu lệnh atomic increment
+    const incrementQuery = `
+      INSERT INTO reportsequence (year, next_val) 
+      VALUES (?, LAST_INSERT_ID(1))
+      ON DUPLICATE KEY UPDATE 
+          next_val = LAST_INSERT_ID(next_val + 1)
+    `
+    await connection.execute(incrementQuery, [year])
+
+    // 2. Lấy sequence vừa tạo an toàn cho session này
+    const [rows] = await connection.execute('SELECT LAST_INSERT_ID() AS sequence_number')
+    return rows[0].sequence_number
+  } finally {
+    connection.release()
+  }
+}
+
+/**
+ * Lấy thông tin báo cáo rác thải bằng reportCode
+ */
+async function findByReportCode(reportCode) {
+  const [rows] = await db.execute('SELECT * FROM wastereport WHERE report_code = ?', [reportCode])
+  return rows[0] || null
+}
+
+/**
  * Lấy danh sách báo cáo rác của một User công dân (Citizen)
  * Theo yêu cầu SCRUM-14 GET /reports/my
  */
@@ -128,6 +165,7 @@ async function findMyReports(citizenId, { fromDate, toDate, status, limit, offse
   let selectPart = `
     SELECT SQL_CALC_FOUND_ROWS
       wr.waste_report_id AS waste_report_id,
+      wr.report_code AS report_code,
       wr.gps_lat AS gps_lat,
       wr.gps_lng AS gps_lng,
       wr.created_at AS created_at,
@@ -238,6 +276,7 @@ async function findMyReports(citizenId, { fromDate, toDate, status, limit, offse
 
     return {
       wasteReportId: row.waste_report_id,
+      reportCode: row.report_code,
       wasteType: {
         id: row.waste_type_id,
         name: row.waste_type_name,
@@ -276,6 +315,7 @@ async function findReportById(reportId) {
   let query = `
     SELECT
       wr.waste_report_id AS waste_report_id,
+      wr.report_code AS report_code,
       wr.gps_lat AS gps_lat,
       wr.gps_lng AS gps_lng,
       wr.created_at AS created_at,
@@ -338,16 +378,16 @@ async function findReportById(reportId) {
   const attachments =
     attachmentRows.length > 0
       ? attachmentRows
-          .map((item) => ({
-            fileUri: normalizeAttachmentUri(item.file_uri),
-            uploadedAt: item.uploaded_at
-          }))
-          .filter((item) => Boolean(item.fileUri))
-          .map((item) => ({
-            fileUri: item.fileUri,
-            file_uri: item.fileUri,
-            uploadedAt: item.uploadedAt
-          }))
+        .map((item) => ({
+          fileUri: normalizeAttachmentUri(item.file_uri),
+          uploadedAt: item.uploaded_at
+        }))
+        .filter((item) => Boolean(item.fileUri))
+        .map((item) => ({
+          fileUri: item.fileUri,
+          file_uri: item.fileUri,
+          uploadedAt: item.uploadedAt
+        }))
       : normalizeAttachmentUri(row.file_uri)
         ? [{ fileUri: normalizeAttachmentUri(row.file_uri), file_uri: normalizeAttachmentUri(row.file_uri) }]
         : []
@@ -389,16 +429,16 @@ async function findReportById(reportId) {
 
   const collectedRecord = collectedRow
     ? {
-        collectedRecordId: collectedRow.collected_record_id,
-        wasteReportId: collectedRow.waste_report_id,
-        collectorUserAccountId: collectedRow.collector_user_account_id,
-        actualQuantityValue: Number(collectedRow.actual_quantity_value),
-        quantityUnit: collectedRow.quantity_unit,
-        recordedAt: collectedRow.recorded_at,
-        fileUri: collectedRow.file_uri,
-        note: collectedRow.note,
-        completionImages: (collectedRow.completion_image_uris || '').split('|||').filter(Boolean)
-      }
+      collectedRecordId: collectedRow.collected_record_id,
+      wasteReportId: collectedRow.waste_report_id,
+      collectorUserAccountId: collectedRow.collector_user_account_id,
+      actualQuantityValue: Number(collectedRow.actual_quantity_value),
+      quantityUnit: collectedRow.quantity_unit,
+      recordedAt: collectedRow.recorded_at,
+      fileUri: collectedRow.file_uri,
+      note: collectedRow.note,
+      completionImages: (collectedRow.completion_image_uris || '').split('|||').filter(Boolean)
+    }
     : null
 
   const statusVal = row.current_status || 'PENDING'
@@ -418,6 +458,7 @@ async function findReportById(reportId) {
   return {
     reportId: row.waste_report_id,
     wasteReportId: row.waste_report_id,
+    reportCode: row.report_code,
     citizenId: row.citizen_id, // include to verify ownership later in service
     wasteType: {
       id: row.waste_type_id,
@@ -569,6 +610,7 @@ async function findAllReports({ status, fromDate, toDate, limit, offset }) {
   let innerQuery = `
     SELECT
       wr.waste_report_id AS waste_report_id,
+      wr.report_code AS report_code,
       wr.gps_lat AS gps_lat,
       wr.gps_lng AS gps_lng,
       wr.created_at AS created_at,
@@ -654,6 +696,7 @@ async function findAllReports({ status, fromDate, toDate, limit, offset }) {
 
     return {
       wasteReportId: row.waste_report_id,
+      reportCode: row.report_code,
       wasteType: {
         id: row.waste_type_id,
         name: row.waste_type_name,
@@ -688,5 +731,7 @@ module.exports = {
   updateReportById,
   deleteReportById,
   findCitizenIdByUserAccountId,
-  ensureCitizenIdByUserAccountId
+  ensureCitizenIdByUserAccountId,
+  getNextSequence,
+  findByReportCode
 }
