@@ -39,6 +39,7 @@ app.use('/api/enterprise', enterpriseRoutes)
 app.use('/api/reports', require('./routes/wasteReportRoutes'))
 app.use('/api/waste-types', require('./routes/wasteTypeRoutes'))
 app.use('/enterprise', require('./routes/enterpriseRoutes'))
+app.use('/citizen', require('./routes/citizenRoutes'))
 
 app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' })
