@@ -1,2 +1,2 @@
-const name: string = 'Thanh Hai'
+const name: string = ' login-page '
 console.log(name)

@@ -1,35 +1,42 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { Toaster } from "sonner";
+import "./App.css";
+import AppRoutes from "./routes/AppRoutes";
+import AppErrorBoundary from "./components/AppErrorBoundary";
+import EnterpriseOverview from "./pages/enterprise/overview/EnterpriseOverview";
+import AcceptWasteConfig from "./pages/enterprise/rewards-config/accept-waste/AcceptWasteConfig";
+import PendingReports from "./pages/enterprise/reports/pending/PendingReports";
+import ReportDetail from "./pages/enterprise/reports/detail/ReportDetail";
+import Collectors from "./pages/enterprise/employees/collectors/Collectors";
+import ProgressTracking from "./pages/enterprise/monitoring/monitoring/ProgressTracking";
+import CollectionAnalytics from "./pages/enterprise/analytics/collection-report/CollectionAnalytics";
+import CollectionReportDetail from "./pages/enterprise/reports/collection-detail/CollectionReportDetail";
+import RewardSlaRules from "./pages/enterprise/rewards-config/rules/RewardSlaRules";
+import ComplaintsEscalation from "./pages/enterprise/complaints/ComplaintsEscalation";
+import EnterpriseProfileOverview from "./pages/enterprise/profile/overview/EnterpriseProfileOverview";
+
+const reviewPages = {
+  EnterpriseOverview,
+  AcceptWasteConfig,
+  PendingReports,
+  ReportDetail,
+  Collectors,
+  ProgressTracking,
+  CollectionAnalytics,
+  CollectionReportDetail,
+  RewardSlaRules,
+  ComplaintsEscalation,
+  EnterpriseProfileOverview,
+};
+
+void reviewPages;
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    <AppErrorBoundary>
+      <AppRoutes />
+      <Toaster richColors position="top-right" />
+    </AppErrorBoundary>
+  );
 }
 
-export default App
+export default App;
