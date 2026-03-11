@@ -8,6 +8,7 @@ import ReportSummary from "./components/ReportSummary";
 import { getWasteTypes } from "@/services/wasteService";
 import { createWasteReport } from "@/services/wasteReportService";
 import { reverseGeocode } from "@/services/geocodingService";
+import { useNavigate } from "react-router-dom";
 
 function TrashReport() {
   const [wasteTypes, setWasteTypes] = useState([]);
@@ -18,7 +19,7 @@ function TrashReport() {
   const [files, setFiles] = useState([]);
   const [selectedMarker, setSelectedMarker] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-
+  const navigate = useNavigate();
   const selectedWasteType = useMemo(
     () => wasteTypes.find((item) => item.wasteTypeId === selectedType),
     [wasteTypes, selectedType],
@@ -93,13 +94,17 @@ function TrashReport() {
 
     setSubmitting(true);
     try {
-      await createWasteReport(reportPayload);
+      const res = await createWasteReport(reportPayload);
       toast.success("Gửi báo cáo thành công");
+
       setSelectedType("");
       setWeight("");
       setDescription("");
       setFiles([]);
       setSelectedMarker(null);
+      setTimeout(() => {
+        navigate(`/citizen/reports/${res.data.reportId}`);
+      }, 2000);
     } catch (error) {
       toast.error(error.message || "Gửi báo cáo thất bại");
     } finally {

@@ -414,12 +414,6 @@ function Reports() {
                 </PopoverContent>
               </Popover>
             </Field>
-
-            {/* <Field className="flex items-end">
-            <Button variant="outline" className="w-full">
-              Lọc thêm
-            </Button>
-          </Field> */}
           </FieldGroup>
         </CardContent>
 
