@@ -38,7 +38,7 @@ const IconByType = ({ type, className }) => {
   return <Icon className={className} />;
 };
 
-export default function AcceptWasteConfig() {
+export default function   AcceptWasteConfig() {
   const { data, loading, error, savingId, storagePercent, toggleCategory } =
     useAcceptWasteConfig();
 
@@ -69,22 +69,6 @@ export default function AcceptWasteConfig() {
 
   return (
     <div className="space-y-6 p-4 md:p-6">
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem>Cài đặt</BreadcrumbItem>
-          <BreadcrumbSeparator>
-            <ChevronRight className="size-3.5" />
-          </BreadcrumbSeparator>
-          <BreadcrumbItem>Cấu hình hệ thống</BreadcrumbItem>
-          <BreadcrumbSeparator>
-            <ChevronRight className="size-3.5" />
-          </BreadcrumbSeparator>
-          <BreadcrumbItem>
-            <BreadcrumbPage>Cấu hình Loại rác Tiếp nhận</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">
           Cấu hình Loại rác Tiếp nhận

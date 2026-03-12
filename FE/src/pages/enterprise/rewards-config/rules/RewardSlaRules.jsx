@@ -354,10 +354,6 @@ export default function RewardSlaRules() {
 
   return (
     <div className="space-y-6">
-      <div className="text-sm text-muted-foreground">
-        Hệ thống / Quy tắc điểm thưởng
-      </div>
-
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4">
           <div>
