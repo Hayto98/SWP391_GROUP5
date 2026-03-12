@@ -38,7 +38,7 @@ const IconByType = ({ type, className }) => {
   return <Icon className={className} />;
 };
 
-export default function   AcceptWasteConfig() {
+export default function AcceptWasteConfig() {
   const { data, loading, error, savingId, storagePercent, toggleCategory } =
     useAcceptWasteConfig();
 
@@ -69,30 +69,31 @@ export default function   AcceptWasteConfig() {
 
   return (
     <div className="space-y-6 p-4 md:p-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Cấu hình Loại rác Tiếp nhận
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Xác định loại vật liệu tái chế mà doanh nghiệp có khả năng xử lý.
-        </p>
-      </div>
-
-      <Card>
-        <CardContent className="flex flex-wrap items-start justify-between gap-4 pt-6">
+      {/* ── Header ── */}
+      <Card className="mb-6">
+        <CardHeader className="py-4">
+          <CardTitle className="text-primary text-lg">
+            Cấu hình Loại rác Tiếp nhận
+          </CardTitle>
+          <p className="text-sm text-muted-foreground mt-1">
+            Xác định loại vật liệu tái chế mà doanh nghiệp có khả năng xử lý.
+          </p>
+        </CardHeader>
+        <div className="border-t border-gray-100 mx-4" />
+        <CardContent className="flex flex-wrap items-start justify-between gap-4 py-4">
           <div className="flex items-start gap-3">
-            <div className="mt-1 size-2 rounded-full bg-emerald-500" />
+            <div className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />
             <div className="space-y-1">
-              <div className="text-sm font-medium">{data.rule.title}</div>
-              <div className="text-sm text-muted-foreground">
+              <div className="text-sm font-medium text-primary">{data.rule.title}</div>
+              <div className="text-sm text-muted-foreground leading-snug">
                 {data.rule.desc}
               </div>
             </div>
           </div>
 
-          <Badge variant="secondary" className="gap-1.5">
+          <Badge className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/10 hover:text-primary gap-1.5 shadow-none pb-0.5" variant="outline">
             <CheckCircle2 className="size-3.5" />
-            {data.rule.status}
+            {data.rule.status?.toUpperCase() || "ĐANG HIỆU LỰC"}
           </Badge>
         </CardContent>
       </Card>
@@ -109,7 +110,7 @@ export default function   AcceptWasteConfig() {
               className={cn(
                 "transition-all",
                 active &&
-                  "border-primary/60 ring-1 ring-primary/20 bg-primary/10",
+                "border-primary/60 ring-1 ring-primary/20 bg-primary/10",
                 disabledCard && "opacity-70",
               )}
             >

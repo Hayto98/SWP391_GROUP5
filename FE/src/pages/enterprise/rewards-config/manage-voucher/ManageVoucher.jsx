@@ -371,8 +371,8 @@ export default function ManageVoucher() {
   const totalRedeemed = vouchers.reduce((s, v) => s + (v.total_redeemed || 0), 0);
   const avgPoints = vouchers.length
     ? Math.round(
-        vouchers.reduce((s, v) => s + v.points_required, 0) / vouchers.length,
-      )
+      vouchers.reduce((s, v) => s + v.points_required, 0) / vouchers.length,
+    )
     : 0;
 
   // ── Filtered list ──
@@ -433,20 +433,27 @@ export default function ManageVoucher() {
   const openCreate = () => {
     setEditTarget(null);
     setFormOpen(true);
-  };  return (
+  }; return (
     <div className="space-y-6">
       {/* ── Header ── */}
-      <div className="flex items-start justify-between">
-        <h1 className="text-2xl text-gray-800">Kho Voucher</h1>
-        <div className="flex items-center gap-3">
-          <Button variant="outline" className="border-green-600 text-green-600 hover:bg-green-50 hover:text-green-700 bg-white shadow-sm flex items-center gap-2 px-6">
-            <History className="size-4" /> Lịch sử
-          </Button>
-          <Button onClick={openCreate} variant="outline" className="border-green-600 text-green-600 hover:bg-green-50 hover:text-green-700 bg-white shadow-sm flex items-center gap-2 px-6">
-            <Plus className="size-4" /> Thêm mới
-          </Button>
-        </div>
-      </div>
+      <Card className="mb-6">
+        <CardHeader className="flex flex-row items-center justify-between gap-4 py-4">
+          <div>
+            <CardTitle className="text-primary text-lg">Kho Voucher</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Quản lý các voucher điểm thưởng sử dụng cho ứng dụng.
+            </p>
+          </div>
+          <div className="flex flex-shrink-0 items-center gap-3">
+            <Button variant="outline" className="border-primary text-primary hover:bg-primary/10 hover:text-primary bg-white shadow-sm flex items-center gap-2 px-6">
+              <History className="size-4" /> Lịch sử
+            </Button>
+            <Button onClick={openCreate} className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm flex items-center gap-2 px-6">
+              <Plus className="size-4" /> Thêm mới
+            </Button>
+          </div>
+        </CardHeader>
+      </Card>
 
       {/* ── Search Box ── */}
       <div className="bg-gray-100 p-6 flex flex-col items-center justify-center">
@@ -468,9 +475,8 @@ export default function ManageVoucher() {
       <div className="border-b border-gray-200 flex items-center overflow-x-auto text-base">
         <button
           onClick={() => setFilterSource("all")}
-          className={`flex-shrink-0 px-6 py-4 border-b-2 font-medium transition-colors ${
-            filterSource === "all" ? "border-primary text-primary" : "border-transparent text-gray-600 hover:text-primary"
-          }`}
+          className={`flex-shrink-0 px-6 py-4 border-b-2 font-medium transition-colors ${filterSource === "all" ? "border-primary text-primary" : "border-transparent text-gray-600 hover:text-primary"
+            }`}
         >
           Tất Cả ({vouchers.length})
         </button>
@@ -482,9 +488,8 @@ export default function ManageVoucher() {
               <button
                 key={s.value}
                 onClick={() => setFilterSource(s.value)}
-                className={`flex-shrink-0 px-6 py-4 border-b-2 font-medium transition-colors ${
-                  filterSource === s.value ? "border-primary text-primary" : "border-transparent text-gray-600 hover:text-primary"
-                }`}
+                className={`flex-shrink-0 px-6 py-4 border-b-2 font-medium transition-colors ${filterSource === s.value ? "border-primary text-primary" : "border-transparent text-gray-600 hover:text-primary"
+                  }`}
               >
                 {s.label} ({count})
               </button>
@@ -497,8 +502,8 @@ export default function ManageVoucher() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
         {filtered.map((v) => {
           return (
-            <div 
-              key={v.voucher_id} 
+            <div
+              key={v.voucher_id}
               className={`relative flex h-32 bg-white border border-gray-200 rounded-md shadow-sm overflow-hidden group ${!v.is_active ? "opacity-60" : ""}`}
             >
               {/* Left Image / Branding */}
@@ -525,7 +530,7 @@ export default function ManageVoucher() {
                 <div>
                   <h3 className="text-sm font-medium text-gray-800 pr-16 line-clamp-1">{v.voucher_name}</h3>
                   <div className="text-xs text-gray-500 mt-1 line-clamp-1">{v.terms_description || `Áp dụng toàn bộ dịch vụ`}</div>
-                  
+
                   <div className="mt-2 flex items-center gap-1.5">
                     <span className="text-[10px] px-1.5 py-0.5 border border-red-500 text-red-500 rounded-sm leading-none whitespace-nowrap">
                       HSD: {v.expiry_date}
@@ -545,14 +550,14 @@ export default function ManageVoucher() {
                     title="Bật / Tắt"
                   />
                   <div className="w-px h-5 bg-gray-200 mx-1"></div>
-                  <button 
+                  <button
                     onClick={() => handleEdit(v)}
                     className="text-gray-400 hover:text-blue-600 transition-colors"
                     title="Chỉnh sửa"
                   >
                     <Pencil className="size-4" />
                   </button>
-                  <button 
+                  <button
                     onClick={() => setDeleteTarget(v)}
                     className="text-gray-400 hover:text-red-600 transition-colors"
                     title="Xóa"

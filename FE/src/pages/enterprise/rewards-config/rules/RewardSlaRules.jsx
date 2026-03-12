@@ -354,10 +354,10 @@ export default function RewardSlaRules() {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-4">
+      <Card className="mb-6">
+        <CardHeader className="flex flex-row items-center justify-between gap-4 py-4">
           <div>
-            <CardTitle>Cấu hình Quy tắc Điểm thưởng</CardTitle>
+            <CardTitle className="text-primary text-lg">Cấu hình Quy tắc Điểm thưởng</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
               Thiết lập hệ số điểm cho các loại rác và quy tắc xử lý cho khối
               lượng lớn.
@@ -366,6 +366,7 @@ export default function RewardSlaRules() {
           <Button
             onClick={() => setShowAddModal(true)}
             disabled={adding || saving}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm flex items-center gap-2 px-6"
           >
             <Plus className="size-4" /> Thêm loại rác mới
           </Button>
