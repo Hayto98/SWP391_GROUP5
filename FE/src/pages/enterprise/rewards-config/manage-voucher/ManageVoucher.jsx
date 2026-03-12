@@ -544,9 +544,6 @@ export default function ManageVoucher() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <Button className="rounded-none px-8 font-medium">
-            Tìm kiếm
-          </Button>
         </div>
       </div>
 
