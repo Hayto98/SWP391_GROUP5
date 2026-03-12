@@ -52,7 +52,11 @@ import {
   Ticket,
   Trash2,
 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import {
+  getAllVoucherHistory,
+  recordVoucherHistory,
+} from "@/services/voucherHistory.service";
 import { toast } from "sonner";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -130,6 +134,23 @@ function getCategoryMeta(value) {
       color: "bg-gray-100 text-gray-700",
     }
   );
+}
+
+function getHistoryActionBadgeClass(action) {
+  switch (action) {
+    case "create":
+      return "bg-emerald-100 text-emerald-700 border-emerald-200";
+    case "update":
+      return "bg-blue-100 text-blue-700 border-blue-200";
+    case "delete":
+      return "bg-rose-100 text-rose-700 border-rose-200";
+    case "toggle_on":
+      return "bg-amber-100 text-amber-700 border-amber-200";
+    case "toggle_off":
+      return "bg-slate-100 text-slate-700 border-slate-200";
+    default:
+      return "bg-gray-100 text-gray-700 border-gray-200";
+  }
 }
 
 // ─── Stat Card ───────────────────────────────────────────────────────────────
@@ -365,6 +386,12 @@ export default function ManageVoucher() {
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [isHistoryDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [voucherHistoryRows, setVoucherHistoryRows] = useState([]);
+
+  const refreshVoucherHistory = useCallback(() => {
+    setVoucherHistoryRows(getAllVoucherHistory());
+  }, []);
 
   // ── Derived stats ──
   const totalActive = vouchers.filter((v) => v.is_active).length;
@@ -394,6 +421,14 @@ export default function ManageVoucher() {
           v.voucher_id === editTarget.voucher_id ? { ...v, ...data } : v,
         ),
       );
+
+      recordVoucherHistory({
+        action: "update",
+        voucherId: editTarget.voucher_id,
+        voucherCode: data.voucher_code,
+        voucherName: data.voucher_name,
+        detail: `Cập nhật voucher (${data.points_required} điểm).`,
+      });
       toast.success("Đã cập nhật voucher thành công!");
     } else {
       const newV = {
@@ -402,8 +437,18 @@ export default function ManageVoucher() {
         total_redeemed: 0,
       };
       setVouchers((prev) => [newV, ...prev]);
+
+      recordVoucherHistory({
+        action: "create",
+        voucherId: newV.voucher_id,
+        voucherCode: newV.voucher_code,
+        voucherName: newV.voucher_name,
+        detail: `Tạo voucher mới (${newV.points_required} điểm).`,
+      });
       toast.success("Đã tạo voucher mới thành công!");
     }
+
+    refreshVoucherHistory();
     setFormOpen(false);
     setEditTarget(null);
   };
@@ -415,20 +460,47 @@ export default function ManageVoucher() {
 
   const handleDelete = (v) => {
     setVouchers((prev) => prev.filter((x) => x.voucher_id !== v.voucher_id));
+
+    recordVoucherHistory({
+      action: "delete",
+      voucherId: v.voucher_id,
+      voucherCode: v.voucher_code,
+      voucherName: v.voucher_name,
+      detail: "Xóa voucher khỏi kho.",
+    });
+
+    refreshVoucherHistory();
     setDeleteTarget(null);
     toast.success(`Đã xóa voucher "${v.voucher_name}"`);
   };
 
   const handleToggle = (v) => {
+    const nextActive = !v.is_active;
+
     setVouchers((prev) =>
       prev.map((x) =>
-        x.voucher_id === v.voucher_id ? { ...x, is_active: !x.is_active } : x,
+        x.voucher_id === v.voucher_id ? { ...x, is_active: nextActive } : x,
       ),
     );
+
+    recordVoucherHistory({
+      action: nextActive ? "toggle_on" : "toggle_off",
+      voucherId: v.voucher_id,
+      voucherCode: v.voucher_code,
+      voucherName: v.voucher_name,
+      detail: nextActive ? "Bật hiển thị voucher." : "Tạm tắt voucher.",
+    });
+
+    refreshVoucherHistory();
     toast.success(
       `Voucher "${v.voucher_name}" ${v.is_active ? "đã tắt" : "đã bật"}.`,
     );
   };
+
+  useEffect(() => {
+    if (!isHistoryDialogOpen) return;
+    refreshVoucherHistory();
+  }, [isHistoryDialogOpen, refreshVoucherHistory]);
 
   const openCreate = () => {
     setEditTarget(null);
@@ -445,7 +517,14 @@ export default function ManageVoucher() {
             </p>
           </div>
           <div className="flex flex-shrink-0 items-center gap-3">
-            <Button variant="outline" className="border-primary text-primary hover:bg-primary/10 hover:text-primary bg-white shadow-sm flex items-center gap-2 px-6">
+            <Button
+              variant="outline"
+              className="border-primary text-primary hover:bg-primary/10 hover:text-primary bg-white shadow-sm flex items-center gap-2 px-6"
+              onClick={() => {
+                refreshVoucherHistory();
+                setHistoryDialogOpen(true);
+              }}
+            >
               <History className="size-4" /> Lịch sử
             </Button>
             <Button onClick={openCreate} className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm flex items-center gap-2 px-6">
@@ -570,6 +649,67 @@ export default function ManageVoucher() {
           );
         })}
       </div>
+
+      <Dialog open={isHistoryDialogOpen} onOpenChange={setHistoryDialogOpen}>
+        <DialogContent
+          className="max-w-none p-0"
+          style={{
+            width: "92vw",
+            maxWidth: 960,
+            maxHeight: "86vh",
+            overflow: "auto",
+          }}
+        >
+          <div className="p-6 space-y-4">
+            <DialogHeader>
+              <DialogTitle>Toàn bộ lịch sử thao tác voucher</DialogTitle>
+              <DialogDescription>
+                Tổng số lịch sử: {voucherHistoryRows.length}
+              </DialogDescription>
+            </DialogHeader>
+
+            {!voucherHistoryRows.length ? (
+              <div className="text-sm text-muted-foreground">
+                Chưa có lịch sử thao tác voucher nào.
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Thời điểm</TableHead>
+                    <TableHead>Hành động</TableHead>
+                    <TableHead>Voucher</TableHead>
+                    <TableHead>Mã voucher</TableHead>
+                    <TableHead>Ghi chú</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {voucherHistoryRows.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell>
+                        {item.createdAtText || item.createdAt || "-"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={getHistoryActionBadgeClass(item.action)}
+                        >
+                          {item.actionLabel || item.action || "-"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {item.voucherName || "-"}
+                      </TableCell>
+                      <TableCell>{item.voucherCode || "-"}</TableCell>
+                      <TableCell>{item.detail || "-"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Dialogs ── */}
       <VoucherFormDialog
