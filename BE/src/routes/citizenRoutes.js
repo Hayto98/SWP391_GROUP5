@@ -6,5 +6,8 @@ const citizenController = require('../controllers/Citizen/citizenController')
 // GET /citizen/me/points
 router.get('/me/points', verifyToken, citizenController.getMyPoints)
 
+// GET /citizen/points/history
+router.get('/points/history', verifyToken, citizenController.getPointHistory)
+
 module.exports = router
 
