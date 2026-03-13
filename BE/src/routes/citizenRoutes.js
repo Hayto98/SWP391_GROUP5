@@ -7,3 +7,4 @@ const citizenController = require('../controllers/Citizen/citizenController')
 router.get('/me/points', verifyToken, citizenController.getMyPoints)
 
 module.exports = router
+
