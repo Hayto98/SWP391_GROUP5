@@ -263,7 +263,28 @@ async function updateVoucher(voucherId, payload) {
   }
 }
 
+/**
+ * BE: Xóa (Soft delete) Voucher
+ * DELETE /enterprise/vouchers/:voucherId
+ */
+async function deleteVoucher(voucherId) {
+  // 1. Check if voucher exists
+  const existingVoucher = await voucherRepository.findById(voucherId)
+  if (!existingVoucher) {
+    throw new ApiError(404, 'Voucher không tồn tại')
+  }
+
+  // 2. Perform soft delete
+  await voucherRepository.updateVoucher(voucherId, { is_active: 0 })
+
+  return {
+    success: true,
+    message: 'Đã xóa voucher thành công'
+  }
+}
+
 module.exports = {
   createVoucher,
-  updateVoucher
+  updateVoucher,
+  deleteVoucher
 }

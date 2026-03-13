@@ -36,7 +36,20 @@ async function updateVoucher(req, res, next) {
   }
 }
 
+/**
+ * DELETE /enterprise/vouchers/:voucherId - Xóa Voucher (Soft Delete)
+ */
+async function deleteVoucher(req, res, next) {
+  try {
+    const result = await voucherService.deleteVoucher(req.params.voucherId)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
 module.exports = {
   createVoucher,
-  updateVoucher
+  updateVoucher,
+  deleteVoucher
 }

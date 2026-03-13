@@ -132,4 +132,9 @@ router.post('/vouchers', uploadSingle, voucherController.createVoucher)
  */
 router.put('/vouchers/:voucherId', uploadSingle, voucherController.updateVoucher)
 
+/**
+ * DELETE /enterprise/vouchers/:voucherId - Xóa Voucher (Soft delete)
+ */
+router.delete('/vouchers/:voucherId', voucherController.deleteVoucher)
+
 module.exports = router
