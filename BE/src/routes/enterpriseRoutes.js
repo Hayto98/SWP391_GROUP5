@@ -2,6 +2,7 @@ const express = require('express')
 const enterpriseController = require('../controllers/Enterprise/enterpriseController')
 const enterpriseReportController = require('../controllers/Enterprise/enterpriseReportController')
 const enterpriseCollectorController = require('../controllers/Enterprise/enterpriseCollectorController')
+const voucherController = require('../controllers/Enterprise/voucherController')
 const { verifyToken } = require('../middlewares/authMiddleware')
 const { requireRole } = require('../middlewares/roleMiddleware')
 const { ROLES } = require('../utils/constants')
@@ -116,5 +117,14 @@ router.post('/reports/:reportId/reject', enterpriseReportController.rejectReport
  * Request body: { collectorUserAccountId }
  */
 router.post('/reports/:reportId/assign', enterpriseReportController.assignReport)
+
+// ==================== VOUCHER ROUTES ====================
+
+const { uploadSingle } = require('../middlewares/upload')
+
+/**
+ * POST /enterprise/vouchers - Tạo Voucher mới (Supports multipart/form-data)
+ */
+router.post('/vouchers', uploadSingle, voucherController.createVoucher)
 
 module.exports = router

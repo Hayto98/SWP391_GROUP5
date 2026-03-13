@@ -8,10 +8,10 @@ const OTP_TYPE = 'EMAIL_OTP'
  */
 async function saveOtp(userAccountId, otp, expiredAt) {
   // Xóa các OTP EMAIL_OTP cũ của user này
-  await db.execute(
-    `DELETE FROM userverificationtoken WHERE user_account_id = ? AND verification_type = ?`,
-    [userAccountId, OTP_TYPE]
-  )
+  await db.execute(`DELETE FROM userverificationtoken WHERE user_account_id = ? AND verification_type = ?`, [
+    userAccountId,
+    OTP_TYPE
+  ])
 
   const verificationTokenId = uuidv4()
   await db.execute(
@@ -46,10 +46,9 @@ async function findValidOtp(userAccountId, otp) {
  * Đánh dấu OTP đã sử dụng
  */
 async function markOtpUsed(verificationTokenId) {
-  await db.execute(
-    `UPDATE userverificationtoken SET is_used = TRUE WHERE verification_token_id = ?`,
-    [verificationTokenId]
-  )
+  await db.execute(`UPDATE userverificationtoken SET is_used = TRUE WHERE verification_token_id = ?`, [
+    verificationTokenId
+  ])
 }
 
 module.exports = { saveOtp, findValidOtp, markOtpUsed }
