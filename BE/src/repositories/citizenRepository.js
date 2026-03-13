@@ -47,9 +47,10 @@ async function findPointTransactions(citizenId, { fromDate, toDate, type, page =
 
   // const offset = (Math.max(1, Number(page)) - 1) * Number(limit)
   const safePage = Number(page) > 0 ? Number(page) : 1
-const safeLimit = Number(limit) > 0 ? Number(limit) : 20
+  let safeLimit = Number(limit) > 0 ? Number(limit) : 20
 
-const offset = (safePage - 1) * safeLimit
+  const offset = Number((safePage - 1) * safeLimit)
+  safeLimit = Number(safeLimit)
   const sql = `SELECT
       pt.point_transaction_id AS transactionId,
       CASE WHEN pt.points_delta > 0 THEN 'EARN' ELSE 'REDEEM' END AS type,
@@ -62,7 +63,14 @@ const offset = (safePage - 1) * safeLimit
     ORDER BY pt.created_at DESC
     LIMIT ? OFFSET ?`
 
-  // params.push(Number(limit), offset)
+  // debug: log SQL and params to help trace mismatches
+  try {
+    console.debug('findPointTransactions SQL:', sql)
+    console.debug('findPointTransactions params:', params.concat([safeLimit, offset]))
+  } catch (e) {
+    // ignore logging errors
+  }
+
   params.push(safeLimit, offset)
   try {
     const [rows] = await db.execute(sql, params)

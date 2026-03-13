@@ -22,4 +22,4 @@ async function redeem(req, res, next) {
   }
 }
 
-module.exports = { listAvailable }
+module.exports = { listAvailable, redeem }
