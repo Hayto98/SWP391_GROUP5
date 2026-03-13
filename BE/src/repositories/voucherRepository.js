@@ -1,5 +1,4 @@
 const db = require('../config/database')
-<<<<<<< HEAD
 
 async function findAvailable({ page = 1, limit = 20 } = {}) {
   const safePage = Number(page) > 0 ? Number(page) : 1
@@ -67,7 +66,6 @@ async function insertVoucherRedemption(connection, { redemptionId, voucherId, ci
 
 module.exports = { findAvailable }
 
-=======
 const { v4: uuidv4 } = require('uuid')
 
 // ==================== CREATE ====================
@@ -132,4 +130,3 @@ module.exports = {
   insertVoucher,
   findByVoucherCode
 }
->>>>>>> 88d43711b31bf7d2ae479d3db3ca229e135e75ed

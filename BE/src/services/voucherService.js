@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 const voucherRepository = require('../repositories/voucherRepository')
 const userRepository = require('../repositories/userRepository')
 const citizenRepository = require('../repositories/citizenRepository')
@@ -98,13 +97,11 @@ async function redeemVoucher(userAccountId, voucherId) {
 }
 
 module.exports = { getAvailableVouchers, redeemVoucher }
-=======
 const { v4: uuidv4 } = require('uuid')
 const voucherRepository = require('../repositories/voucherRepository')
 const ApiError = require('../errors/ApiError')
 const cloudinary = require('../config/cloudinary')
 const sharp = require('sharp')
-
 // ==================== HELPERS ====================
 
 /**
@@ -240,4 +237,3 @@ async function createVoucher(payload) {
 module.exports = {
   createVoucher
 }
->>>>>>> 88d43711b31bf7d2ae479d3db3ca229e135e75ed
