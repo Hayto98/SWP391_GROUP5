@@ -31,6 +31,7 @@ import EnterpriseReportDetail from "@/pages/enterprise/reports/detail/ReportDeta
 import EnterprisePendingReports from "@/pages/enterprise/reports/pending/PendingReports";
 import EnterpriseRewardsConfig from "@/pages/enterprise/rewards-config/RewardsConfig";
 import EnterpriseAcceptWasteConfig from "@/pages/enterprise/rewards-config/accept-waste/AcceptWasteConfig";
+import EnterpriseManageVoucher from "@/pages/enterprise/rewards-config/manage-voucher/ManageVoucher";
 import EnterpriseRewardSlaRules from "@/pages/enterprise/rewards-config/rules/RewardSlaRules";
 import Warehouse from "@/pages/enterprise/warehouse/Warehouse";
 
@@ -148,6 +149,10 @@ function AppRoutes() {
               <Route
                 path="rewards-config/rules"
                 element={<EnterpriseRewardSlaRules />}
+              />
+              <Route
+                path="rewards-config/manage-voucher"
+                element={<EnterpriseManageVoucher />}
               />
               <Route
                 path="complaints/escalation"
