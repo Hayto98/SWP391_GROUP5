@@ -142,4 +142,9 @@ router.delete('/vouchers/:voucherId', voucherController.deleteVoucher)
  */
 router.get('/vouchers', voucherController.getVouchers)
 
+/**
+ * GET /enterprise/vouchers/:voucherId - Chi tiết Voucher
+ */
+router.get('/vouchers/:voucherId', voucherController.getVoucherById)
+
 module.exports = router

@@ -60,9 +60,24 @@ async function getVouchers(req, res, next) {
   }
 }
 
+/**
+ * GET /enterprise/vouchers/:voucherId - Chi tiết Voucher
+ */
+async function getVoucherById(req, res, next) {
+  try {
+    // Relying on authMiddleware injecting req.user. We'll fallback to roleId if role string isn't there
+    const userRole = req.user?.role || req.user?.roleId
+    const result = await voucherService.getVoucherById(req.params.voucherId, userRole)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
 module.exports = {
   createVoucher,
   updateVoucher,
   deleteVoucher,
-  getVouchers
+  getVouchers,
+  getVoucherById
 }

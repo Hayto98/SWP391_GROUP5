@@ -338,9 +338,66 @@ async function getVouchers(queryParams) {
   }
 }
 
+/**
+ * BE: Lấy chi tiết một Voucher theo ID
+ * GET /enterprise/vouchers/:voucherId
+ */
+async function getVoucherById(voucherId, userRole) {
+  const { ROLES } = require('../utils/constants')
+  // Check if role is Enterprise (can be roleId or role name string depending on auth setup)
+  if (userRole !== ROLES.ENTERPRISE && userRole !== 'ENTERPRISE') {
+    throw new ApiError(403, 'Bạn không có quyền truy cập voucher này. Chỉ dành cho Enterprise.')
+  }
+
+  const voucher = await voucherRepository.getVoucherByIdWithRedemptionCount(voucherId)
+  if (!voucher) {
+    throw new ApiError(404, 'Voucher không tồn tại')
+  }
+
+  // 1. Determine status
+  let status = 'ACTIVE'
+  if (voucher.is_active === 0) {
+    status = 'INACTIVE'
+  } else if (voucher.valid_to && new Date(voucher.valid_to) < new Date()) {
+    status = 'EXPIRED'
+  } else if (voucher.quantity_remaining === 0) {
+    status = 'SOLD_OUT'
+  }
+
+  // 2. Extract embedded URL if exists
+  let desc = voucher.description || ''
+  let parsedFileUri = null
+  if (desc.includes('|||')) {
+      const parts = desc.split('|||')
+      desc = parts[0].trim()
+      parsedFileUri = parts[1].trim()
+  } else if (/^https?:\/\//i.test(desc)) {
+      parsedFileUri = desc
+      desc = ''
+  }
+
+  // 3. Map to specific return format
+  return {
+    success: true,
+    data: {
+      voucherId: voucher.voucher_id,
+      voucherCode: voucher.voucher_code,
+      title: voucher.title,
+      description: desc,
+      pointsRequired: voucher.points_required,
+      fileUri: parsedFileUri,
+      status,
+      expiryDate: voucher.valid_to,
+      redeemedCount: Number(voucher.redeemed_count) || 0,
+      createdAt: voucher.created_at
+    }
+  }
+}
+
 module.exports = {
   createVoucher,
   updateVoucher,
   deleteVoucher,
-  getVouchers
+  getVouchers,
+  getVoucherById
 }

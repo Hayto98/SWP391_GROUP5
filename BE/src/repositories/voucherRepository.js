@@ -69,6 +69,23 @@ async function findById(voucherId) {
 }
 
 /**
+ * Lấy Voucher theo voucherId kèm số lượng đã đổi
+ * @param {string} voucherId
+ * @returns {Promise<object|null>}
+ */
+async function getVoucherByIdWithRedemptionCount(voucherId) {
+  const query = `
+    SELECT v.*, COUNT(vr.voucher_redemption_id) as redeemed_count
+    FROM voucher v
+    LEFT JOIN voucherredemption vr ON v.voucher_id = vr.voucher_id
+    WHERE v.voucher_id = ?
+    GROUP BY v.voucher_id
+  `
+  const [rows] = await db.execute(query, [voucherId])
+  return rows[0] || null
+}
+
+/**
  * Lấy danh sách Vouchers có phân trang
  * @param {object} params
  * @param {number} params.limit
@@ -151,6 +168,7 @@ module.exports = {
   insertVoucher,
   findByVoucherCode,
   findById,
+  getVoucherByIdWithRedemptionCount,
   getVouchers,
   updateVoucher
 }
