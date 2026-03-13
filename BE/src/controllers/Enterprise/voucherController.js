@@ -19,6 +19,24 @@ async function createVoucher(req, res, next) {
   }
 }
 
+/**
+ * PUT /enterprise/vouchers/:voucherId - Cập nhật Voucher
+ */
+async function updateVoucher(req, res, next) {
+  try {
+    const payload = {
+      ...req.body,
+      fileBuffer: req.file?.buffer,
+      fileMimetype: req.file?.mimetype
+    }
+    const result = await voucherService.updateVoucher(req.params.voucherId, payload)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
 module.exports = {
-  createVoucher
+  createVoucher,
+  updateVoucher
 }

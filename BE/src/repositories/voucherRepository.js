@@ -58,8 +58,73 @@ async function findByVoucherCode(voucherCode) {
   const [rows] = await db.execute('SELECT * FROM voucher WHERE voucher_code = ?', [voucherCode])
   return rows[0] || null
 }
+/**
+ * Lấy Voucher theo voucherId
+ * @param {string} voucherId
+ * @returns {Promise<object|null>}
+ */
+async function findById(voucherId) {
+  const [rows] = await db.execute('SELECT * FROM voucher WHERE voucher_id = ?', [voucherId])
+  return rows[0] || null
+}
+
+// ==================== UPDATE ====================
+
+/**
+ * Cập nhật thông tin Voucher
+ * @param {string} voucherId
+ * @param {object} updateData
+ * @returns {Promise<boolean>}
+ */
+async function updateVoucher(voucherId, updateData) {
+  const fields = []
+  const values = []
+
+  if (updateData.title !== undefined) {
+    fields.push('title = ?')
+    values.push(updateData.title)
+  }
+  if (updateData.description !== undefined) {
+    fields.push('description = ?')
+    values.push(updateData.description)
+  }
+  if (updateData.points_required !== undefined) {
+    fields.push('points_required = ?')
+    values.push(updateData.points_required)
+  }
+  if (updateData.quantity_total !== undefined) {
+    fields.push('quantity_total = ?')
+    values.push(updateData.quantity_total)
+  }
+  if (updateData.quantity_remaining !== undefined) {
+    fields.push('quantity_remaining = ?')
+    values.push(updateData.quantity_remaining)
+  }
+  if (updateData.valid_from !== undefined) {
+    fields.push('valid_from = ?')
+    values.push(updateData.valid_from)
+  }
+  if (updateData.valid_to !== undefined) {
+    fields.push('valid_to = ?')
+    values.push(updateData.valid_to)
+  }
+  if (updateData.is_active !== undefined) {
+    fields.push('is_active = ?')
+    values.push(updateData.is_active)
+  }
+
+  if (fields.length === 0) return true
+
+  const query = `UPDATE voucher SET ${fields.join(', ')} WHERE voucher_id = ?`
+  values.push(voucherId)
+
+  const [result] = await db.execute(query, values)
+  return result.affectedRows > 0
+}
 
 module.exports = {
   insertVoucher,
-  findByVoucherCode
+  findByVoucherCode,
+  findById,
+  updateVoucher
 }

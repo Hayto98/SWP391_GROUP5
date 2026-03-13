@@ -127,4 +127,9 @@ const { uploadSingle } = require('../middlewares/upload')
  */
 router.post('/vouchers', uploadSingle, voucherController.createVoucher)
 
+/**
+ * PUT /enterprise/vouchers/:voucherId - Cập nhật Voucher (Supports multipart/form-data)
+ */
+router.put('/vouchers/:voucherId', uploadSingle, voucherController.updateVoucher)
+
 module.exports = router

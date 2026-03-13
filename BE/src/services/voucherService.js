@@ -136,6 +136,134 @@ async function createVoucher(payload) {
   }
 }
 
+/**
+ * BE: Cập nhật Voucher
+ * PUT /enterprise/vouchers/:voucherId
+ */
+async function updateVoucher(voucherId, payload) {
+  const {
+    title,
+    description,
+    pointsRequired,
+    points_required,
+    quantityTotal,
+    quantity_total,
+    validFrom,
+    valid_from,
+    validTo,
+    valid_to,
+    isActive,
+    is_active,
+    fileUri,
+    file_uri,
+    fileBuffer,
+    fileMimetype
+  } = payload
+
+  // 1. Check if voucher exists
+  const existingVoucher = await voucherRepository.findById(voucherId)
+  if (!existingVoucher) {
+    throw new ApiError(404, 'Voucher không tồn tại')
+  }
+
+  // 2. Validate and build update data
+  const updateData = {}
+
+  if (title !== undefined) {
+    if (!title.trim()) throw new ApiError(400, 'title không được để trống')
+    updateData.title = title.trim()
+  }
+
+  // 3. Handle file upload combined with description mapping
+  let imageUrl = undefined
+  if (fileBuffer) {
+    imageUrl = await uploadBufferToCloudinary(fileBuffer, fileMimetype || 'image/jpeg')
+  } else if (file_uri !== undefined) {
+    imageUrl = file_uri
+  }
+
+  if (description !== undefined) {
+    // If description is provided but we also got a new image, map image to description as a hack per current DB constraint
+    const cleanedDesc = description.trim() ? description.trim() : null
+    updateData.description = cleanedDesc
+  }
+  
+  // Apply image URL directly to description if explicitly requested and DB has no fileUri
+  if (imageUrl !== undefined) {
+    if (!updateData.description && !existingVoucher.description) {
+        updateData.description = imageUrl
+    }
+  }
+
+  if (pointsRequired !== undefined || points_required !== undefined) {
+    const pReq = pointsRequired ?? points_required
+    const points = Number(pReq)
+    if (isNaN(points) || points < 0) throw new ApiError(400, 'points_required phải >= 0')
+    updateData.points_required = points
+  }
+
+  if (quantityTotal !== undefined || quantity_total !== undefined) {
+    const qTot = quantityTotal ?? quantity_total
+    const qtyTotal = Number(qTot)
+    if (isNaN(qtyTotal) || qtyTotal <= 0) throw new ApiError(400, 'quantity_total phải > 0')
+
+    const oldTotal = existingVoucher.quantity_total
+    const oldRemaining = existingVoucher.quantity_remaining
+    const updatedRemaining = oldRemaining + (qtyTotal - oldTotal)
+    
+    if (updatedRemaining < 0) {
+      throw new ApiError(400, 'Tống số lượng mới sẽ thấp hơn số voucher đã được người dùng đổi')
+    }
+
+    updateData.quantity_total = qtyTotal
+    updateData.quantity_remaining = updatedRemaining
+  }
+
+  const finalValidFrom = validFrom ?? valid_from
+  if (finalValidFrom !== undefined) {
+    updateData.valid_from = finalValidFrom
+  }
+
+  const finalValidTo = validTo ?? valid_to
+  if (finalValidTo !== undefined) {
+    updateData.valid_to = finalValidTo
+  }
+
+  // Validate dates if both or either are updated
+  const newValidFrom = updateData.valid_from || existingVoucher.valid_from
+  const newValidTo = updateData.valid_to || existingVoucher.valid_to
+  if (new Date(newValidFrom) >= new Date(newValidTo)) {
+    throw new ApiError(400, 'valid_to test phái sau valid_from')
+  }
+
+  const finalIsActive = isActive ?? is_active
+  if (finalIsActive !== undefined) {
+    // accept boolean or 1/0 string
+    updateData.is_active = (finalIsActive === true || finalIsActive === 'true' || finalIsActive === 1 || finalIsActive === '1') ? 1 : 0
+  }
+
+  // 4. Update
+  await voucherRepository.updateVoucher(voucherId, updateData)
+
+  // 5. Fetch updated
+  const updatedVoucher = await voucherRepository.findById(voucherId)
+
+  return {
+    voucherId: updatedVoucher.voucher_id,
+    voucherCode: updatedVoucher.voucher_code,
+    title: updatedVoucher.title,
+    description: updatedVoucher.description || '',
+    pointsRequired: updatedVoucher.points_required,
+    quantityTotal: updatedVoucher.quantity_total,
+    quantityRemaining: updatedVoucher.quantity_remaining,
+    validFrom: updatedVoucher.valid_from,
+    validTo: updatedVoucher.valid_to,
+    fileUri: imageUrl || undefined, 
+    isActive: updatedVoucher.is_active === 1
+  }
+}
+
 module.exports = {
-  createVoucher
+  createVoucher,
+  updateVoucher
 }
