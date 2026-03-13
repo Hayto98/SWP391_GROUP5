@@ -48,8 +48,21 @@ async function deleteVoucher(req, res, next) {
   }
 }
 
+/**
+ * GET /enterprise/vouchers - Danh sách Voucher
+ */
+async function getVouchers(req, res, next) {
+  try {
+    const result = await voucherService.getVouchers(req.query)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
 module.exports = {
   createVoucher,
   updateVoucher,
-  deleteVoucher
+  deleteVoucher,
+  getVouchers
 }

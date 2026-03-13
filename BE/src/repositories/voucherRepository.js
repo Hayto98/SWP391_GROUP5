@@ -68,6 +68,31 @@ async function findById(voucherId) {
   return rows[0] || null
 }
 
+/**
+ * Lấy danh sách Vouchers có phân trang
+ * @param {object} params
+ * @param {number} params.limit
+ * @param {number} params.offset
+ * @returns {Promise<{data: Array, total: number}>}
+ */
+async function getVouchers({ limit, offset }) {
+  const dataQuery = `
+    SELECT * FROM voucher 
+    ORDER BY created_at DESC 
+    LIMIT ? OFFSET ?
+  `
+  const countQuery = `SELECT COUNT(*) as total FROM voucher`
+
+  // We have to cast values as string to ensure mysql2 treats them as numeric when passing to LIMIT inside prepared statements safely depending on driver configs, or just pass integers. Usually integers work fine.
+  const [rows] = await db.execute(dataQuery, [String(limit), String(offset)])
+  const [countResult] = await db.execute(countQuery)
+
+  return {
+    data: rows,
+    total: countResult[0].total
+  }
+}
+
 // ==================== UPDATE ====================
 
 /**
@@ -126,5 +151,6 @@ module.exports = {
   insertVoucher,
   findByVoucherCode,
   findById,
+  getVouchers,
   updateVoucher
 }

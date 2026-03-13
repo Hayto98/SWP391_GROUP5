@@ -137,4 +137,9 @@ router.put('/vouchers/:voucherId', uploadSingle, voucherController.updateVoucher
  */
 router.delete('/vouchers/:voucherId', voucherController.deleteVoucher)
 
+/**
+ * GET /enterprise/vouchers - Danh sách Voucher
+ */
+router.get('/vouchers', voucherController.getVouchers)
+
 module.exports = router

@@ -105,11 +105,17 @@ async function createVoucher(payload) {
   const quantityRemaining = quantityTotal // Default to total
   const isActive = 1 // Default to active true/1
 
+  // Hack: Since DB has no file_uri column, embed it in description separating by a known delimiter `|||` if both exist.
+  let finalDescription = description ? description.trim() : ''
+  if (imageUrl) {
+      finalDescription = finalDescription ? `${finalDescription} ||| ${imageUrl}` : imageUrl
+  }
+
   const voucherData = {
     voucherId,
     voucherCode: formattedVoucherCode,
     title: title.trim(),
-    description: description ? description.trim() : imageUrl || null, // Temporary workaround since DB has no file_uri column. Can append to description or something, but following exact schema for DB insertions, I'll prefer ignoring or saving to description if req dictates. Let's stick strictly to DB columns per schema. Actually the simplest is to ignore file_uri in the DB insert unless DB gets updated. Wait, I will just ignore it in DB inserting as instructed by the user's implicit approval of my plan, but I will return it in the mapped response so the user sees it works! No wait, the user's postman payload has `fileUri` which I should return. Let's just return what was generated.
+    description: finalDescription || null,
     pointsRequired: Number(pointsRequired),
     quantityTotal: Number(quantityTotal),
     quantityRemaining: Number(quantityRemaining),
@@ -183,16 +189,16 @@ async function updateVoucher(voucherId, payload) {
   }
 
   if (description !== undefined) {
-    // If description is provided but we also got a new image, map image to description as a hack per current DB constraint
-    const cleanedDesc = description.trim() ? description.trim() : null
-    updateData.description = cleanedDesc
+    updateData.description = description.trim() ? description.trim() : null
   }
   
-  // Apply image URL directly to description if explicitly requested and DB has no fileUri
   if (imageUrl !== undefined) {
-    if (!updateData.description && !existingVoucher.description) {
-        updateData.description = imageUrl
+    let currentDesc = updateData.description !== undefined ? updateData.description : (existingVoucher.description || '')
+    // remove any existing embedded image
+    if (currentDesc && currentDesc.includes('|||')) {
+       currentDesc = currentDesc.split('|||')[0].trim()
     }
+    updateData.description = currentDesc ? `${currentDesc} ||| ${imageUrl}` : imageUrl
   }
 
   if (pointsRequired !== undefined || points_required !== undefined) {
@@ -283,8 +289,58 @@ async function deleteVoucher(voucherId) {
   }
 }
 
+/**
+ * BE: Lấy danh sách Voucher
+ * GET /enterprise/vouchers
+ */
+async function getVouchers(queryParams) {
+  const page = Math.max(1, Number(queryParams.page) || 1)
+  const limit = Math.max(1, Number(queryParams.limit) || 10)
+  const offset = (page - 1) * limit
+
+  const { data, total } = await voucherRepository.getVouchers({ limit, offset })
+
+  // Transform fields as per requirements
+  const formattedData = data.map((v) => {
+    let desc = v.description || ''
+    let parsedFileUri = null
+    
+    // Extract embedded URL if exists
+    if (desc.includes('|||')) {
+        const parts = desc.split('|||')
+        desc = parts[0].trim()
+        parsedFileUri = parts[1].trim()
+    } else if (/^https?:\/\//i.test(desc)) {
+        parsedFileUri = desc
+        desc = '' // Assuming description was just the URL
+    }
+
+    return {
+      voucherCode: v.voucher_code,
+      title: v.title,
+      description: desc, // Optionally return cleaned description
+      fileUri: parsedFileUri,
+      pointsRequired: v.points_required,
+      quantityTotal: v.quantity_total,
+      quantityRemaining: v.quantity_remaining,
+      redeemedCount: v.quantity_total - v.quantity_remaining
+    }
+  })
+
+  return {
+    success: true,
+    data: formattedData,
+    pagination: {
+      page,
+      limit,
+      total
+    }
+  }
+}
+
 module.exports = {
   createVoucher,
   updateVoucher,
-  deleteVoucher
+  deleteVoucher,
+  getVouchers
 }
