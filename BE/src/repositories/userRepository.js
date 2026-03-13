@@ -206,6 +206,10 @@ async function updateRole(userAccountId, roleId) {
   await db.execute('UPDATE useraccount SET role_id = ? WHERE user_account_id = ?', [roleId, userAccountId])
 }
 
+async function verifyEmail(userAccountId) {
+  await db.execute('UPDATE useraccount SET email_verified = 1 WHERE user_account_id = ?', [userAccountId])
+}
+
 async function updateLockStatus(userAccountId, isLocked) {
   const locked = isLocked ? 1 : 0
   await db.execute(
@@ -310,6 +314,7 @@ module.exports = {
   createUser,
   update,
   updateRole,
+  verifyEmail,
   updateLockStatus,
   updateFailedLoginCount,
   updateLastLogin,
