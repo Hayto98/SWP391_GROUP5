@@ -170,8 +170,45 @@ async function updateVoucher(voucherId, updateData) {
   return result.affectedRows > 0
 }
 
+/**
+ * Insert a voucher using an existing connection (for transaction safety).
+ * Same query as insertVoucher but runs on the provided connection.
+ *
+ * @param {object} voucherData
+ * @param {import('mysql2/promise').PoolConnection} connection
+ * @returns {Promise<boolean>}
+ */
+async function insertVoucherWithConnection(voucherData, connection) {
+  const query = `
+    INSERT INTO voucher (
+      voucher_id, voucher_code, title, description,
+      points_required, quantity_total, quantity_remaining,
+      valid_from, valid_to, file_uri, is_active, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `
+
+  const values = [
+    voucherData.voucherId,
+    voucherData.voucherCode,
+    voucherData.title,
+    voucherData.description || null,
+    voucherData.pointsRequired,
+    voucherData.quantityTotal,
+    voucherData.quantityRemaining,
+    voucherData.validFrom,
+    voucherData.validTo,
+    voucherData.fileUri || null,
+    voucherData.isActive,
+    voucherData.createdAt
+  ]
+
+  const [result] = await connection.execute(query, values)
+  return result.affectedRows > 0
+}
+
 module.exports = {
   insertVoucher,
+  insertVoucherWithConnection,
   findByVoucherCode,
   findById,
   getVoucherByIdWithRedemptionCount,

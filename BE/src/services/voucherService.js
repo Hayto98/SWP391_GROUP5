@@ -1,8 +1,10 @@
 const { v4: uuidv4 } = require('uuid')
 const voucherRepository = require('../repositories/voucherRepository')
+const voucherSequenceRepository = require('../repositories/voucherSequenceRepository')
 const ApiError = require('../errors/ApiError')
 const cloudinary = require('../config/cloudinary')
 const sharp = require('sharp')
+const db = require('../config/database')
 
 // ==================== HELPERS ====================
 
@@ -38,15 +40,32 @@ async function uploadBufferToCloudinary(buffer, mimetype) {
   })
 }
 
+// ==================== VOUCHER CODE GENERATION ====================
+
+/**
+ * Generates a formatted voucher code: VC-YYYY-XXXX
+ * Uses atomic sequence from VoucherSequence table.
+ *
+ * @returns {Promise<string>} e.g. "VC-2026-0001"
+ */
+async function generateVoucherCode() {
+  const currentYear = new Date().getFullYear()
+  const sequenceNumber = await voucherSequenceRepository.getNextSequence(currentYear)
+  const paddedSequence = String(sequenceNumber).padStart(4, '0')
+  return `VC-${currentYear}-${paddedSequence}`
+}
+
 // ==================== VOUCHER SERVICES ====================
 
 /**
  * BE: Tạo Voucher mới
  * POST /enterprise/vouchers
+ *
+ * voucher_code is auto-generated (VC-YYYY-XXXX).
+ * The client must NOT send voucherCode in the request body.
  */
 async function createVoucher(payload) {
   const {
-    voucherCode,
     title,
     description,
     pointsRequired,
@@ -59,9 +78,6 @@ async function createVoucher(payload) {
   } = payload
 
   // 1. Validate required fields
-  if (!voucherCode || !voucherCode.trim()) {
-    throw new ApiError(400, 'voucherCode is required')
-  }
   if (!title || !title.trim()) {
     throw new ApiError(400, 'title is required')
   }
@@ -83,13 +99,7 @@ async function createVoucher(payload) {
     throw new ApiError(400, 'validTo must be strictly after validFrom')
   }
 
-  // 2. Check for duplicate voucher code
-  const existingVoucher = await voucherRepository.findByVoucherCode(voucherCode.trim())
-  if (existingVoucher) {
-    throw new ApiError(409, 'Voucher with this code already exists')
-  }
-
-  // 3. Handle file upload (if any)
+  // 2. Handle file upload (if any)
   let imageUrl = null
   if (fileBuffer) {
     imageUrl = await uploadBufferToCloudinary(fileBuffer, fileMimetype || 'image/jpeg')
@@ -97,45 +107,59 @@ async function createVoucher(payload) {
     imageUrl = fileUri
   }
 
-  // 4. Prepare data for insertion
+  // 3. Generate voucher_code and insert inside a transaction
   const voucherId = uuidv4()
   const createdAt = new Date()
-  
-  const formattedVoucherCode = voucherCode.trim()
-  const quantityRemaining = quantityTotal // Default to total
-  const isActive = 1 // Default to active true/1
+  const quantityRemaining = quantityTotal
+  const isActive = 1
 
   const finalDescription = description ? description.trim() : null
 
-  const voucherData = {
-    voucherId,
-    voucherCode: formattedVoucherCode,
+  const connection = await db.getConnection()
+  let voucherCode
+  try {
+    await connection.beginTransaction()
+
+    // Generate unique voucher code atomically
+    voucherCode = await generateVoucherCode()
+
+    const voucherData = {
+      voucherId,
+      voucherCode,
+      title: title.trim(),
+      description: finalDescription,
+      pointsRequired: Number(pointsRequired),
+      quantityTotal: Number(quantityTotal),
+      quantityRemaining: Number(quantityRemaining),
+      validFrom,
+      validTo,
+      fileUri: imageUrl || null,
+      isActive,
+      createdAt
+    }
+
+    await voucherRepository.insertVoucherWithConnection(voucherData, connection)
+
+    await connection.commit()
+  } catch (error) {
+    await connection.rollback()
+    throw error
+  } finally {
+    connection.release()
+  }
+
+  // 4. Transform response format
+  return {
+    voucherCode,
     title: title.trim(),
-    description: finalDescription,
+    description: finalDescription || '',
     pointsRequired: Number(pointsRequired),
     quantityTotal: Number(quantityTotal),
     quantityRemaining: Number(quantityRemaining),
     validFrom,
     validTo,
     fileUri: imageUrl || null,
-    isActive, 
-    createdAt
-  }
-
-  await voucherRepository.insertVoucher(voucherData)
-
-  // 5. Transform response format
-  return {
-    voucherCode: voucherData.voucherCode,
-    title: voucherData.title,
-    description: voucherData.description || '',
-    pointsRequired: voucherData.pointsRequired,
-    quantityTotal: voucherData.quantityTotal,
-    quantityRemaining: voucherData.quantityRemaining,
-    validFrom: voucherData.validFrom,
-    validTo: voucherData.validTo,
-    fileUri: voucherData.fileUri,
-    isActive: voucherData.isActive === 1
+    isActive: isActive === 1
   }
 }
 
