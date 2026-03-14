@@ -3,6 +3,7 @@ const enterpriseController = require('../controllers/Enterprise/enterpriseContro
 const enterpriseReportController = require('../controllers/Enterprise/enterpriseReportController')
 const enterpriseCollectorController = require('../controllers/Enterprise/enterpriseCollectorController')
 const voucherController = require('../controllers/Enterprise/voucherController')
+const voucherRedemptionController = require('../controllers/Enterprise/voucherRedemptionController')
 const { verifyToken } = require('../middlewares/authMiddleware')
 const { requireRole } = require('../middlewares/roleMiddleware')
 const { ROLES } = require('../utils/constants')
@@ -141,6 +142,11 @@ router.delete('/vouchers/:voucherId', voucherController.deleteVoucher)
  * GET /enterprise/vouchers - Danh sách Voucher
  */
 router.get('/vouchers', voucherController.getVouchers)
+
+/**
+ * GET /enterprise/vouchers/statistics - Thống kê voucher đã đổi
+ */
+router.get('/vouchers/statistics', voucherRedemptionController.getVoucherStatistics)
 
 /**
  * GET /enterprise/vouchers/:voucherId - Chi tiết Voucher
