@@ -105,22 +105,19 @@ async function createVoucher(payload) {
   const quantityRemaining = quantityTotal // Default to total
   const isActive = 1 // Default to active true/1
 
-  // Hack: Since DB has no file_uri column, embed it in description separating by a known delimiter `|||` if both exist.
-  let finalDescription = description ? description.trim() : ''
-  if (imageUrl) {
-      finalDescription = finalDescription ? `${finalDescription} ||| ${imageUrl}` : imageUrl
-  }
+  const finalDescription = description ? description.trim() : null
 
   const voucherData = {
     voucherId,
     voucherCode: formattedVoucherCode,
     title: title.trim(),
-    description: finalDescription || null,
+    description: finalDescription,
     pointsRequired: Number(pointsRequired),
     quantityTotal: Number(quantityTotal),
     quantityRemaining: Number(quantityRemaining),
     validFrom,
     validTo,
+    fileUri: imageUrl || null,
     isActive, 
     createdAt
   }
@@ -137,7 +134,7 @@ async function createVoucher(payload) {
     quantityRemaining: voucherData.quantityRemaining,
     validFrom: voucherData.validFrom,
     validTo: voucherData.validTo,
-    fileUri: imageUrl || fileUri || null,
+    fileUri: voucherData.fileUri,
     isActive: voucherData.isActive === 1
   }
 }
@@ -193,12 +190,7 @@ async function updateVoucher(voucherId, payload) {
   }
   
   if (imageUrl !== undefined) {
-    let currentDesc = updateData.description !== undefined ? updateData.description : (existingVoucher.description || '')
-    // remove any existing embedded image
-    if (currentDesc && currentDesc.includes('|||')) {
-       currentDesc = currentDesc.split('|||')[0].trim()
-    }
-    updateData.description = currentDesc ? `${currentDesc} ||| ${imageUrl}` : imageUrl
+    updateData.file_uri = imageUrl
   }
 
   if (pointsRequired !== undefined || points_required !== undefined) {
@@ -302,24 +294,12 @@ async function getVouchers(queryParams) {
 
   // Transform fields as per requirements
   const formattedData = data.map((v) => {
-    let desc = v.description || ''
-    let parsedFileUri = null
-    
-    // Extract embedded URL if exists
-    if (desc.includes('|||')) {
-        const parts = desc.split('|||')
-        desc = parts[0].trim()
-        parsedFileUri = parts[1].trim()
-    } else if (/^https?:\/\//i.test(desc)) {
-        parsedFileUri = desc
-        desc = '' // Assuming description was just the URL
-    }
 
     return {
       voucherCode: v.voucher_code,
       title: v.title,
-      description: desc, // Optionally return cleaned description
-      fileUri: parsedFileUri,
+      description: v.description || '', // Return cleaned description
+      fileUri: v.file_uri || null,      // Directly use file_uri
       pointsRequired: v.points_required,
       quantityTotal: v.quantity_total,
       quantityRemaining: v.quantity_remaining,
@@ -364,18 +344,6 @@ async function getVoucherById(voucherId, userRole) {
     status = 'SOLD_OUT'
   }
 
-  // 2. Extract embedded URL if exists
-  let desc = voucher.description || ''
-  let parsedFileUri = null
-  if (desc.includes('|||')) {
-      const parts = desc.split('|||')
-      desc = parts[0].trim()
-      parsedFileUri = parts[1].trim()
-  } else if (/^https?:\/\//i.test(desc)) {
-      parsedFileUri = desc
-      desc = ''
-  }
-
   // 3. Map to specific return format
   return {
     success: true,
@@ -383,9 +351,9 @@ async function getVoucherById(voucherId, userRole) {
       voucherId: voucher.voucher_id,
       voucherCode: voucher.voucher_code,
       title: voucher.title,
-      description: desc,
+      description: voucher.description || '',
       pointsRequired: voucher.points_required,
-      fileUri: parsedFileUri,
+      fileUri: voucher.file_uri || null,
       status,
       expiryDate: voucher.valid_to,
       redeemedCount: Number(voucher.redeemed_count) || 0,

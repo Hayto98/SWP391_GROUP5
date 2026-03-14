@@ -1,5 +1,4 @@
 const db = require('../config/database')
-const { v4: uuidv4 } = require('uuid')
 
 // ==================== CREATE ====================
 
@@ -16,6 +15,7 @@ const { v4: uuidv4 } = require('uuid')
  * @param {number} voucherData.quantityRemaining
  * @param {string} voucherData.validFrom
  * @param {string} voucherData.validTo
+ * @param {string} voucherData.fileUri
  * @param {number} voucherData.isActive
  * @param {Date} voucherData.createdAt
  * @returns {Promise<boolean>}
@@ -25,8 +25,8 @@ async function insertVoucher(voucherData) {
     INSERT INTO voucher (
       voucher_id, voucher_code, title, description,
       points_required, quantity_total, quantity_remaining,
-      valid_from, valid_to, is_active, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      valid_from, valid_to, file_uri, is_active, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `
 
   const values = [
@@ -39,6 +39,7 @@ async function insertVoucher(voucherData) {
     voucherData.quantityRemaining,
     voucherData.validFrom,
     voucherData.validTo,
+    voucherData.fileUri || null,
     voucherData.isActive,
     voucherData.createdAt
   ]
@@ -58,6 +59,7 @@ async function findByVoucherCode(voucherCode) {
   const [rows] = await db.execute('SELECT * FROM voucher WHERE voucher_code = ?', [voucherCode])
   return rows[0] || null
 }
+
 /**
  * Lấy Voucher theo voucherId
  * @param {string} voucherId
@@ -149,6 +151,10 @@ async function updateVoucher(voucherId, updateData) {
   if (updateData.valid_to !== undefined) {
     fields.push('valid_to = ?')
     values.push(updateData.valid_to)
+  }
+  if (updateData.file_uri !== undefined) {
+    fields.push('file_uri = ?')
+    values.push(updateData.file_uri)
   }
   if (updateData.is_active !== undefined) {
     fields.push('is_active = ?')
