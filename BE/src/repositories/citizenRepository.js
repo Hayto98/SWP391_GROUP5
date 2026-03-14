@@ -14,6 +14,20 @@ async function findByUserAccountId(userAccountId) {
   return rows[0] || null
 }
 
+async function findByUserAccountIdForUpdate(connection, userAccountId) {
+  const [rows] = await connection.execute(
+    `SELECT citizen_id AS citizenId,
+            user_account_id AS userAccountId,
+            total_points AS totalPoints
+       FROM citizen
+      WHERE user_account_id = ?
+      LIMIT 1 FOR UPDATE`,
+    [userAccountId]
+  )
+
+  return rows[0] || null
+}
+
 
 /**
  * Fetch point transactions for a citizen with optional filters and pagination.
@@ -45,40 +59,34 @@ async function findPointTransactions(citizenId, { fromDate, toDate, type, page =
     where.push('pt.points_delta < 0')
   }
 
-  // const offset = (Math.max(1, Number(page)) - 1) * Number(limit)
-  const safePage = Number(page) > 0 ? Number(page) : 1
-  let safeLimit = Number(limit) > 0 ? Number(limit) : 20
+  const safePage = parseInt(page, 10) > 0 ? parseInt(page, 10) : 1
+  const safeLimit = Math.max(1, Math.min(100, parseInt(limit, 10) || 20))
+  const offset = (safePage - 1) * safeLimit
 
-  const offset = Number((safePage - 1) * safeLimit)
-  safeLimit = Number(safeLimit)
   const sql = `SELECT
       pt.point_transaction_id AS transactionId,
       CASE WHEN pt.points_delta > 0 THEN 'EARN' ELSE 'REDEEM' END AS type,
       pt.points_delta AS points,
-      pt.transaction_reason AS reason,
+      CASE
+        WHEN pt.points_delta < 0 AND v.voucher_code IS NOT NULL THEN CONCAT('Redeem voucher ', v.voucher_code)
+        ELSE pt.transaction_reason
+      END AS reason,
       pt.created_at AS createdAt
     FROM pointtransaction pt
     LEFT JOIN wastereport wr ON pt.waste_report_id = wr.waste_report_id
+    LEFT JOIN voucherredemption vr
+      ON pt.points_delta < 0
+     AND vr.citizen_id = pt.citizen_id
+     AND vr.points_used = ABS(pt.points_delta)
+     AND vr.redeemed_at = pt.created_at
+    LEFT JOIN voucher v ON vr.voucher_id = v.voucher_id
     WHERE ${where.join(' AND ')}
     ORDER BY pt.created_at DESC
     LIMIT ? OFFSET ?`
 
-  // debug: log SQL and params to help trace mismatches
-  try {
-    console.debug('findPointTransactions SQL:', sql)
-    console.debug('findPointTransactions params:', params.concat([safeLimit, offset]))
-  } catch (e) {
-    // ignore logging errors
-  }
-
   params.push(safeLimit, offset)
-  try {
-    const [rows] = await db.execute(sql, params)
-    return rows
-  } catch (err) {
-    console.error('findPointTransactions SQL error', { sql, params, err: err && err.message })
-    throw err
-  }
+  const [rows] = await db.query(sql, params)
+  return rows
 }
 
-module.exports = { findByUserAccountId, findPointTransactions }
+module.exports = { findByUserAccountId, findByUserAccountIdForUpdate, findPointTransactions }
