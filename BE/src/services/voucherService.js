@@ -9,7 +9,7 @@ const { ROLES } = require('../utils/constants')
 const { v4: uuidv4 } = require('uuid')
 const cloudinary = require('../config/cloudinary')
 const sharp = require('sharp')
-const db = require('../config/database')
+
 
 async function getAvailableVouchers(userAccountId, { page, limit } = {}) {
   const user = await userRepository.findById(userAccountId)
