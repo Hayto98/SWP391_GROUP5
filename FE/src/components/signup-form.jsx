@@ -12,10 +12,23 @@ import {
 import { Input } from "@/components/ui/input";
 import * as z from "zod";
 import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { registerUser } from "@/services/authService";
+import { registerUser, verifyOtp } from "@/services/authService";
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const registerFormSchema = z
   .object({
@@ -56,6 +69,11 @@ const registerFormSchema = z
 
 export function SignupForm({ className, ...props }) {
   const navigate = useNavigate();
+  const [otpDialogOpen, setOtpDialogOpen] = useState(false);
+  const [otpValue, setOtpValue] = useState("");
+  const [otpSubmitting, setOtpSubmitting] = useState(false);
+  const [otpEmail, setOtpEmail] = useState("");
+
   const form = useForm({
     resolver: zodResolver(registerFormSchema),
     defaultValues: {
@@ -68,15 +86,55 @@ export function SignupForm({ className, ...props }) {
     mode: "onBlur",
   });
 
+  const resetOtpState = () => {
+    setOtpValue("");
+    setOtpEmail("");
+    setOtpSubmitting(false);
+  };
+
+  const handleVerifyOtp = async () => {
+    if (otpValue.length !== 6) return;
+    setOtpSubmitting(true);
+    try {
+      const email = otpEmail || form.getValues("email");
+      if (!email) {
+        throw new Error("Không tìm thấy email để xác thực OTP.");
+      }
+
+      const response = await verifyOtp({ email, otp: otpValue });
+
+      if (response?.tokens?.accessToken && response?.user) {
+        setOtpDialogOpen(false);
+        resetOtpState();
+        toast.success("Xác thực OTP thành công. Vui lòng đăng nhập.");
+        navigate("/login");
+        return;
+      }
+
+      throw new Error("Xác thực OTP thất bại.");
+    } catch (error) {
+      toast.error(error.message || "OTP không hợp lệ hoặc đã hết hạn.");
+    } finally {
+      setOtpSubmitting(false);
+    }
+  };
+
   const onSubmit = async (values) => {
     try {
-      await registerUser({
+      const response = await registerUser({
         fullname: values.fullname,
         email: values.email,
         phone: values.phone,
         password: values.password,
         roleId: 4, // CITIZEN
       });
+
+      if (response?.requireOtp) {
+        setOtpEmail(values.email);
+        setOtpDialogOpen(true);
+        toast.success("Đăng ký thành công. Vui lòng kiểm tra email để nhận mã OTP.");
+        return;
+      }
 
       toast.success("Đăng ký tài khoản thành công.");
       navigate("/login");
@@ -247,6 +305,59 @@ export function SignupForm({ className, ...props }) {
         By clicking continue, you agree to our <a href="#">Terms of Service</a>{" "}
         and <a href="#">Privacy Policy</a>.
       </FieldDescription>
+
+      <Dialog
+        open={otpDialogOpen}
+        onOpenChange={(open) => {
+          if (!otpSubmitting) {
+            setOtpDialogOpen(open);
+            if (!open) {
+                resetOtpState();
+                navigate("/login");
+            }
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md" showCloseButton={!otpSubmitting}>
+          <DialogHeader>
+            <DialogTitle>Xác thực OTP</DialogTitle>
+            <DialogDescription>
+              Nhập mã OTP gồm 6 số đã gửi tới email{" "}
+              <span className="font-medium">{otpEmail}</span>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-center">
+              <InputOTP
+                maxLength={6}
+                value={otpValue}
+                autoFocus
+                onChange={(value) => setOtpValue(value.replace(/\D/g, ""))}
+                disabled={otpSubmitting}
+              >
+                <InputOTPGroup>
+                  <InputOTPSlot index={0} className="h-11 w-11 text-lg" />
+                  <InputOTPSlot index={1} className="h-11 w-11 text-lg" />
+                  <InputOTPSlot index={2} className="h-11 w-11 text-lg" />
+                  <InputOTPSlot index={3} className="h-11 w-11 text-lg" />
+                  <InputOTPSlot index={4} className="h-11 w-11 text-lg" />
+                  <InputOTPSlot index={5} className="h-11 w-11 text-lg" />
+                </InputOTPGroup>
+              </InputOTP>
+            </div>
+
+            <Button
+              type="button"
+              className="w-full"
+              onClick={handleVerifyOtp}
+              disabled={otpSubmitting || otpValue.length !== 6}
+            >
+              {otpSubmitting ? "Đang xác thực..." : "Xác nhận OTP"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
