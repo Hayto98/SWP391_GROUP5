@@ -212,7 +212,7 @@ async function updateVoucher(voucherId, payload) {
   if (description !== undefined) {
     updateData.description = description.trim() ? description.trim() : null
   }
-  
+
   if (imageUrl !== undefined) {
     updateData.file_uri = imageUrl
   }
@@ -232,7 +232,7 @@ async function updateVoucher(voucherId, payload) {
     const oldTotal = existingVoucher.quantity_total
     const oldRemaining = existingVoucher.quantity_remaining
     const updatedRemaining = oldRemaining + (qtyTotal - oldTotal)
-    
+
     if (updatedRemaining < 0) {
       throw new ApiError(400, 'Tống số lượng mới sẽ thấp hơn số voucher đã được người dùng đổi')
     }
@@ -280,7 +280,7 @@ async function updateVoucher(voucherId, payload) {
     quantityRemaining: updatedVoucher.quantity_remaining,
     validFrom: updatedVoucher.valid_from,
     validTo: updatedVoucher.valid_to,
-    fileUri: imageUrl || undefined, 
+    fileUri: imageUrl || undefined,
     isActive: updatedVoucher.is_active === 1
   }
 }
@@ -297,7 +297,7 @@ async function deleteVoucher(voucherId) {
   }
 
   // 2. Perform soft delete
-  await voucherRepository.updateVoucher(voucherId, { is_active: 0 })
+  await voucherRepository.updateVoucher(voucherId, { is_deleted: 1 })
 
   return {
     success: true,

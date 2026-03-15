@@ -56,7 +56,7 @@ async function insertVoucher(voucherData) {
  * @returns {Promise<object|null>}
  */
 async function findByVoucherCode(voucherCode) {
-  const [rows] = await db.execute('SELECT * FROM voucher WHERE voucher_code = ?', [voucherCode])
+  const [rows] = await db.execute('SELECT * FROM voucher WHERE voucher_code = ? AND is_deleted = 0', [voucherCode])
   return rows[0] || null
 }
 
@@ -66,7 +66,7 @@ async function findByVoucherCode(voucherCode) {
  * @returns {Promise<object|null>}
  */
 async function findById(voucherId) {
-  const [rows] = await db.execute('SELECT * FROM voucher WHERE voucher_id = ?', [voucherId])
+  const [rows] = await db.execute('SELECT * FROM voucher WHERE voucher_id = ? AND is_deleted = 0', [voucherId])
   return rows[0] || null
 }
 
@@ -80,7 +80,7 @@ async function getVoucherByIdWithRedemptionCount(voucherId) {
     SELECT v.*, COUNT(vr.voucher_redemption_id) as redeemed_count
     FROM voucher v
     LEFT JOIN voucherredemption vr ON v.voucher_id = vr.voucher_id
-    WHERE v.voucher_id = ?
+    WHERE v.voucher_id = ? AND v.is_deleted = 0
     GROUP BY v.voucher_id
   `
   const [rows] = await db.execute(query, [voucherId])
@@ -97,10 +97,11 @@ async function getVoucherByIdWithRedemptionCount(voucherId) {
 async function getVouchers({ limit, offset }) {
   const dataQuery = `
     SELECT * FROM voucher 
+    WHERE is_deleted = 0
     ORDER BY created_at DESC 
     LIMIT ? OFFSET ?
   `
-  const countQuery = `SELECT COUNT(*) as total FROM voucher`
+  const countQuery = `SELECT COUNT(*) as total FROM voucher WHERE is_deleted = 0`
 
   // We have to cast values as string to ensure mysql2 treats them as numeric when passing to LIMIT inside prepared statements safely depending on driver configs, or just pass integers. Usually integers work fine.
   const [rows] = await db.execute(dataQuery, [String(limit), String(offset)])
@@ -159,6 +160,11 @@ async function updateVoucher(voucherId, updateData) {
   if (updateData.is_active !== undefined) {
     fields.push('is_active = ?')
     values.push(updateData.is_active)
+  }
+
+  if (updateData.is_deleted !== undefined) {
+    fields.push('is_deleted = ?')
+    values.push(updateData.is_deleted)
   }
 
   if (fields.length === 0) return true
