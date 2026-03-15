@@ -360,8 +360,7 @@ function TaskDetail() {
           <DialogHeader>
             <DialogTitle>Nhận nhiệm vụ thành công</DialogTitle>
             <DialogDescription>
-              Nhiệm vụ đã chuyển sang trạng thái IN_PROGRESS. Bạn có thể bắt đầu
-              cập nhật kết quả thu gom.
+              Bạn có thể tiến hành thu gom rác.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
