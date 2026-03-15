@@ -51,7 +51,16 @@ async function register({ fullname, email, phone, password, roleId }) {
     throw error
   }
 
+  const otp = String(Math.floor(100000 + Math.random() * 900000))
+  const otpExpiresMinutes = Number(process.env.OTP_EXPIRES_MINUTES || 5)
+  const expiredAt = new Date(Date.now() + otpExpiresMinutes * 60 * 1000)
+
+  await otpRepository.saveOtp(userAccountId, otp, expiredAt)
+  await emailService.sendOtpEmail(email, otp)
+
   return {
+    requireOtp: true,
+    message: 'OTP has been sent to your email. Please verify to continue.',
     userAccountId,
     fullname,
     email,
@@ -87,18 +96,64 @@ async function login({ email, password }) {
     throw new ApiError(401, 'Invalid credentials')
   }
 
-  // Generate 6-digit OTP
-  const otp = String(Math.floor(100000 + Math.random() * 900000))
-  const otpExpiresMinutes = Number(process.env.OTP_EXPIRES_MINUTES || 5)
-  const expiredAt = new Date(Date.now() + otpExpiresMinutes * 60 * 1000)
+  if (!user.emailVerified) {
+    // Generate 6-digit OTP
+    const otp = String(Math.floor(100000 + Math.random() * 900000))
+    const otpExpiresMinutes = Number(process.env.OTP_EXPIRES_MINUTES || 5)
+    const expiredAt = new Date(Date.now() + otpExpiresMinutes * 60 * 1000)
 
-  await otpRepository.saveOtp(user.userAccountId, otp, expiredAt)
-  await emailService.sendOtpEmail(user.email, otp)
+    await otpRepository.saveOtp(user.userAccountId, otp, expiredAt)
+    await emailService.sendOtpEmail(user.email, otp)
+
+    return {
+      requireOtp: true,
+      email: user.email,
+      message: 'OTP has been sent to your email. Please verify to continue.'
+    }
+  }
+
+  // If email is already verified, bypass OTP and log in instantly
+  // Update last login and reset failed login count
+  await userRepository.updateLastLogin(user.userAccountId)
+
+  const accessTokenPayload = {
+    sub: user.userAccountId,
+    email: user.email,
+    phone: user.phone,
+    roleId: user.roleId
+  }
+
+  const refreshTokenId = uuidv4()
+  const refreshTokenPayload = { sub: user.userAccountId, type: 'refresh' }
+
+  const accessToken = tokenService.generateAccessToken(accessTokenPayload)
+  const refreshToken = tokenService.generateRefreshToken(refreshTokenPayload, refreshTokenId)
+
+  const tokenHash = tokenService.hashToken(refreshToken)
+  const refreshTokenExpiresAt = tokenService.calculateExpiryDate(process.env.REFRESH_TOKEN_EXPIRES_IN || '7d')
+
+  await refreshTokenRepository.removeByUserId(user.userAccountId)
+  await refreshTokenRepository.saveRefreshToken({
+    refreshTokenId,
+    userAccountId: user.userAccountId,
+    tokenHash,
+    expiresAt: refreshTokenExpiresAt,
+    createdAt: new Date()
+  })
 
   return {
-    requireOtp: true,
-    email: user.email,
-    message: 'OTP has been sent to your email. Please verify to continue.'
+    user: {
+      userAccountId: user.userAccountId,
+      fullname: user.fullname,
+      email: user.email,
+      phone: user.phone,
+      roleId: user.roleId
+    },
+    tokens: {
+      accessToken,
+      refreshToken,
+      expiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN || '15m'
+    }
   }
 }
 
@@ -123,6 +178,10 @@ async function verifyOtp({ email, otp }) {
 
   // Mark OTP as used
   await otpRepository.markOtpUsed(validOtp.verificationTokenId)
+
+  if (!user.emailVerified) {
+    await userRepository.verifyEmail(user.userAccountId)
+  }
 
   // Update last login and reset failed login count
   await userRepository.updateLastLogin(user.userAccountId)
