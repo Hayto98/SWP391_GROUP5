@@ -91,6 +91,9 @@ module.exports = {
 // ==================== SCHEDULE COLLECTION ====================
 
 const wasteReportRepository = require('../repositories/wasteReportRepository')
+const notificationService = require('./notificationService')
+const notificationRepository = require('../repositories/notificationRepository')
+const { NOTIFICATION_TYPES } = require('../utils/constants')
 
 /**
  * PATCH /collector/reports/:reportId/schedule
@@ -146,6 +149,22 @@ async function scheduleCollection(collectorId, reportId, scheduledCollectAt) {
 
   if (!updated) {
     throw new ApiError(500, 'Failed to update scheduled collection time')
+  }
+
+  // 6. Create notification for the citizen
+  try {
+    const citizenUserAccountId = await notificationRepository.findCitizenUserAccountIdByReportId(reportId)
+    if (citizenUserAccountId) {
+      await notificationService.createNotification({
+        notificationType: NOTIFICATION_TYPES.COLLECTION_SCHEDULED,
+        recipientUserAccountId: citizenUserAccountId,
+        wasteReportId: reportId,
+        message: `Collector will arrive at ${parsedDate.toISOString()}`
+      })
+    }
+  } catch (notifError) {
+    // Notification failure should not break the schedule flow
+    console.error('Failed to create schedule notification:', notifError.message)
   }
 
   return {
@@ -609,6 +628,17 @@ async function completeReport(collectorId, reportId, { actualQuantity, quantityU
       })
 
       await collectorReportRepository.updateCitizenPoints(connection, report.citizen_id, pointsAwarded)
+
+      // 7g. Create POINT_REWARDED notification (inside transaction)
+      const citizenUserAccountId = await notificationRepository.findCitizenUserAccountIdByReportId(reportId)
+      if (citizenUserAccountId) {
+        await notificationService.createNotification({
+          notificationType: NOTIFICATION_TYPES.POINT_REWARDED,
+          recipientUserAccountId: citizenUserAccountId,
+          wasteReportId: reportId,
+          message: `You received ${pointsAwarded} reward points`
+        }, connection)
+      }
     }
 
     await connection.commit()
