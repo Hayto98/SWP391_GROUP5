@@ -65,10 +65,13 @@ async function getPointHistory(userAccountId, { fromDate, toDate, type, page, li
     throw new ApiError(404, 'Citizen record not found')
   }
 
-  const normalizedType = typeof type === 'string' && type.trim() ? type.trim().toUpperCase() : undefined
-  if (normalizedType && normalizedType !== 'EARN' && normalizedType !== 'REDEEM') {
-    throw new ApiError(400, 'type must be EARN or REDEEM')
+  const requestedType = typeof type === 'string' && type.trim() ? type.trim().toUpperCase() : undefined
+  if (requestedType && requestedType !== 'EARN' && requestedType !== 'REDEEM' && requestedType !== 'ALL') {
+    throw new ApiError(400, 'type must be EARN, REDEEM or ALL')
   }
+
+  // Keep compatibility with clients sending type=EARN for full history view.
+  const normalizedType = requestedType === 'REDEEM' ? 'REDEEM' : undefined
 
   const normalizedFromDate = toMySqlDateTime(fromDate, { fieldName: 'fromDate' })
   const normalizedToDate = toMySqlDateTime(toDate, { endOfDay: true, fieldName: 'toDate' })
