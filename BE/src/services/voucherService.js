@@ -33,6 +33,40 @@ async function getAvailableVouchers(userAccountId, { page, limit } = {}) {
   return { success: true, data }
 }
 
+function formatDateOnly(value) {
+  if (!value) return null
+
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return String(value).slice(0, 10)
+  }
+
+  return date.toISOString().slice(0, 10)
+}
+
+async function getRedeemedVouchers(userAccountId) {
+  const user = await userRepository.findById(userAccountId)
+  if (!user) throw new ApiError(404, 'Citizen not found')
+  if (user.isLocked) throw new ApiError(403, 'Account is locked')
+  if (user.roleId !== ROLES.CITIZEN) throw new ApiError(403, 'User is not a citizen')
+
+  const citizen = await citizenRepository.findByUserAccountId(userAccountId)
+  if (!citizen) throw new ApiError(404, 'Citizen record not found')
+
+  const rows = await voucherRepository.findRedeemedByCitizenId(citizen.citizenId)
+
+  return {
+    success: true,
+    data: rows.map(r => ({
+      voucherCode: r.voucherCode,
+      title: r.title,
+      fileUri: r.fileUri || null,
+      pointsUsed: Number(r.pointsUsed) || 0,
+      redeemedAt: formatDateOnly(r.redeemedAt)
+    }))
+  }
+}
+
 /**
  * Redeem a voucher for a citizen. All DB updates happen inside a single transaction.
  */
@@ -142,7 +176,7 @@ async function uploadBufferToCloudinary(buffer, mimetype) {
         resolve(result.secure_url)
       }
     )
-    stream.end(compressed)
+    stream.end(compressed)  
   })
 }
 
@@ -248,5 +282,6 @@ async function createVoucher(payload) {
 module.exports = {
   getAvailableVouchers,
   redeemVoucher,
-  createVoucher
+  createVoucher,
+  getRedeemedVouchers
 }

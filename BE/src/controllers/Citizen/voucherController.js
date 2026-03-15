@@ -22,4 +22,14 @@ async function redeem(req, res, next) {
   }
 }
 
-module.exports = { listAvailable, redeem }
+async function getRedeemedHistory(req, res, next) {
+  try {
+    const userAccountId = req.user.sub
+    const result = await voucherService.getRedeemedVouchers(userAccountId)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
+module.exports = { listAvailable, redeem, getRedeemedHistory }

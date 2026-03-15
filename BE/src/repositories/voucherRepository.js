@@ -106,11 +106,30 @@ async function findByVoucherCode(voucherCode) {
   return rows[0] || null
 }
 
+async function findRedeemedByCitizenId(citizenId) {
+  const [rows] = await db.execute(
+    `SELECT
+       v.voucher_code AS voucherCode,
+       v.title,
+       v.file_uri AS fileUri,
+       vr.points_used AS pointsUsed,
+       vr.redeemed_at AS redeemedAt
+     FROM voucherredemption vr
+     INNER JOIN voucher v ON vr.voucher_id = v.voucher_id
+     WHERE vr.citizen_id = ?
+     ORDER BY vr.redeemed_at DESC`,
+    [citizenId]
+  )
+
+  return rows
+}
+
 module.exports = {
   findAvailable,
   findByIdForUpdate,
   decrementQuantity,
   insertVoucherRedemption,
   insertVoucher,
-  findByVoucherCode
+  findByVoucherCode,
+  findRedeemedByCitizenId
 }
