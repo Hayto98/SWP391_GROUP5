@@ -1,10 +1,152 @@
-const { v4: uuidv4 } = require('uuid')
 const voucherRepository = require('../repositories/voucherRepository')
 const voucherSequenceRepository = require('../repositories/voucherSequenceRepository')
+const userRepository = require('../repositories/userRepository')
+const citizenRepository = require('../repositories/citizenRepository')
+const collectorReportRepository = require('../repositories/collectorReportRepository')
+const db = require('../config/database')
 const ApiError = require('../errors/ApiError')
+const { ROLES } = require('../utils/constants')
+const { v4: uuidv4 } = require('uuid')
 const cloudinary = require('../config/cloudinary')
 const sharp = require('sharp')
 const db = require('../config/database')
+
+async function getAvailableVouchers(userAccountId, { page, limit } = {}) {
+  const user = await userRepository.findById(userAccountId)
+  if (!user) throw new ApiError(404, 'Citizen not found')
+  if (user.isLocked) throw new ApiError(403, 'Account is locked')
+  if (user.roleId !== ROLES.CITIZEN) throw new ApiError(403, 'User is not a citizen')
+
+  const citizen = await citizenRepository.findByUserAccountId(userAccountId)
+  if (!citizen) throw new ApiError(404, 'Citizen record not found')
+
+  const rows = await voucherRepository.findAvailable({ page, limit })
+
+  const data = rows.map(r => ({
+    voucherId: r.voucherId,
+    voucherCode: r.voucherCode,
+    title: r.title,
+    pointsRequired: Number(r.pointsRequired) || 0,
+    quantityRemaining: Number(r.quantityRemaining) || 0,
+    fileUri: r.fileUri || null,
+    canRedeem: (Number(citizen.totalPoints) || 0) >= (Number(r.pointsRequired) || 0)
+  }))
+
+  return { success: true, data }
+}
+
+function formatDateOnly(value) {
+  if (!value) return null
+
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return String(value).slice(0, 10)
+  }
+
+  return date.toISOString().slice(0, 10)
+}
+
+async function getRedeemedVouchers(userAccountId) {
+  const user = await userRepository.findById(userAccountId)
+  if (!user) throw new ApiError(404, 'Citizen not found')
+  if (user.isLocked) throw new ApiError(403, 'Account is locked')
+  if (user.roleId !== ROLES.CITIZEN) throw new ApiError(403, 'User is not a citizen')
+
+  const citizen = await citizenRepository.findByUserAccountId(userAccountId)
+  if (!citizen) throw new ApiError(404, 'Citizen record not found')
+
+  const rows = await voucherRepository.findRedeemedByCitizenId(citizen.citizenId)
+
+  return {
+    success: true,
+    data: rows.map(r => ({
+      voucherCode: r.voucherCode,
+      title: r.title,
+      fileUri: r.fileUri || null,
+      pointsUsed: Number(r.pointsUsed) || 0,
+      redeemedAt: formatDateOnly(r.redeemedAt)
+    }))
+  }
+}
+
+/**
+ * Redeem a voucher for a citizen. All DB updates happen inside a single transaction.
+ */
+async function redeemVoucher(userAccountId, voucherId) {
+  if (!voucherId || typeof voucherId !== 'string') {
+    throw new ApiError(400, 'voucherId is required')
+  }
+
+  const user = await userRepository.findById(userAccountId)
+  if (!user) throw new ApiError(404, 'Citizen not found')
+  if (user.isLocked) throw new ApiError(403, 'Account is locked')
+  if (user.roleId !== ROLES.CITIZEN) throw new ApiError(403, 'User is not a citizen')
+
+  const connection = await db.getConnection()
+  try {
+    await connection.beginTransaction()
+
+    const citizen = await citizenRepository.findByUserAccountIdForUpdate(connection, userAccountId)
+    if (!citizen) throw new ApiError(404, 'Citizen record not found')
+
+    const voucher = await voucherRepository.findByIdForUpdate(connection, voucherId)
+    if (!voucher) throw new ApiError(404, 'Voucher not found')
+
+    if (!voucher.isActive) throw new ApiError(400, 'Voucher is not active')
+    const now = new Date()
+    if (voucher.validFrom && new Date(voucher.validFrom) > now) throw new ApiError(400, 'Voucher not yet valid')
+    if (voucher.validTo && new Date(voucher.validTo) < now) throw new ApiError(400, 'Voucher expired')
+    if (Number(voucher.quantityRemaining) <= 0) throw new ApiError(400, 'Voucher out of stock')
+
+    const pointsRequired = Number(voucher.pointsRequired) || 0
+    const citizenPoints = Number(citizen.totalPoints) || 0
+    if (citizenPoints < pointsRequired) throw new ApiError(400, 'Insufficient points')
+
+    const redemptionId = uuidv4()
+    const pointTransactionId = uuidv4()
+    const nowDate = new Date()
+
+    await voucherRepository.insertVoucherRedemption(connection, {
+      redemptionId,
+      voucherId,
+      citizenId: citizen.citizenId,
+      pointsUsed: pointsRequired,
+      redeemedAt: nowDate
+    })
+
+    const affectedRows = await voucherRepository.decrementQuantity(connection, voucherId)
+    if (affectedRows !== 1) {
+      throw new ApiError(409, 'Voucher out of stock')
+    }
+
+    await collectorReportRepository.updateCitizenPoints(connection, citizen.citizenId, -pointsRequired)
+
+    await collectorReportRepository.insertPointTransaction(connection, {
+      pointTransactionId,
+      citizenId: citizen.citizenId,
+      wasteReportId: null,
+      pointsDelta: -pointsRequired,
+      transactionReason: `Redeem voucher ${voucher.voucherCode}`,
+      createdAt: nowDate
+    })
+
+    await connection.commit()
+    return {
+      success: true,
+      data: {
+        voucherId,
+        voucherCode: voucher.voucherCode,
+        redemptionId,
+        points: -pointsRequired
+      }
+    }
+  } catch (err) {
+    await connection.rollback()
+    throw err
+  } finally {
+    connection.release()
+  }
+}
 
 // ==================== HELPERS ====================
 
@@ -391,5 +533,8 @@ module.exports = {
   updateVoucher,
   deleteVoucher,
   getVouchers,
-  getVoucherById
+  getVoucherById,
+  getAvailableVouchers,
+  redeemVoucher,
+  getRedeemedVouchers
 }
