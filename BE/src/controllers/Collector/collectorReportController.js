@@ -119,11 +119,30 @@ async function getResult(req, res, next) {
   }
 }
 
+/**
+ * PATCH /collector/reports/:reportId/schedule
+ * Collector sets the scheduled collection time for a waste report.
+ */
+async function scheduleCollection(req, res, next) {
+  try {
+    const collectorId = req.user.sub
+    const { reportId } = req.params
+    const { scheduledCollectAt } = req.body
+
+    const result = await collectorReportService.scheduleCollection(collectorId, reportId, scheduledCollectAt)
+
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
 module.exports = {
   getAssignedReports,
   getReportById,
   acceptReport,
   submitResult,
   completeReport,
-  getResult
+  getResult,
+  scheduleCollection
 }

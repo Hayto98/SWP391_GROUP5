@@ -84,7 +84,93 @@ module.exports = {
   acceptAssignedReport,
   submitResult,
   completeReport,
-  getCollectionResult
+  getCollectionResult,
+  scheduleCollection
+}
+
+// ==================== SCHEDULE COLLECTION ====================
+
+const wasteReportRepository = require('../repositories/wasteReportRepository')
+const notificationService = require('./notificationService')
+const notificationRepository = require('../repositories/notificationRepository')
+const { NOTIFICATION_TYPES } = require('../utils/constants')
+
+/**
+ * PATCH /collector/reports/:reportId/schedule
+ * Collector sets the scheduled collection time for a waste report.
+ *
+ * Business rules:
+ *   - User must not be locked
+ *   - Report must exist (404)
+ *   - Report must be assigned to this collector (403)
+ *   - scheduledCollectAt is required and must be a valid future datetime
+ *
+ * @param {string} collectorId - user_account_id of the collector
+ * @param {string} reportId    - waste_report_id
+ * @param {string} scheduledCollectAt - ISO datetime string
+ * @returns {object} Success response
+ */
+async function scheduleCollection(collectorId, reportId, scheduledCollectAt) {
+  // 1. Check collector account
+  const user = await userRepository.findById(collectorId)
+  if (!user) {
+    throw new ApiError(404, 'User account not found')
+  }
+  if (user.isLocked) {
+    throw new ApiError(403, 'Your account is locked. Please contact support.')
+  }
+
+  // 2. Validate scheduledCollectAt
+  if (!scheduledCollectAt) {
+    throw new ApiError(400, 'scheduledCollectAt is required')
+  }
+  const parsedDate = new Date(scheduledCollectAt)
+  if (isNaN(parsedDate.getTime())) {
+    throw new ApiError(400, 'scheduledCollectAt must be a valid datetime')
+  }
+
+  // 3. Fetch report to verify existence
+  const report = await collectorReportRepository.findReportById(reportId)
+  if (!report) {
+    throw new ApiError(404, 'Report not found')
+  }
+
+  // 4. Must be the assigned collector
+  if (report.assigned_collector_id !== collectorId) {
+    throw new ApiError(403, 'You are not the assigned collector for this report')
+  }
+
+  // 5. Update scheduled_collect_at
+  const updated = await wasteReportRepository.updateScheduledCollectAt(
+    reportId,
+    collectorId,
+    parsedDate
+  )
+
+  if (!updated) {
+    throw new ApiError(500, 'Failed to update scheduled collection time')
+  }
+
+  // 6. Create notification for the citizen
+  try {
+    const citizenUserAccountId = await notificationRepository.findCitizenUserAccountIdByReportId(reportId)
+    if (citizenUserAccountId) {
+      await notificationService.createNotification({
+        notificationType: NOTIFICATION_TYPES.COLLECTION_SCHEDULED,
+        recipientUserAccountId: citizenUserAccountId,
+        wasteReportId: reportId,
+        message: `Collector will arrive at ${parsedDate.toISOString()}`
+      })
+    }
+  } catch (notifError) {
+    // Notification failure should not break the schedule flow
+    console.error('Failed to create schedule notification:', notifError.message)
+  }
+
+  return {
+    success: true,
+    message: 'Collection time scheduled successfully'
+  }
 }
 
 // ==================== DETAIL BY ID ====================
@@ -542,6 +628,17 @@ async function completeReport(collectorId, reportId, { actualQuantity, quantityU
       })
 
       await collectorReportRepository.updateCitizenPoints(connection, report.citizen_id, pointsAwarded)
+
+      // 7g. Create POINT_REWARDED notification (inside transaction)
+      const citizenUserAccountId = await notificationRepository.findCitizenUserAccountIdByReportId(reportId)
+      if (citizenUserAccountId) {
+        await notificationService.createNotification({
+          notificationType: NOTIFICATION_TYPES.POINT_REWARDED,
+          recipientUserAccountId: citizenUserAccountId,
+          wasteReportId: reportId,
+          message: `You received ${pointsAwarded} reward points`
+        }, connection)
+      }
     }
 
     await connection.commit()

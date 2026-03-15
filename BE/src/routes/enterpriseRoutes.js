@@ -3,6 +3,7 @@ const enterpriseController = require('../controllers/Enterprise/enterpriseContro
 const enterpriseReportController = require('../controllers/Enterprise/enterpriseReportController')
 const enterpriseCollectorController = require('../controllers/Enterprise/enterpriseCollectorController')
 const voucherController = require('../controllers/Enterprise/voucherController')
+const voucherRedemptionController = require('../controllers/Enterprise/voucherRedemptionController')
 const { verifyToken } = require('../middlewares/authMiddleware')
 const { requireRole } = require('../middlewares/roleMiddleware')
 const { ROLES } = require('../utils/constants')
@@ -126,5 +127,30 @@ const { uploadSingle } = require('../middlewares/upload')
  * POST /enterprise/vouchers - Tạo Voucher mới (Supports multipart/form-data)
  */
 router.post('/vouchers', uploadSingle, voucherController.createVoucher)
+
+/**
+ * PUT /enterprise/vouchers/:voucherId - Cập nhật Voucher (Supports multipart/form-data)
+ */
+router.put('/vouchers/:voucherId', uploadSingle, voucherController.updateVoucher)
+
+/**
+ * DELETE /enterprise/vouchers/:voucherId - Xóa Voucher (Soft delete)
+ */
+router.delete('/vouchers/:voucherId', voucherController.deleteVoucher)
+
+/**
+ * GET /enterprise/vouchers - Danh sách Voucher
+ */
+router.get('/vouchers', voucherController.getVouchers)
+
+/**
+ * GET /enterprise/vouchers/statistics - Thống kê voucher đã đổi
+ */
+router.get('/vouchers/statistics', voucherRedemptionController.getVoucherStatistics)
+
+/**
+ * GET /enterprise/vouchers/:voucherId - Chi tiết Voucher
+ */
+router.get('/vouchers/:voucherId', voucherController.getVoucherById)
 
 module.exports = router
