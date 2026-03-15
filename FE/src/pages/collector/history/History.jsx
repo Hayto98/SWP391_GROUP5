@@ -13,7 +13,6 @@ import {
   getCollectorReportById,
   getCollectorReports,
 } from "@/services/collectorReport.service";
-import { reverseGeocode } from "@/services/geocodingService";
 import { toast } from "sonner";
 
 import {
@@ -89,6 +88,17 @@ function toLocalDateKey(value) {
   return `${y}-${m}-${day}`;
 }
 
+function formatAreaFromLocation(location) {
+  const lat = Number(location?.lat);
+  const lng = Number(location?.lng);
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return "Không rõ vị trí";
+  }
+
+  return `${lat}, ${lng}`;
+}
+
 function History() {
   const [allJobs, setAllJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -114,29 +124,23 @@ function History() {
 
         const items = response?.data?.items || [];
 
-        const mapped = await Promise.all(
-          items.map(async (item) => {
-            const lat = Number(item?.location?.lat);
-            const lng = Number(item?.location?.lng);
+        const mapped = items.map((item) => {
+          return {
+            id: item.reportId,
+            area: formatAreaFromLocation(item?.location),
+            status: item.status,
+            citizenName:
+              item?.citizen?.fullname ||
+              item?.citizenFullname ||
+              item?.citizenName ||
+              "Không xác định",
+            wasteType: item?.wasteType?.name || "Không xác định",
+            weight: item.weight,
+            unitType: item.unitType,
 
-            const hasLocation = Number.isFinite(lat) && Number.isFinite(lng);
-
-            const area = hasLocation
-              ? await reverseGeocode(lat, lng)
-              : "Không rõ vị trí";
-
-            return {
-              id: item.reportId,
-              area,
-              status: item.status,
-              wasteType: item?.wasteType?.name || "Không xác định",
-              weight: item.weight,
-              unitType: item.unitType,
-
-              collectedAt: item.reportedAt,
-            };
-          }),
-        );
+            collectedAt: item.reportedAt,
+          };
+        });
 
         setAllJobs(mapped);
       } catch (error) {
@@ -183,6 +187,9 @@ function History() {
         String(job.wasteType || "")
           .toLowerCase()
           .includes(normalizedKeyword) ||
+        String(job.citizenName || "")
+          .toLowerCase()
+          .includes(normalizedKeyword) ||
         String(job.area || "")
           .toLowerCase()
           .includes(normalizedKeyword);
@@ -223,13 +230,13 @@ function History() {
   const handleExportReport = () => {
     if (filtered.length === 0) return;
 
-    const headers = ["Ma Bao Cao", "Loai Rac", "Khu Vuc", "Khoi Luong"];
+    const headers = ["Ma Bao Cao", "Loai Rac", "Khu Vuc", "Nguoi Dan"];
 
     const rows = filtered.map((job) => [
       job.id,
       job.wasteType,
       job.area,
-      `${job.weight ?? "-"} ${job.unitType ?? ""}`,
+      job.citizenName || "-",
     ]);
 
     const csvContent = [
@@ -272,14 +279,7 @@ function History() {
       const response = await getCollectorReportById(reportId);
       const data = response?.data || null;
       setDetailData(data);
-
-      const lat = Number(data?.location?.lat);
-      const lng = Number(data?.location?.lng);
-
-      if (Number.isFinite(lat) && Number.isFinite(lng)) {
-        const area = await reverseGeocode(lat, lng);
-        setDetailArea(area || "Không rõ vị trí");
-      }
+      setDetailArea(formatAreaFromLocation(data?.location));
     } catch (error) {
       toast.error(error.message || "Không thể tải chi tiết báo cáo");
     } finally {
@@ -332,7 +332,7 @@ function History() {
           <div className="mb-4 gap-3 md:grid-cols-3 flex">
             <Input
               className="flex-1"
-              placeholder="Tìm mã báo cáo, loại rác, khu vực..."
+              placeholder="Tìm mã báo cáo, loại rác, người dân, khu vực..."
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
             />
@@ -385,8 +385,7 @@ function History() {
               <TableRow>
                 <TableHead>Mã báo cáo</TableHead>
                 <TableHead>Loại rác</TableHead>
-                <TableHead>Khu vực</TableHead>
-                <TableHead>Khối lượng</TableHead>
+                <TableHead>Ngày báo cáo</TableHead>
                 <TableHead className="text-right">Thao tác</TableHead>
               </TableRow>
             </TableHeader>
@@ -419,15 +418,7 @@ function History() {
 
                     <TableCell>{job.wasteType}</TableCell>
 
-                    <TableCell>
-                      <div className="flex items-center gap-1 text-sm max-w-75">
-                        <span className="truncate">{job.area}</span>
-                      </div>
-                    </TableCell>
-
-                    <TableCell>
-                      {job.weight ?? "-"} {job.unitType || ""}
-                    </TableCell>
+                    <TableCell>{formatDate(job.collectedAt)}</TableCell>
 
                     <TableCell className="text-right">
                       <Button
