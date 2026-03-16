@@ -87,6 +87,14 @@
       "Key": "",
       "Default": "0",
       "Extra": ""
+    },
+    {
+      "Field": "is_updated",
+      "Type": "tinyint(1)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
     }
   ],
   "reportcomplaintattachment": [

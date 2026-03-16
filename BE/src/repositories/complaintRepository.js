@@ -115,6 +115,7 @@ async function findComplaintDetail(citizenId, complaintId) {
       rc.admin_response,
       rc.created_at,
       rc.resolved_at,
+      rc.is_updated,
       GROUP_CONCAT(rca.file_uri SEPARATOR '|||') AS attachment_uris
     FROM reportcomplaint rc
     LEFT JOIN reportcomplaintattachment rca ON rc.report_complaint_id = rca.report_complaint_id
@@ -140,6 +141,7 @@ async function findComplaintDetail(citizenId, complaintId) {
     adminResponse: row.admin_response,
     createdAt: row.created_at,
     resolvedAt: row.resolved_at,
+    isUpdated: !!row.is_updated,
     attachments
   }
 }
@@ -149,13 +151,21 @@ async function updateComplaint({ reportComplaintId, complaintReason, attachments
   try {
     await connection.beginTransaction()
 
-    // 1. Update reason
+    // 1. Update reason and set is_updated = 1
     if (complaintReason !== undefined) {
       await connection.execute(
         `UPDATE reportcomplaint 
-         SET complaint_reason = ? 
+         SET complaint_reason = ?, is_updated = 1 
          WHERE report_complaint_id = ?`,
         [complaintReason, reportComplaintId]
+      )
+    } else {
+      // Even if reason is not updated, if images are added, it counts as 1 update
+      await connection.execute(
+        `UPDATE reportcomplaint 
+         SET is_updated = 1 
+         WHERE report_complaint_id = ?`,
+        [reportComplaintId]
       )
     }
 
