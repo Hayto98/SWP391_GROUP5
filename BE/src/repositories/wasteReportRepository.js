@@ -336,6 +336,7 @@ async function findReportById(reportId) {
       wr.assigned_collector_id AS collector_user_account_id,
       ua_collector.fullname AS collector_fullname,
       ua_collector.phone AS collector_phone,
+      wr.scheduled_collect_at AS scheduled_collect_at,
       
       (
         SELECT fb.feedback_text
@@ -480,6 +481,7 @@ async function findReportById(reportId) {
     unitType: collectedRecord?.quantityUnit || row.unit_type || null,
     status: statusVal,
     createdAt: row.created_at,
+    scheduledCollectAt: row.scheduled_collect_at || null,
     attachments: attachments,
     images: attachments.map((item) => ({ file_uri: item.fileUri })),
     assignedCollector: assignedCollector,
@@ -722,6 +724,26 @@ async function findAllReports({ status, fromDate, toDate, limit, offset }) {
   return { data, total }
 }
 
+/**
+ * Update the scheduled collection time for a waste report.
+ * Only updates if the report is assigned to the given collector.
+ *
+ * @param {string} reportId - waste_report_id
+ * @param {string} collectorId - assigned_collector_id (user_account_id)
+ * @param {string} scheduledCollectAt - ISO datetime string
+ * @returns {Promise<boolean>} true if a row was updated
+ */
+async function updateScheduledCollectAt(reportId, collectorId, scheduledCollectAt) {
+  const query = `
+    UPDATE wastereport
+    SET scheduled_collect_at = ?
+    WHERE waste_report_id = ?
+      AND assigned_collector_id = ?
+  `
+  const [result] = await db.execute(query, [scheduledCollectAt, reportId, collectorId])
+  return result.affectedRows > 0
+}
+
 module.exports = {
   createReport,
   createReportAttachment,
@@ -733,5 +755,6 @@ module.exports = {
   findCitizenIdByUserAccountId,
   ensureCitizenIdByUserAccountId,
   getNextSequence,
-  findByReportCode
+  findByReportCode,
+  updateScheduledCollectAt
 }

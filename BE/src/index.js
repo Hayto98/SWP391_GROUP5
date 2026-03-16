@@ -36,11 +36,17 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes)
 app.use('/api/v1/admin', adminRoutes)
 app.use('/api/v1/collector', require('./routes/collectorRoutes'))
+app.use('/api/v1/citizen', require('./routes/citizenRoutes'))
 app.use('/api/enterprise', enterpriseRoutes)
 app.use('/api/reports', require('./routes/wasteReportRoutes'))
 app.use('/api/waste-types', require('./routes/wasteTypeRoutes'))
 app.use('/enterprise', require('./routes/enterpriseRoutes'))
+<<<<<<< HEAD
 app.use('/citizen', citizenRoutes)
+=======
+app.use('/citizen', require('./routes/citizenRoutes'))
+app.use('/vouchers', require('./routes/voucherRoutes'))
+>>>>>>> dev
 
 app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' })

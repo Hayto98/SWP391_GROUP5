@@ -1,7 +1,15 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft,
   AlertCircle,
@@ -9,6 +17,7 @@ import {
   Circle,
   Clock,
   Loader2,
+  Upload,
 } from "lucide-react";
 import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -203,6 +212,33 @@ function ReportDetailPage() {
   const navigate = useNavigate();
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Complaint dialog state
+  const [isComplaintOpen, setIsComplaintOpen] = useState(false);
+  const [complaintReason, setComplaintReason] = useState("");
+  const [complaintImagePreview, setComplaintImagePreview] = useState(null);
+  const [complaintImageFile, setComplaintImageFile] = useState(null);
+  const complaintFileRef = useRef(null);
+
+  const handleComplaintImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setComplaintImageFile(file);
+    setComplaintImagePreview(URL.createObjectURL(file));
+  };
+
+  const handleComplaintSubmit = () => {
+    // TODO: gọi API POST /citizen/report-complaints
+    console.log("Submit complaint:", {
+      wasteReportId: reportId,
+      complaintReason,
+      attachmentFile: complaintImageFile,
+    });
+    setIsComplaintOpen(false);
+    setComplaintReason("");
+    setComplaintImagePreview(null);
+    setComplaintImageFile(null);
+  };
 
   useEffect(() => {
     const fetchDetail = async () => {
@@ -505,17 +541,6 @@ function ReportDetailPage() {
                   </div>
                 </div>
               </div>
-              <div className="mt-3 pt-3 border-t">
-                <p className="text-xs text-muted-foreground mb-1">
-                  Thời gian dự kiến (ETA)
-                </p>
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4" />
-                  <p className="font-semibold">
-                    {report.collector.estimatedTime}
-                  </p>
-                </div>
-              </div>
             </div>
           </CardContent>
         </Card>
@@ -552,17 +577,106 @@ function ReportDetailPage() {
         <Button
           variant="destructive"
           className="flex-1"
-          onClick={() => navigate("/citizen/complaints")}
+          onClick={() => setIsComplaintOpen(true)}
+          disabled={report.status === "PENDING"}
         >
           Gửi khiếu nại
         </Button>
         <Button
           className="flex-1 bg-green-500 hover:bg-green-600"
-          onClick={() => navigate("/citizen/reports")}
+          onClick={() => navigate(`/citizen/reports/`)}
         >
           Trở lại
         </Button>
       </div>
+
+      {/* Complaint creation dialog */}
+      <Dialog
+        open={isComplaintOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setComplaintReason("");
+            setComplaintImagePreview(null);
+            setComplaintImageFile(null);
+          }
+          setIsComplaintOpen(open);
+        }}
+      >
+        <DialogContent className="sm:max-w-lg z-500">
+          <DialogHeader>
+            <DialogTitle>Gửi khiếu nại</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">
+                Mã báo cáo:{" "}
+                <span className="font-medium text-foreground">{reportId}</span>
+              </p>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Lý do khiếu nại</label>
+              <Textarea
+                rows={4}
+                placeholder="Mô tả lý do khiếu nại của bạn..."
+                value={complaintReason}
+                onChange={(e) => setComplaintReason(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Hình ảnh đính kèm</label>
+              <input
+                ref={complaintFileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleComplaintImageChange}
+              />
+              {complaintImagePreview ? (
+                <div className="space-y-2">
+                  <ImageSection
+                    title=""
+                    image={complaintImagePreview}
+                    className=""
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setComplaintImagePreview(null);
+                      setComplaintImageFile(null);
+                      if (complaintFileRef.current)
+                        complaintFileRef.current.value = "";
+                    }}
+                  >
+                    Xóa ảnh
+                  </Button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => complaintFileRef.current?.click()}
+                  className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg text-muted-foreground hover:border-primary hover:text-primary transition-colors cursor-pointer"
+                >
+                  <Upload className="w-6 h-6 mb-1" />
+                  <span className="text-sm">Nhấn để tải ảnh lên</span>
+                </button>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsComplaintOpen(false)}>
+              Hủy
+            </Button>
+            <Button
+              onClick={handleComplaintSubmit}
+              disabled={!complaintReason.trim()}
+            >
+              Gửi
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
