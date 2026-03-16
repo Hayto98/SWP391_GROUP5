@@ -6,6 +6,7 @@ const errorHandler = require('./middlewares/errorHandler')
 const authRoutes = require('./routes/authRoutes')
 const adminRoutes = require('./routes/adminRoutes')
 const enterpriseRoutes = require('./routes/enterpriseRoutes')
+const citizenRoutes = require('./routes/citizenRoutes')
 
 const app = express()
 const port = Number(process.env.PORT || 3000)
