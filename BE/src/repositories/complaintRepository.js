@@ -194,10 +194,19 @@ async function updateComplaint({ reportComplaintId, complaintReason, attachments
   }
 }
 
+async function softDeleteComplaint(complaintId) {
+  // Vì các câu query GET đều filter theo reportcomplaint.is_deleted, 
+  // nên chỉ cần soft delete ở bảng chính là đủ.
+  const query = `UPDATE reportcomplaint SET is_deleted = 1 WHERE report_complaint_id = ?`
+  await db.execute(query, [complaintId])
+  return true
+}
+
 module.exports = {
   createComplaint,
   findComplaintByCitizenAndReport,
   findMyComplaints,
   findComplaintDetail,
-  updateComplaint
+  updateComplaint,
+  softDeleteComplaint
 }

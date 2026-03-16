@@ -88,9 +88,29 @@ async function updateComplaint(req, res, next) {
   }
 }
 
+async function deleteComplaint(req, res, next) {
+  try {
+    const userAccountId = req.user.sub
+    const { complaintId } = req.params
+
+    await complaintService.softDeleteComplaint({
+      userAccountId,
+      complaintId
+    })
+
+    res.status(200).json({
+      success: true,
+      message: "Complaint deleted successfully"
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
 module.exports = {
   createComplaint,
   getComplaints,
   getComplaintDetail,
-  updateComplaint
+  updateComplaint,
+  deleteComplaint
 }

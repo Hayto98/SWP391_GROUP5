@@ -122,9 +122,34 @@ async function updateComplaint({ userAccountId, complaintId, complaintReason, at
   return true
 }
 
+async function softDeleteComplaint({ userAccountId, complaintId }) {
+  if (!userAccountId || !complaintId) {
+    throw new ApiError(400, 'Thiếu userAccountId hoặc complaintId.')
+  }
+
+  const citizenId = await wasteReportRepository.findCitizenIdByUserAccountId(userAccountId)
+  if (!citizenId) {
+    throw new ApiError(403, 'Người dùng không phải là Citizen.')
+  }
+
+  const complaint = await complaintRepository.findComplaintDetail(citizenId, complaintId)
+  if (!complaint) {
+    throw new ApiError(404, 'Không tìm thấy khiếu nại hoặc bạn không có quyền xóa.')
+  }
+
+  if (complaint.complaintStatus !== 'OPEN') {
+    throw new ApiError(400, 'Chỉ có thể xóa khiếu nại khi trạng thái đang là OPEN.')
+  }
+
+  await complaintRepository.softDeleteComplaint(complaintId)
+
+  return true
+}
+
 module.exports = {
   createComplaint,
   getMyComplaints,
   getComplaintDetail,
-  updateComplaint
+  updateComplaint,
+  softDeleteComplaint
 }

@@ -26,4 +26,7 @@ router.get('/report-complaints/:complaintId', complaintController.getComplaintDe
 // PUT /citizen/report-complaints/:complaintId
 router.put('/report-complaints/:complaintId', complaintController.updateComplaint)
 
+// DELETE /citizen/report-complaints/:complaintId
+router.delete('/report-complaints/:complaintId', complaintController.deleteComplaint)
+
 module.exports = router
