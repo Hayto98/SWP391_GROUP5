@@ -144,9 +144,50 @@ async function findComplaintDetail(citizenId, complaintId) {
   }
 }
 
+async function updateComplaint({ reportComplaintId, complaintReason, attachments }) {
+  const connection = await db.getConnection()
+  try {
+    await connection.beginTransaction()
+
+    // 1. Update reason
+    if (complaintReason !== undefined) {
+      await connection.execute(
+        `UPDATE reportcomplaint 
+         SET complaint_reason = ? 
+         WHERE report_complaint_id = ?`,
+        [complaintReason, reportComplaintId]
+      )
+    }
+
+    // 2. Insert new attachments
+    if (attachments && attachments.length > 0) {
+      for (const attachment of attachments) {
+        if (attachment.fileUri) {
+          const complaintAttachmentId = uuidv4()
+          await connection.execute(
+            `INSERT INTO reportcomplaintattachment 
+              (complaint_attachment_id, report_complaint_id, file_uri, uploaded_at)
+             VALUES (?, ?, ?, NOW())`,
+            [complaintAttachmentId, reportComplaintId, attachment.fileUri]
+          )
+        }
+      }
+    }
+
+    await connection.commit()
+    return true
+  } catch (error) {
+    await connection.rollback()
+    throw error
+  } finally {
+    connection.release()
+  }
+}
+
 module.exports = {
   createComplaint,
   findComplaintByCitizenAndReport,
   findMyComplaints,
-  findComplaintDetail
+  findComplaintDetail,
+  updateComplaint
 }
