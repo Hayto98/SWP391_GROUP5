@@ -104,8 +104,49 @@ async function findMyComplaints(citizenId, { status, limit, offset }) {
   return { data, total }
 }
 
+async function findComplaintDetail(citizenId, complaintId) {
+  let query = `
+    SELECT 
+      rc.report_complaint_id,
+      rc.waste_report_id,
+      rc.complaint_reason,
+      rc.complaint_status,
+      rc.refund_points,
+      rc.admin_response,
+      rc.created_at,
+      rc.resolved_at,
+      GROUP_CONCAT(rca.file_uri SEPARATOR '|||') AS attachment_uris
+    FROM reportcomplaint rc
+    LEFT JOIN reportcomplaintattachment rca ON rc.report_complaint_id = rca.report_complaint_id
+    WHERE rc.report_complaint_id = ? AND rc.citizen_id = ? AND rc.is_deleted = 0
+    GROUP BY rc.report_complaint_id
+  `
+  
+  const [rows] = await db.execute(query, [complaintId, citizenId])
+  
+  if (rows.length === 0) return null
+
+  const row = rows[0]
+  const attachments = row.attachment_uris 
+    ? row.attachment_uris.split('|||').filter(Boolean).map(uri => ({ fileUri: uri }))
+    : []
+
+  return {
+    reportComplaintId: row.report_complaint_id,
+    wasteReportId: row.waste_report_id,
+    complaintReason: row.complaint_reason,
+    complaintStatus: row.complaint_status,
+    refundPoints: row.refund_points,
+    adminResponse: row.admin_response,
+    createdAt: row.created_at,
+    resolvedAt: row.resolved_at,
+    attachments
+  }
+}
+
 module.exports = {
   createComplaint,
   findComplaintByCitizenAndReport,
-  findMyComplaints
+  findMyComplaints,
+  findComplaintDetail
 }

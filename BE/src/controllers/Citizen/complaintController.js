@@ -47,7 +47,27 @@ async function getComplaints(req, res, next) {
   }
 }
 
+async function getComplaintDetail(req, res, next) {
+  try {
+    const userAccountId = req.user.sub
+    const { complaintId } = req.params
+
+    const result = await complaintService.getComplaintDetail({
+      userAccountId,
+      complaintId
+    })
+
+    res.status(200).json({
+      success: true,
+      data: result
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
 module.exports = {
   createComplaint,
-  getComplaints
+  getComplaints,
+  getComplaintDetail
 }

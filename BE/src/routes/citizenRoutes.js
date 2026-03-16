@@ -20,4 +20,7 @@ router.post('/report-complaints', complaintController.createComplaint)
 // GET /citizen/report-complaints
 router.get('/report-complaints', complaintController.getComplaints)
 
+// GET /citizen/report-complaints/:complaintId
+router.get('/report-complaints/:complaintId', complaintController.getComplaintDetail)
+
 module.exports = router
