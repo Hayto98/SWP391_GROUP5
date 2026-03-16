@@ -462,6 +462,7 @@ async function getVouchers(queryParams) {
   const formattedData = data.map((v) => {
 
     return {
+      voucherId: v.voucher_id,
       voucherCode: v.voucher_code,
       title: v.title,
       description: v.description || '', // Return cleaned description
