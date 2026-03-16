@@ -3,6 +3,18 @@ import axios from "axios";
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
+function getAccessToken() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    return window.localStorage.getItem("accessToken");
+  } catch {
+    return null;
+  }
+}
+
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -15,6 +27,11 @@ export async function request(path, options = {}) {
   const { method = "GET", headers, params, data, body, ...rest } = options;
   const requestData = data !== undefined ? data : body;
   const requestHeaders = { ...(headers || {}) };
+  const accessToken = getAccessToken();
+
+  if (accessToken && !requestHeaders.Authorization) {
+    requestHeaders.Authorization = `Bearer ${accessToken}`;
+  }
 
   if (requestData instanceof FormData) {
     // Let the browser set the correct multipart boundary automatically.

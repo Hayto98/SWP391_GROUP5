@@ -8,13 +8,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Star } from "lucide-react";
+import { ImageOff, Star } from "lucide-react";
 
 function RedeemDialog({
   isOpen,
   onClose,
   selectedVoucher,
   userPoints,
+  isSubmitting,
   onConfirm,
 }) {
   if (!selectedVoucher) return null;
@@ -30,23 +31,32 @@ function RedeemDialog({
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="flex items-start gap-4">
-            <img
-              src={selectedVoucher.image}
-              alt={selectedVoucher.voucher_name}
-              className="w-24 h-24 object-cover rounded-lg"
-            />
+            {selectedVoucher.fileUri ? (
+              <img
+                src={selectedVoucher.fileUri}
+                alt={selectedVoucher.title}
+                className="w-24 h-24 object-cover rounded-lg"
+              />
+            ) : (
+              <div className="flex h-24 w-24 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                <ImageOff className="size-6" />
+              </div>
+            )}
             <div className="flex-1">
-              <h3 className="font-semibold text-lg">
-                {selectedVoucher.voucher_name}
-              </h3>
+              <h3 className="font-semibold text-lg">{selectedVoucher.title}</h3>
               <p className="text-sm text-muted-foreground mt-1">
                 Mã:{" "}
                 <span className="font-mono font-semibold">
-                  {selectedVoucher.voucher_code}
+                  {selectedVoucher.voucherCode}
                 </span>
               </p>
-              <p className="text-sm text-muted-foreground mt-2">
-                {selectedVoucher.terms_description}
+              {selectedVoucher.description && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  {selectedVoucher.description}
+                </p>
+              )}
+              <p className="text-sm text-muted-foreground mt-1">
+                Số lượng còn lại: {selectedVoucher.quantityRemaining}
               </p>
             </div>
           </div>
@@ -62,14 +72,14 @@ function RedeemDialog({
               <span>Điểm cần dùng:</span>
               <span className="font-semibold text-red-600 flex items-center gap-1">
                 <Star className="size-4 fill-red-500 text-red-500" />-
-                {selectedVoucher.points_required}
+                {selectedVoucher.pointsRequired}
               </span>
             </div>
             <div className="flex justify-between text-sm border-t pt-2">
               <span className="font-semibold">Điểm còn lại:</span>
               <span className="font-bold text-lg flex items-center gap-1">
                 <Star className="size-5 fill-amber-500 text-amber-500" />
-                {userPoints - selectedVoucher.points_required}
+                {userPoints - selectedVoucher.pointsRequired}
               </span>
             </div>
           </div>
@@ -78,7 +88,12 @@ function RedeemDialog({
           <Button variant="outline" onClick={onClose}>
             Hủy
           </Button>
-          <Button onClick={onConfirm}>Xác Nhận Đổi</Button>
+          <Button
+            onClick={onConfirm}
+            disabled={isSubmitting || !selectedVoucher.canRedeem}
+          >
+            {isSubmitting ? "Đang đổi..." : "Xác Nhận Đổi"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

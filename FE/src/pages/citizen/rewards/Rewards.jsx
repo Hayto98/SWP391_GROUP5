@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Card,
   CardDescription,
+  CardContent,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Gift, Star, Trophy, Ticket, History } from "lucide-react";
 import { toast } from "sonner";
@@ -12,161 +14,130 @@ import VoucherList from "./components/VoucherList";
 import RedemptionHistory from "./components/RedemptionHistory";
 import PointHistory from "./components/PointHistory";
 import RedeemDialog from "./components/RedeemDialog";
+import {
+  getAvailableVouchers,
+  getMyPoints,
+  getPointHistory,
+  getRedeemedVouchers,
+  redeemVoucher,
+} from "@/services/citizenRewards.service";
 
 function Rewards() {
-  const [userPoints, setUserPoints] = useState(2500); // Điểm hiện tại của user
+  const [userPoints, setUserPoints] = useState(0);
+  const [vouchers, setVouchers] = useState([]);
+  const [redemptionHistory, setRedemptionHistory] = useState([]);
+  const [pointTransactions, setPointTransactions] = useState([]);
   const [selectedVoucher, setSelectedVoucher] = useState(null);
   const [isRedeemDialogOpen, setIsRedeemDialogOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRedeeming, setIsRedeeming] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
-  // Mock data - Danh sách voucher có thể đổi
-  const vouchers = [
-    {
-      voucher_id: "1",
-      voucher_name: "Giảm 50k cho đơn hàng từ 200k",
-      voucher_code: "SAVE50K",
-      points_required: 500,
-      terms_description:
-        "Áp dụng cho đơn hàng từ 200.000đ. Hạn sử dụng 30 ngày.",
-      expiry_date: "31/03/2026",
-      image:
-        "https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?w=400&h=300&fit=crop",
-      category: "discount",
-    },
-    {
-      voucher_id: "2",
-      voucher_name: "Freeship đơn hàng dưới 3km",
-      voucher_code: "FREESHIP3K",
-      points_required: 300,
-      terms_description: "Miễn phí vận chuyển cho đơn hàng trong bán kính 3km.",
-      expiry_date: "15/04/2026",
-      image:
-        "https://images.unsplash.com/photo-1566576721346-d4a3b4eaeb55?w=400&h=300&fit=crop",
-      category: "shipping",
-    },
-    {
-      voucher_id: "3",
-      voucher_name: "Voucher Starbucks 100k",
-      voucher_code: "COFFEE100",
-      points_required: 1000,
-      terms_description: "Voucher 100k tại Starbucks. Áp dụng toàn quốc.",
-      expiry_date: "30/06/2026",
-      image:
-        "https://images.unsplash.com/photo-1511920170033-f8396924c348?w=400&h=300&fit=crop",
-      category: "gift",
-    },
-    {
-      voucher_id: "4",
-      voucher_name: "Giảm 20% tối đa 100k",
-      voucher_code: "SALE20",
-      points_required: 800,
-      terms_description: "Giảm 20% tối đa 100.000đ cho mọi đơn hàng.",
-      expiry_date: "31/05/2026",
-      image:
-        "https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=400&h=300&fit=crop",
-      category: "discount",
-    },
-    {
-      voucher_id: "5",
-      voucher_name: "Voucher Grab 50k",
-      voucher_code: "GRAB50",
-      points_required: 600,
-      terms_description: "Voucher Grab 50k. Áp dụng cho Grab Bike, Grab Car.",
-      expiry_date: "30/04/2026",
-      image:
-        "https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?w=400&h=300&fit=crop",
-      category: "gift",
-    },
-    {
-      voucher_id: "6",
-      voucher_name: "Tặng cây xanh cho môi trường",
-      voucher_code: "GREENTREE",
-      points_required: 1500,
-      terms_description: "Chúng tôi sẽ trồng 1 cây xanh nhân danh bạn.",
-      expiry_date: "31/12/2026",
-      image:
-        "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=400&h=300&fit=crop",
-      category: "environment",
-    },
-  ];
+  const loadRewardsData = async ({ silent = false } = {}) => {
+    if (!silent) {
+      setIsLoading(true);
+    }
 
-  // Mock data - Lịch sử đổi voucher
-  const redemptionHistory = [
-    {
-      voucher_redemption_id: "1",
-      voucher_name: "Giảm 50k cho đơn hàng từ 200k",
-      voucher_code: "SAVE50K",
-      points_used: 500,
-      redeemed_at: "2026-02-01T10:30:00",
-      status: "active",
-    },
-    {
-      voucher_redemption_id: "2",
-      voucher_name: "Freeship đơn hàng dưới 3km",
-      voucher_code: "FREESHIP3K",
-      points_used: 300,
-      redeemed_at: "2026-01-28T14:20:00",
-      status: "used",
-    },
-    {
-      voucher_redemption_id: "3",
-      voucher_name: "Voucher Starbucks 100k",
-      voucher_code: "COFFEE100",
-      points_used: 1000,
-      redeemed_at: "2026-01-25T09:15:00",
-      status: "used",
-    },
-  ];
+    setLoadError("");
 
-  // Mock data - Lịch sử giao dịch điểm
-  const pointTransactions = [
-    {
-      point_transaction_id: "1",
-      points_delta: 150,
-      transaction_reason: "Thu gom 5kg rác tái chế",
-      created_at: "2026-02-03T08:00:00",
-    },
-    {
-      point_transaction_id: "2",
-      points_delta: -500,
-      transaction_reason: "Đổi voucher: Giảm 50k cho đơn hàng từ 200k",
-      created_at: "2026-02-01T10:30:00",
-    },
-    {
-      point_transaction_id: "3",
-      points_delta: 200,
-      transaction_reason: "Thu gom 8kg rác hữu cơ",
-      created_at: "2026-02-01T07:30:00",
-    },
-    {
-      point_transaction_id: "4",
-      points_delta: -300,
-      transaction_reason: "Đổi voucher: Freeship đơn hàng dưới 3km",
-      created_at: "2026-01-28T14:20:00",
-    },
-    {
-      point_transaction_id: "5",
-      points_delta: 300,
-      transaction_reason: "Báo cáo điểm rác thải",
-      created_at: "2026-01-27T16:45:00",
-    },
-  ];
+    try {
+      const [
+        pointsResponse,
+        vouchersResponse,
+        redeemedResponse,
+        historyResponse,
+      ] = await Promise.all([
+        getMyPoints(),
+        getAvailableVouchers({ page: 1, limit: 10 }),
+        getRedeemedVouchers(),
+        getPointHistory({ page: 1, limit: 20 }),
+      ]);
+
+      setUserPoints(Number(pointsResponse?.data?.totalPoints) || 0);
+      setVouchers(
+        Array.isArray(vouchersResponse?.data) ? vouchersResponse.data : [],
+      );
+      setRedemptionHistory(
+        Array.isArray(redeemedResponse?.data) ? redeemedResponse.data : [],
+      );
+      setPointTransactions(
+        Array.isArray(historyResponse?.data) ? historyResponse.data : [],
+      );
+    } catch (error) {
+      const message = error?.message || "Không thể tải dữ liệu phần thưởng.";
+      setLoadError(message);
+
+      if (silent) {
+        toast.error(message);
+      }
+    } finally {
+      if (!silent) {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    loadRewardsData();
+  }, []);
 
   const handleRedeemVoucher = (voucher) => {
     setSelectedVoucher(voucher);
     setIsRedeemDialogOpen(true);
   };
 
-  const confirmRedeem = () => {
-    if (userPoints >= selectedVoucher.points_required) {
-      setUserPoints(userPoints - selectedVoucher.points_required);
-      toast.success(
-        `Đã đổi voucher "${selectedVoucher.voucher_name}" thành công!`,
-      );
+  const confirmRedeem = async () => {
+    if (!selectedVoucher) {
+      return;
+    }
+
+    if (!selectedVoucher.canRedeem) {
+      toast.error("Bạn hiện không đủ điều kiện để đổi voucher này.");
+      return;
+    }
+
+    setIsRedeeming(true);
+
+    try {
+      await redeemVoucher(selectedVoucher.voucherId);
+      toast.success(`Đã đổi voucher "${selectedVoucher.title}" thành công.`);
       setIsRedeemDialogOpen(false);
       setSelectedVoucher(null);
-    } else {
-      toast.error("Không đủ điểm để đổi voucher này!");
+      await loadRewardsData({ silent: true });
+    } catch (error) {
+      toast.error(error?.message || "Đổi voucher thất bại.");
+    } finally {
+      setIsRedeeming(false);
     }
+  };
+
+  const renderVoucherContent = () => {
+    if (isLoading) {
+      return (
+        <Card>
+          <CardContent className="py-10 text-center text-sm text-muted-foreground">
+            Đang tải danh sách quà tặng...
+          </CardContent>
+        </Card>
+      );
+    }
+
+    if (loadError) {
+      return (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
+            <p className="text-sm text-destructive">{loadError}</p>
+            <Button variant="outline" onClick={() => loadRewardsData()}>
+              Tải lại
+            </Button>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    return (
+      <VoucherList vouchers={vouchers} onRedeemVoucher={handleRedeemVoucher} />
+    );
   };
 
   return (
@@ -214,11 +185,7 @@ function Rewards() {
 
         {/* Tab 1: Danh sách voucher có thể đổi */}
         <TabsContent value="vouchers" className="space-y-4">
-          <VoucherList
-            vouchers={vouchers}
-            userPoints={userPoints}
-            onRedeemVoucher={handleRedeemVoucher}
-          />
+          {renderVoucherContent()}
         </TabsContent>
 
         {/* Tab 2: Lịch sử đổi voucher */}
@@ -238,6 +205,7 @@ function Rewards() {
         onClose={() => setIsRedeemDialogOpen(false)}
         selectedVoucher={selectedVoucher}
         userPoints={userPoints}
+        isSubmitting={isRedeeming}
         onConfirm={confirmRedeem}
       />
     </div>
