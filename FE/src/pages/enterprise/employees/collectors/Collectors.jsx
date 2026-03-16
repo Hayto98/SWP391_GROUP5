@@ -32,6 +32,7 @@ import {
   Truck,
   Users,
 } from "lucide-react";
+import PaginationBar from "@/components/ui/PaginationBar";
 
 const statusMeta = {
   ready: {
@@ -124,24 +125,6 @@ export default function Collectors() {
   const chipItems = data?.filters?.status || ["Tất cả", "Sẵn sàng", "Đang bận", "Nghỉ phép"];
   const startItem = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const endItem = Math.min(page * pageSize, total);
-
-  const pages = useMemo(() => {
-    const arr = [];
-
-    if (totalPages <= 7) {
-      for (let i = 1; i <= totalPages; i += 1) arr.push(i);
-      return arr;
-    }
-
-    arr.push(1);
-    if (page > 3) arr.push("...");
-    const from = Math.max(2, page - 1);
-    const to = Math.min(totalPages - 1, page + 1);
-    for (let i = from; i <= to; i += 1) arr.push(i);
-    if (page < totalPages - 2) arr.push("...");
-    arr.push(totalPages);
-    return arr;
-  }, [page, totalPages]);
 
   return (
     <div className="space-y-6">
@@ -332,55 +315,15 @@ export default function Collectors() {
               </Table>
 
               <div className="mt-4 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-xs font-semibold text-muted-foreground">
+                <p className="text-sm text-muted-foreground">
                   Đang hiển thị {startItem}-{endItem} trên {total} nhân viên
                 </p>
-
                 <div className="flex items-center gap-1">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={page === 1}
-                    onClick={() => setPage(page - 1)}
-                  >
-                    <ChevronLeft className="size-4" />
-                    Trước
-                  </Button>
-
-                  {pages.map((item, index) => {
-                    if (item === "...") {
-                      return (
-                        <span key={`ellipsis-${index}`} className="px-2 text-xs font-semibold text-muted-foreground">
-                          ...
-                        </span>
-                      );
-                    }
-
-                    return (
-                      <Button
-                        key={item}
-                        type="button"
-                        variant={page === item ? "default" : "outline"}
-                        size="sm"
-                        className="min-w-8 px-2"
-                        onClick={() => setPage(item)}
-                      >
-                        {item}
-                      </Button>
-                    );
-                  })}
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={page === totalPages}
-                    onClick={() => setPage(page + 1)}
-                  >
-                    Tiếp
-                    <ChevronRight className="size-4" />
-                  </Button>
+                  <PaginationBar
+                    currentPage={page}
+                    totalPages={totalPages}
+                    onPageChange={setPage}
+                  />
                 </div>
               </div>
             </>

@@ -58,6 +58,16 @@ import {
   recordVoucherHistory,
 } from "@/services/voucherHistory.service";
 import { toast } from "sonner";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import PaginationBar from "@/components/ui/PaginationBar";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 const CATEGORIES = [
@@ -413,6 +423,39 @@ export default function ManageVoucher() {
     return matchSource && matchSearch;
   });
 
+  // ── Phân trang cho danh sách voucher
+  const PAGE_SIZE = 8;
+  const [currentPage, setCurrentPage] = useState(1);
+  const totalVouchers = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalVouchers / PAGE_SIZE));
+  const effectivePage = Math.min(currentPage, totalPages);
+  const paginatedVouchers = filtered.slice((effectivePage - 1) * PAGE_SIZE, effectivePage * PAGE_SIZE);
+
+  function getVisiblePages(currentPage, totalPages) {
+    const delta = 1;
+    const range = [];
+    const rangeWithDots = [];
+    for (
+      let i = Math.max(2, currentPage - delta);
+      i <= Math.min(totalPages - 1, currentPage + delta);
+      i += 1
+    ) {
+      range.push(i);
+    }
+    if (currentPage - delta > 2) {
+      rangeWithDots.push(1, "...");
+    } else {
+      rangeWithDots.push(1);
+    }
+    rangeWithDots.push(...range);
+    if (currentPage + delta < totalPages - 1) {
+      rangeWithDots.push("...", totalPages);
+    } else if (totalPages > 1) {
+      rangeWithDots.push(totalPages);
+    }
+    return rangeWithDots;
+  }
+
   // ── Handlers ──
   const handleSave = (data) => {
     if (editTarget) {
@@ -516,7 +559,7 @@ export default function ManageVoucher() {
               Quản lý các voucher điểm thưởng sử dụng cho ứng dụng.
             </p>
           </div>
-          <div className="flex flex-shrink-0 items-center gap-3">
+          <div className="flex shrink-0 items-center gap-3">
             <Button
               variant="outline"
               className="border-primary text-primary hover:bg-primary/10 hover:text-primary bg-white shadow-sm flex items-center gap-2 px-6"
@@ -551,7 +594,7 @@ export default function ManageVoucher() {
       <div className="border-b border-gray-200 flex items-center overflow-x-auto text-base">
         <button
           onClick={() => setFilterSource("all")}
-          className={`flex-shrink-0 px-6 py-4 border-b-2 font-medium transition-colors ${filterSource === "all" ? "border-primary text-primary" : "border-transparent text-gray-600 hover:text-primary"
+            className={`shrink-0 px-6 py-4 border-b-2 font-medium transition-colors ${filterSource === "all" ? "border-primary text-primary" : "border-transparent text-gray-600 hover:text-primary"
             }`}
         >
           Tất Cả ({vouchers.length})
@@ -560,11 +603,11 @@ export default function ManageVoucher() {
           const count = vouchers.filter((v) => v.source === s.value).length;
           return (
             <>
-              <span className="text-gray-300 flex-shrink-0">|</span>
+              <span className="text-gray-300 shrink-0">|</span>
               <button
                 key={s.value}
                 onClick={() => setFilterSource(s.value)}
-                className={`flex-shrink-0 px-6 py-4 border-b-2 font-medium transition-colors ${filterSource === s.value ? "border-primary text-primary" : "border-transparent text-gray-600 hover:text-primary"
+                className={`shrink-0 px-6 py-4 border-b-2 font-medium transition-colors ${filterSource === s.value ? "border-primary text-primary" : "border-transparent text-gray-600 hover:text-primary"
                   }`}
               >
                 {s.label} ({count})
@@ -574,78 +617,96 @@ export default function ManageVoucher() {
         })}
       </div>
 
-      {/* ── Ticket Cards Grid ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-        {filtered.map((v) => {
-          return (
-            <div
-              key={v.voucher_id}
-              className={`relative flex h-32 bg-white border border-gray-200 rounded-md shadow-sm overflow-hidden group ${!v.is_active ? "opacity-60" : ""}`}
-            >
-              {/* Left Image / Branding */}
-              <div className="w-[118px] flex-shrink-0 bg-primary flex flex-col items-center justify-center relative overflow-hidden border-r border-dashed border-gray-200 box-border p-2">
-                <Gift className="size-8 mb-2 text-white opacity-90 flex-shrink-0" />
-                <div className="text-[10px] text-white font-medium text-center uppercase leading-snug line-clamp-2" style={{ textTransform: "initial" }}>
-                  {v.voucher_name}
-                </div>
-              </div>
-
-              {/* Right Content */}
-              <div className="flex-1 p-3 flex flex-col justify-between relative pl-4">
-                {/* Active status indicator */}
-                {v.is_active ? (
-                  <div className="absolute top-3 right-3 text-[10px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded border border-red-200">
-                    ĐANG BẬT
+      {/* ── Ticket Cards Grid + Pagination Card ── */}
+      <Card className="mt-6">
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {paginatedVouchers.map((v) => {
+              return (
+                <div
+                  key={v.voucher_id}
+                  className={`relative flex h-32 bg-white border border-gray-200 rounded-md shadow-sm overflow-hidden group ${!v.is_active ? "opacity-60" : ""}`}
+                >
+                  {/* Left Image / Branding */}
+                  <div className="w-29.5 shrink-0 bg-primary flex flex-col items-center justify-center relative overflow-hidden border-r border-dashed border-gray-200 box-border p-2">
+                    <Gift className="size-8 mb-2 text-white opacity-90 shrink-0" />
+                    <div className="text-[10px] text-white font-medium text-center uppercase leading-snug line-clamp-2" style={{ textTransform: "initial" }}>
+                      {v.voucher_name}
+                    </div>
                   </div>
-                ) : (
-                  <div className="absolute top-3 right-3 text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded border border-gray-200">
-                    ĐÃ TẮT
-                  </div>
-                )}
 
-                <div>
-                  <h3 className="text-sm font-medium text-gray-800 pr-16 line-clamp-1">{v.voucher_name}</h3>
-                  <div className="text-xs text-gray-500 mt-1 line-clamp-1">{v.terms_description || `Áp dụng toàn bộ dịch vụ`}</div>
+                  {/* Right Content */}
+                  <div className="flex-1 p-3 flex flex-col justify-between relative pl-4">
+                    {/* Active status indicator */}
+                    {v.is_active ? (
+                      <div className="absolute top-3 right-3 text-[10px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded border border-red-200">
+                        ĐANG BẬT
+                      </div>
+                    ) : (
+                      <div className="absolute top-3 right-3 text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded border border-gray-200">
+                        ĐÃ TẮT
+                      </div>
+                    )}
 
-                  <div className="mt-2 flex items-center gap-1.5">
-                    <span className="text-[10px] px-1.5 py-0.5 border border-red-500 text-red-500 rounded-sm leading-none whitespace-nowrap">
-                      HSD: {v.expiry_date}
-                    </span>
-                    <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-sm font-medium whitespace-nowrap flex items-center gap-1">
-                      <Star className="size-3 fill-amber-500 text-amber-500" /> {v.points_required} đ
-                    </span>
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-800 pr-16 line-clamp-1">{v.voucher_name}</h3>
+                      <div className="text-xs text-gray-500 mt-1 line-clamp-1">{v.terms_description || `Áp dụng toàn bộ dịch vụ`}</div>
+
+                      <div className="mt-2 flex items-center gap-1.5">
+                        <span className="text-[10px] px-1.5 py-0.5 border border-red-500 text-red-500 rounded-sm leading-none whitespace-nowrap">
+                          HSD: {v.expiry_date}
+                        </span>
+                        <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-sm font-medium whitespace-nowrap flex items-center gap-1">
+                          <Star className="size-3 fill-amber-500 text-amber-500" /> {v.points_required} đ
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Bottom Actions Overlay */}
+                    <div className="absolute bottom-3 right-3 flex items-center gap-2">
+                      <Switch
+                        checked={v.is_active}
+                        onCheckedChange={() => handleToggle(v)}
+                        className="scale-75 origin-right"
+                        title="Bật / Tắt"
+                      />
+                      <div className="w-px h-5 bg-gray-200 mx-1"></div>
+                      <button
+                        onClick={() => handleEdit(v)}
+                        className="text-gray-400 hover:text-blue-600 transition-colors"
+                        title="Chỉnh sửa"
+                      >
+                        <Pencil className="size-4" />
+                      </button>
+                      <button
+                        onClick={() => setDeleteTarget(v)}
+                        className="text-gray-400 hover:text-red-600 transition-colors"
+                        title="Xóa"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-
-                {/* Bottom Actions Overlay */}
-                <div className="absolute bottom-3 right-3 flex items-center gap-2">
-                  <Switch
-                    checked={v.is_active}
-                    onCheckedChange={() => handleToggle(v)}
-                    className="scale-75 origin-right"
-                    title="Bật / Tắt"
-                  />
-                  <div className="w-px h-5 bg-gray-200 mx-1"></div>
-                  <button
-                    onClick={() => handleEdit(v)}
-                    className="text-gray-400 hover:text-blue-600 transition-colors"
-                    title="Chỉnh sửa"
-                  >
-                    <Pencil className="size-4" />
-                  </button>
-                  <button
-                    onClick={() => setDeleteTarget(v)}
-                    className="text-gray-400 hover:text-red-600 transition-colors"
-                    title="Xóa"
-                  >
-                    <Trash2 className="size-4" />
-                  </button>
-                </div>
-              </div>
+              );
+            })}
+          </div>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between py-4 mt-6">
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-muted-foreground">
+                Hiển thị {totalVouchers === 0 ? 0 : (effectivePage - 1) * PAGE_SIZE + 1} - {Math.min(effectivePage * PAGE_SIZE, totalVouchers)} trên {totalVouchers} voucher
+              </p>
             </div>
-          );
-        })}
-      </div>
+            <div className="flex justify-end w-full md:w-auto">
+              <PaginationBar
+                currentPage={effectivePage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Dialog open={isHistoryDialogOpen} onOpenChange={setHistoryDialogOpen}>
         <DialogContent

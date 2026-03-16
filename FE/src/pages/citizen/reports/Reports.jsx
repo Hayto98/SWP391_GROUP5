@@ -56,6 +56,7 @@ import { toast } from "sonner";
 import { reverseGeocode } from "@/services/geocodingService";
 import { getWasteTypes } from "@/services/wasteService";
 import EditReportDialog from "./EditReportDialog";
+import PaginationBar from "@/components/ui/PaginationBar";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 const FETCH_ALL_PAGE_SIZE = 100;
@@ -632,66 +633,11 @@ function Reports() {
               </div>
             </div>
 
-            <Pagination className="justify-end">
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      if (effectivePage > 1) {
-                        setCurrentPage(effectivePage - 1);
-                      }
-                    }}
-                    className={
-                      effectivePage <= 1
-                        ? "pointer-events-none opacity-50"
-                        : "cursor-pointer"
-                    }
-                  />
-                </PaginationItem>
-
-                {getVisiblePages(effectivePage, totalPages).map(
-                  (page, index) =>
-                    page === "..." ? (
-                      <PaginationItem key={`ellipsis-${index}`}>
-                        <PaginationEllipsis />
-                      </PaginationItem>
-                    ) : (
-                      <PaginationItem key={page}>
-                        <PaginationLink
-                          href="#"
-                          isActive={page === effectivePage}
-                          className="cursor-pointer"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            setCurrentPage(Number(page));
-                          }}
-                        >
-                          {page}
-                        </PaginationLink>
-                      </PaginationItem>
-                    ),
-                )}
-
-                <PaginationItem>
-                  <PaginationNext
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      if (effectivePage < totalPages) {
-                        setCurrentPage(effectivePage + 1);
-                      }
-                    }}
-                    className={
-                      effectivePage >= totalPages
-                        ? "pointer-events-none opacity-50"
-                        : "cursor-pointer"
-                    }
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
+            <PaginationBar
+              currentPage={effectivePage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+            />
           </div>
         </CardContent>
       </Card>
