@@ -178,6 +178,10 @@ export default function ReportDetail() {
   };
 
   const routeReportId = String(data?.id || reportId).replace(/^#/, "");
+  const reportCodeText =
+    typeof data?.reportCode === "string" && data.reportCode.trim()
+      ? data.reportCode.trim()
+      : `#${routeReportId}`;
   const rawStatus = String(data?.rawStatus || data?.status || "").toUpperCase();
   const canAccept = rawStatus === "PENDING";
   const canReject = rawStatus === "PENDING";
@@ -262,12 +266,13 @@ export default function ReportDetail() {
 
       recordReportAssignment({
         reportId: routeReportId,
+        reportCode: reportCodeText,
         collectorId: collector.id,
         collectorName: assignedCollectorName,
       });
 
       toast.success(
-        `Nhân viên ${assignedCollectorName} vừa được gán cho báo cáo #${routeReportId}.`,
+        `Nhân viên ${assignedCollectorName} vừa được gán cho báo cáo ${reportCodeText}.`,
       );
 
       setAssignPopupOpen(false);
@@ -385,14 +390,16 @@ export default function ReportDetail() {
           Chờ xử lý
         </Button>
         <span> / </span>
-        <span className="font-medium text-foreground">Chi tiết #{data.id}</span>
+        <span className="font-medium text-foreground">
+          Chi tiết {reportCodeText}
+        </span>
       </div>
 
       <Card>
         <CardContent className="p-6 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold">Report #{data.id}</h1>
+              <h1 className="text-2xl font-bold">Báo cáo {reportCodeText}</h1>
               <Badge variant="outline">{data.status}</Badge>
             </div>
             <p className="text-sm text-muted-foreground">
@@ -503,7 +510,7 @@ export default function ReportDetail() {
             <div className="p-6 border-b">
               <div>
                 <h2 className="text-xl font-semibold">
-                  Gán collector cho báo cáo #{routeReportId}
+                  Gán collector cho báo cáo {reportCodeText}
                 </h2>
                 <p className="text-sm text-muted-foreground mt-1">
                   Chọn collector phù hợp dựa trên khoảng cách và tải công việc.
@@ -525,7 +532,7 @@ export default function ReportDetail() {
                 <Card className="mx-6 mt-6">
                   <CardContent className="p-4 space-y-2">
                     <div className="font-medium">
-                      Báo cáo #{selectedReport.id} • {selectedReport.status}
+                      Báo cáo {reportCodeText} • {selectedReport.status}
                     </div>
                     <div className="text-sm text-muted-foreground flex items-center gap-2">
                       <MapPin className="size-4" />
@@ -612,7 +619,7 @@ export default function ReportDetail() {
         <DialogContent className="max-w-lg p-0 z-500">
           <div className="p-6 space-y-3">
             <h3 className="text-lg font-semibold">
-              Lý do từ chối báo cáo #{routeReportId}
+              Lý do từ chối báo cáo {reportCodeText}
             </h3>
             <p className="text-sm text-muted-foreground">
               Nhập lý do để gửi kèm khi từ chối báo cáo.
@@ -682,9 +689,10 @@ export default function ReportDetail() {
 
             <div className="flex items-center justify-between gap-2">
               <div>
-                <p className="text-xs text-muted-foreground">TỌA ĐỘ GPS</p>
+                <p className="text-xs text-muted-foreground">VỊ TRÍ</p>
                 <p className="text-sm font-medium">
-                  {data.location.lat.toFixed(6)}, {data.location.lng.toFixed(6)}
+                  {resolvedAddress ||
+                    `${data.location.lat.toFixed(6)}, ${data.location.lng.toFixed(6)}`}
                 </p>
               </div>
 

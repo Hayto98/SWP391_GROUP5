@@ -218,6 +218,8 @@ function mapApiReportToDetail(rawReport, fallbackReportId) {
 
   return {
     id: rawReport?.wasteReportId || rawReport?.id || fallbackReportId,
+    reportCode:
+      rawReport?.reportCode || rawReport?.wasteReportId || fallbackReportId,
     status: STATUS_LABELS[normalizedStatus] || normalizedStatus,
     rawStatus: normalizedStatus,
     createdAt: formatDateTime(rawReport?.createdAt) || "Không rõ thời gian",

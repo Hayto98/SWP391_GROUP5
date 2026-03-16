@@ -113,6 +113,7 @@ function mapApiReportToRow(report) {
 
   return {
     code: reportId ? `#${reportId}` : "#N/A",
+    reportCode: report?.reportCode || (reportId ? `#${reportId}` : "#N/A"),
     ward: report?.citizen?.fullname || "Không rõ công dân",
     district: report?.citizen?.phone || "Không có SĐT",
     waste: unitType ? `${wasteName} (${unitType})` : wasteName,

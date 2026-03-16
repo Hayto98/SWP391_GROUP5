@@ -44,14 +44,16 @@ function writeAll(entries) {
 	}
 }
 
-export function recordReportAssignment({ reportId, collectorId, collectorName }) {
+export function recordReportAssignment({ reportId, reportCode, collectorId, collectorName }) {
 	const normalizedReportId = String(reportId || "").replace(/^#/, "");
+	const normalizedReportCode = String(reportCode || "").trim();
 	if (!normalizedReportId) return null;
 
 	const now = new Date().toISOString();
 	const entry = {
 		id: `asg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
 		reportId: normalizedReportId,
+		reportCode: normalizedReportCode || `#${normalizedReportId}`,
 		collectorId: String(collectorId || ""),
 		collectorName: collectorName || "Không xác định",
 		assignedAt: now,
