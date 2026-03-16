@@ -1,0 +1,126 @@
+{
+  "reportcomplaint": [
+    {
+      "Field": "report_complaint_id",
+      "Type": "char(36)",
+      "Null": "NO",
+      "Key": "PRI",
+      "Default": null,
+      "Extra": ""
+    },
+    {
+      "Field": "waste_report_id",
+      "Type": "char(36)",
+      "Null": "NO",
+      "Key": "MUL",
+      "Default": null,
+      "Extra": ""
+    },
+    {
+      "Field": "citizen_id",
+      "Type": "char(36)",
+      "Null": "NO",
+      "Key": "MUL",
+      "Default": null,
+      "Extra": ""
+    },
+    {
+      "Field": "complaint_reason",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": null,
+      "Extra": ""
+    },
+    {
+      "Field": "complaint_status",
+      "Type": "varchar(50)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "OPEN",
+      "Extra": ""
+    },
+    {
+      "Field": "admin_response",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": null,
+      "Extra": ""
+    },
+    {
+      "Field": "refund_points",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "created_at",
+      "Type": "datetime",
+      "Null": "YES",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": ""
+    },
+    {
+      "Field": "resolved_at",
+      "Type": "datetime",
+      "Null": "YES",
+      "Key": "",
+      "Default": null,
+      "Extra": ""
+    },
+    {
+      "Field": "resolved_by_admin_id",
+      "Type": "char(36)",
+      "Null": "YES",
+      "Key": "MUL",
+      "Default": null,
+      "Extra": ""
+    },
+    {
+      "Field": "is_deleted",
+      "Type": "tinyint(1)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    }
+  ],
+  "reportcomplaintattachment": [
+    {
+      "Field": "complaint_attachment_id",
+      "Type": "char(36)",
+      "Null": "NO",
+      "Key": "PRI",
+      "Default": null,
+      "Extra": ""
+    },
+    {
+      "Field": "report_complaint_id",
+      "Type": "char(36)",
+      "Null": "NO",
+      "Key": "MUL",
+      "Default": null,
+      "Extra": ""
+    },
+    {
+      "Field": "file_uri",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": null,
+      "Extra": ""
+    },
+    {
+      "Field": "uploaded_at",
+      "Type": "datetime",
+      "Null": "YES",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": ""
+    }
+  ]
+}
