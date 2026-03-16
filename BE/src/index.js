@@ -6,6 +6,7 @@ const errorHandler = require('./middlewares/errorHandler')
 const authRoutes = require('./routes/authRoutes')
 const adminRoutes = require('./routes/adminRoutes')
 const enterpriseRoutes = require('./routes/enterpriseRoutes')
+const citizenRoutes = require('./routes/citizenRoutes')
 
 const app = express()
 const port = Number(process.env.PORT || 3000)
@@ -40,8 +41,12 @@ app.use('/api/enterprise', enterpriseRoutes)
 app.use('/api/reports', require('./routes/wasteReportRoutes'))
 app.use('/api/waste-types', require('./routes/wasteTypeRoutes'))
 app.use('/enterprise', require('./routes/enterpriseRoutes'))
+<<<<<<< HEAD
+app.use('/citizen', citizenRoutes)
+=======
 app.use('/citizen', require('./routes/citizenRoutes'))
 app.use('/vouchers', require('./routes/voucherRoutes'))
+>>>>>>> dev
 
 app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' })

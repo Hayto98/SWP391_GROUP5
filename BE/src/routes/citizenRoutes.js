@@ -1,4 +1,37 @@
 const express = require('express')
+<<<<<<< HEAD
+const router = express.Router()
+
+const complaintController = require('../controllers/Citizen/complaintController')
+const authMiddleware = require('../middlewares/authMiddleware')
+const roleMiddleware = require('../middlewares/roleMiddleware')
+const { ROLES } = require('../utils/constants')
+
+// Apply authentication middleware to all routes in this router
+router.use(authMiddleware.verifyToken)
+
+// Protect these routes to only be accessible by Citizens
+router.use(roleMiddleware.requireRole(ROLES.CITIZEN))
+
+// ======================= COMPLAINTS =======================
+
+// POST /citizen/report-complaints
+router.post('/report-complaints', complaintController.createComplaint)
+
+// GET /citizen/report-complaints
+router.get('/report-complaints', complaintController.getComplaints)
+
+// GET /citizen/report-complaints/:complaintId
+router.get('/report-complaints/:complaintId', complaintController.getComplaintDetail)
+
+// PUT /citizen/report-complaints/:complaintId
+router.put('/report-complaints/:complaintId', complaintController.updateComplaint)
+
+// DELETE /citizen/report-complaints/:complaintId
+router.delete('/report-complaints/:complaintId', complaintController.deleteComplaint)
+
+module.exports = router
+=======
 const { verifyToken } = require('../middlewares/authMiddleware')
 const { requireRole } = require('../middlewares/roleMiddleware')
 const { ROLES } = require('../utils/constants')
@@ -26,3 +59,4 @@ router.get('/vouchers/redeemed', voucherController.getRedeemedHistory)
 
 module.exports = router
 
+>>>>>>> dev
