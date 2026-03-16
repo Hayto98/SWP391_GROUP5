@@ -10,7 +10,6 @@ const { v4: uuidv4 } = require('uuid')
 const cloudinary = require('../config/cloudinary')
 const sharp = require('sharp')
 
-
 async function getAvailableVouchers(userAccountId, { page, limit } = {}) {
   const user = await userRepository.findById(userAccountId)
   if (!user) throw new ApiError(404, 'Citizen not found')
@@ -22,10 +21,11 @@ async function getAvailableVouchers(userAccountId, { page, limit } = {}) {
 
   const rows = await voucherRepository.findAvailable({ page, limit })
 
-  const data = rows.map(r => ({
+  const data = rows.map((r) => ({
     voucherId: r.voucherId,
     voucherCode: r.voucherCode,
     title: r.title,
+    description: r.description || null,
     pointsRequired: Number(r.pointsRequired) || 0,
     quantityRemaining: Number(r.quantityRemaining) || 0,
     fileUri: r.fileUri || null,
@@ -59,7 +59,7 @@ async function getRedeemedVouchers(userAccountId) {
 
   return {
     success: true,
-    data: rows.map(r => ({
+    data: rows.map((r) => ({
       voucherCode: r.voucherCode,
       title: r.title,
       fileUri: r.fileUri || null,
@@ -207,17 +207,8 @@ async function generateVoucherCode() {
  * The client must NOT send voucherCode in the request body.
  */
 async function createVoucher(payload) {
-  const {
-    title,
-    description,
-    pointsRequired,
-    quantityTotal,
-    validFrom,
-    validTo,
-    fileUri,
-    fileBuffer,
-    fileMimetype
-  } = payload
+  const { title, description, pointsRequired, quantityTotal, validFrom, validTo, fileUri, fileBuffer, fileMimetype } =
+    payload
 
   // 1. Validate required fields
   if (!title || !title.trim()) {
@@ -403,7 +394,8 @@ async function updateVoucher(voucherId, payload) {
   const finalIsActive = isActive ?? is_active
   if (finalIsActive !== undefined) {
     // accept boolean or 1/0 string
-    updateData.is_active = (finalIsActive === true || finalIsActive === 'true' || finalIsActive === 1 || finalIsActive === '1') ? 1 : 0
+    updateData.is_active =
+      finalIsActive === true || finalIsActive === 'true' || finalIsActive === 1 || finalIsActive === '1' ? 1 : 0
   }
 
   // 4. Update
@@ -460,13 +452,12 @@ async function getVouchers(queryParams) {
 
   // Transform fields as per requirements
   const formattedData = data.map((v) => {
-
     return {
       voucherId: v.voucher_id,
       voucherCode: v.voucher_code,
       title: v.title,
       description: v.description || '', // Return cleaned description
-      fileUri: v.file_uri || null,      // Directly use file_uri
+      fileUri: v.file_uri || null, // Directly use file_uri
       pointsRequired: v.points_required,
       quantityTotal: v.quantity_total,
       quantityRemaining: v.quantity_remaining,
