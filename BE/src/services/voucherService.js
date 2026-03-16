@@ -35,15 +35,15 @@ async function getAvailableVouchers(userAccountId, { page, limit } = {}) {
   return { success: true, data }
 }
 
-function formatDateOnly(value) {
+function formatDateTime(value) {
   if (!value) return null
 
   const date = value instanceof Date ? value : new Date(value)
   if (Number.isNaN(date.getTime())) {
-    return String(value).slice(0, 10)
+    return String(value)
   }
 
-  return date.toISOString().slice(0, 10)
+  return date.toISOString()
 }
 
 async function getRedeemedVouchers(userAccountId) {
@@ -64,7 +64,7 @@ async function getRedeemedVouchers(userAccountId) {
       title: r.title,
       fileUri: r.fileUri || null,
       pointsUsed: Number(r.pointsUsed) || 0,
-      redeemedAt: formatDateOnly(r.redeemedAt)
+      redeemedAt: formatDateTime(r.redeemedAt)
     }))
   }
 }

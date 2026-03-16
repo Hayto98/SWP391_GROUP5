@@ -41,7 +41,6 @@ function RedemptionHistory({ redemptionHistory }) {
               <TableHead>Mã Voucher</TableHead>
               <TableHead className="text-right">Điểm Đã Dùng</TableHead>
               <TableHead>Ngày Đổi</TableHead>
-              <TableHead>Ảnh</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -61,9 +60,6 @@ function RedemptionHistory({ redemptionHistory }) {
                     </span>
                   </TableCell>
                   <TableCell>{formatDate(item.redeemedAt)}</TableCell>
-                  <TableCell className="max-w-56 break-all text-xs text-muted-foreground">
-                    {item.fileUri || "Không có"}
-                  </TableCell>
                 </TableRow>
               ))
             ) : (
