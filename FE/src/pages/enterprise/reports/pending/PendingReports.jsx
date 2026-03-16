@@ -401,7 +401,7 @@ export default function PendingReports() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
               <Input
                 className="pl-9"
-                placeholder="Tìm mã báo cáo, tên công dân..."
+                placeholder="Tìm wasteCode, tên công dân..."
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
               />

@@ -38,6 +38,7 @@ async function findAssignedReports(collectorId, { wasteTypeId, limit, offset }) 
   let sql = `
       SELECT SQL_CALC_FOUND_ROWS
         wr.waste_report_id,
+        wr.report_code    AS reportCode,
         wr.description,
         wr.gps_lat      AS lat,
         wr.gps_lng      AS lng,
@@ -99,6 +100,8 @@ async function findAssignedReports(collectorId, { wasteTypeId, limit, offset }) 
   // ── Map to clean DTO ────────────────────────────────────────────────
   const reports = rows.map((row) => ({
     reportId: row.waste_report_id,
+    reportCode: row.reportCode || null,
+    wasteCode: row.reportCode || row.waste_report_id || null,
     description: row.description || '',
     location: {
       lat: row.lat !== null ? Number(row.lat) : null,
@@ -152,6 +155,7 @@ async function findReportForCollector(reportId) {
   const sql = `
     SELECT
       wr.waste_report_id,
+      wr.report_code    AS reportCode,
       wr.assigned_collector_id,
       wr.gps_lat      AS lat,
       wr.gps_lng      AS lng,

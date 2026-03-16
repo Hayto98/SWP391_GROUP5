@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { Loader2, MapPin, Phone, Recycle, Scale } from "lucide-react";
+import { Calendar, Loader2, MapPin, Phone, Recycle, Scale } from "lucide-react";
 import {
   acceptCollectorReport,
   getCollectorReportById,
+  scheduleCollectorReport,
   submitCollectorReportResult,
 } from "@/services/collectorReport.service";
 import { reverseGeocode } from "@/services/geocodingService";
@@ -11,6 +12,12 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import ImageSection from "@/components/ui/image-section";
 import {
   Dialog,
@@ -53,9 +60,12 @@ function getStatusStyle(status) {
 function mapApiData(apiData) {
   const lat = Number(apiData?.location?.lat);
   const lng = Number(apiData?.location?.lng);
+  const reportId = apiData?.reportId || "";
+  const reportCode = apiData?.reportCode || apiData?.wasteCode || reportId;
 
   return {
-    reportId: apiData?.reportId || "",
+    reportId,
+    reportCode,
     citizen: {
       fullname: apiData?.citizen?.fullname || "-",
       phone: apiData?.citizen?.phone || "-",
@@ -80,6 +90,26 @@ function mapApiData(apiData) {
   };
 }
 
+function getDefaultScheduleDateTime() {
+  return new Date(Date.now() + 30 * 60000);
+}
+
+function toTimeHHmm(date) {
+  const h = String(date.getHours()).padStart(2, "0");
+  const m = String(date.getMinutes()).padStart(2, "0");
+  return `${h}:${m}`;
+}
+
+function buildDateTimeFromParts(dateValue, timeValue) {
+  if (!(dateValue instanceof Date) || Number.isNaN(dateValue.getTime()))
+    return null;
+  if (!timeValue || !/^\d{2}:\d{2}$/.test(timeValue)) return null;
+  const [hours, minutes] = timeValue.split(":").map(Number);
+  const result = new Date(dateValue);
+  result.setHours(hours, minutes, 0, 0);
+  return Number.isNaN(result.getTime()) ? null : result;
+}
+
 function TaskDetail() {
   const navigate = useNavigate();
   const { taskId } = useParams();
@@ -87,6 +117,14 @@ function TaskDetail() {
   const [task, setTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState(false);
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [scheduleSaving, setScheduleSaving] = useState(false);
+  const [scheduledDate, setScheduledDate] = useState(
+    getDefaultScheduleDateTime(),
+  );
+  const [scheduledTime, setScheduledTime] = useState(
+    toTimeHHmm(getDefaultScheduleDateTime()),
+  );
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
   const [submitSaving, setSubmitSaving] = useState(false);
@@ -205,6 +243,47 @@ function TaskDetail() {
     }
   };
 
+  const handleConfirmScheduleAndAccept = async () => {
+    if (!task || scheduleSaving) {
+      return;
+    }
+
+    const scheduledDateTime = buildDateTimeFromParts(
+      scheduledDate,
+      scheduledTime,
+    );
+    if (!scheduledDateTime) {
+      toast.warning("Vui lòng chọn ngày và giờ thu gom hợp lệ.");
+      return;
+    }
+
+    if (scheduledDateTime.getTime() < Date.now()) {
+      toast.warning("Không thể chọn thời gian trong quá khứ.");
+      return;
+    }
+
+    setScheduleSaving(true);
+    setAccepting(true);
+    try {
+      await scheduleCollectorReport(
+        task.reportId,
+        scheduledDateTime.toISOString(),
+      );
+      await acceptCollectorReport(task.reportId);
+      setTask((prev) => ({
+        ...prev,
+        status: "IN_PROGRESS",
+      }));
+      setScheduleDialogOpen(false);
+      setSuccessDialogOpen(true);
+    } catch (error) {
+      toast.error(error.message || "Nhận nhiệm vụ thất bại");
+    } finally {
+      setScheduleSaving(false);
+      setAccepting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="bg-gray-50 min-h-screen font-sans p-6">
@@ -253,7 +332,7 @@ function TaskDetail() {
         </div>
 
         <h1 className="text-3xl font-bold text-gray-900">
-          Nhiệm vụ #{task.reportId}
+          Nhiệm vụ {task.reportCode}
         </h1>
         <p className="text-green-600 text-sm mt-1 mb-6">
           Báo cáo thu gom rác thải từ người dân
@@ -307,7 +386,7 @@ function TaskDetail() {
 
           <div className="space-y-4">
             <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm space-y-3">
-              <InfoRow label="Mã báo cáo" value={task.reportId} />
+              <InfoRow label="Mã báo cáo" value={task.reportCode} />
               <InfoRow label="Trạng thái" value={task.status} />
               <InfoRow
                 label="Loại rác"
@@ -341,8 +420,19 @@ function TaskDetail() {
             </div>
 
             <button
-              onClick={handleAcceptTask}
-              disabled={accepting || task.status === "COLLECTED"}
+              onClick={() => {
+                if (task.status === "ASSIGNED") {
+                  const defaultDate = getDefaultScheduleDateTime();
+                  setScheduledDate(defaultDate);
+                  setScheduledTime(toTimeHHmm(defaultDate));
+                  setScheduleDialogOpen(true);
+                  return;
+                }
+                handleAcceptTask();
+              }}
+              disabled={
+                accepting || scheduleSaving || task.status === "COLLECTED"
+              }
               className="w-full rounded-xl bg-green-500 text-white py-3 font-semibold hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {accepting
@@ -354,6 +444,73 @@ function TaskDetail() {
           </div>
         </div>
       </main>
+
+      <Dialog open={scheduleDialogOpen} onOpenChange={setScheduleDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Lên lịch trước khi nhận nhiệm vụ</DialogTitle>
+            <DialogDescription>
+              Chọn thời gian dự kiến thu gom.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Thời gian thu gom dự kiến</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="justify-start font-normal"
+                    disabled={scheduleSaving}
+                  >
+                    <Calendar className="mr-2 size-4" />
+                    {scheduledDate
+                      ? scheduledDate.toLocaleDateString("vi-VN")
+                      : "Chọn ngày"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={scheduledDate}
+                    onSelect={(date) => {
+                      if (date) setScheduledDate(date);
+                    }}
+                    disabled={(date) =>
+                      date < new Date(new Date().setHours(0, 0, 0, 0))
+                    }
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+
+              <Input
+                type="time"
+                value={scheduledTime}
+                onChange={(e) => setScheduledTime(e.target.value)}
+                disabled={scheduleSaving}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setScheduleDialogOpen(false)}
+              disabled={scheduleSaving}
+            >
+              Hủy
+            </Button>
+            <Button
+              onClick={handleConfirmScheduleAndAccept}
+              disabled={scheduleSaving}
+            >
+              {scheduleSaving ? "Đang xử lý..." : "Xác nhận và nhận nhiệm vụ"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={successDialogOpen} onOpenChange={setSuccessDialogOpen}>
         <DialogContent className="sm:max-w-md">
@@ -373,7 +530,7 @@ function TaskDetail() {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Cập nhật kết quả thu gom</DialogTitle>
-            <DialogDescription>Nhập thông tin thực tế .</DialogDescription>
+            <DialogDescription>Nhập thông tin thực tế.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">

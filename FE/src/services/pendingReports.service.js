@@ -114,6 +114,7 @@ function mapApiReportToRow(report) {
   return {
     code: reportId ? `#${reportId}` : "#N/A",
     reportCode: report?.reportCode || (reportId ? `#${reportId}` : "#N/A"),
+    wasteCode: report?.reportCode || (reportId ? `#${reportId}` : "#N/A"),
     ward: report?.citizen?.fullname || "Không rõ công dân",
     district: report?.citizen?.phone || "Không có SĐT",
     waste: unitType ? `${wasteName} (${unitType})` : wasteName,
@@ -185,7 +186,7 @@ function applyClientFilters(rows, params = {}) {
   if (q.trim()) {
     const search = normalizeText(q.trim());
     nextRows = nextRows.filter((row) =>
-      [row.code, row.ward, row.district, row.waste].some((value) =>
+      [row.wasteCode, row.ward, row.district, row.waste].some((value) =>
         normalizeText(value).includes(search),
       ),
     );

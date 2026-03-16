@@ -167,6 +167,12 @@ function mapReport(report) {
       ? format(new Date(report.createdAt), "dd/MM/yyyy", { locale: vi })
       : "-",
     createdAt: report?.createdAt,
+    scheduledCollectAt: report?.scheduledCollectAt || null,
+    scheduledCollectAtText: report?.scheduledCollectAt
+      ? format(new Date(report.scheduledCollectAt), "HH:mm - dd/MM/yyyy", {
+          locale: vi,
+        })
+      : null,
     location: `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
     latitude: lat,
     longitude: lng,
@@ -367,6 +373,17 @@ function ReportDetailPage() {
           <CardTitle>Tiến độ thu gom</CardTitle>
         </CardHeader>
         <CardContent>
+          {report.scheduledCollectAtText && (
+            <div className="mb-4 rounded-lg border border-orange-300 bg-orange-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">
+                Lịch thu gom dự kiến
+              </p>
+              <p className="mt-1 text-lg font-bold text-orange-800">
+                {report.scheduledCollectAtText}
+              </p>
+            </div>
+          )}
+
           <div className="relative px-2 md:px-8">
             <div className="absolute top-5 left-2 right-2 md:left-8 md:right-8 h-0.5 bg-gray-200">
               <div

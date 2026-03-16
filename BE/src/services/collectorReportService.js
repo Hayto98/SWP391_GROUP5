@@ -62,7 +62,10 @@ async function getAssignedReports(userId, queryParams) {
 
   // ── 4. Repository already returns fully-mapped DTOs, use directly ───
   // (Do NOT remap — fields like waste_report_id, gps_lat no longer exist on these objects)
-  const items = reports
+  const items = reports.map((report) => ({
+    ...report,
+    wasteCode: report?.wasteCode || report?.reportCode || report?.reportId || null
+  }))
 
   // ── 5. Return standardized response ─────────────────────────────────
   return {
@@ -253,6 +256,8 @@ async function getReportById(userId, reportId) {
     success: true,
     data: {
       reportId: report.waste_report_id,
+      reportCode: report.reportCode || null,
+      wasteCode: report.reportCode || report.waste_report_id || null,
 
       citizen: {
         fullname: report.citizenFullname,
