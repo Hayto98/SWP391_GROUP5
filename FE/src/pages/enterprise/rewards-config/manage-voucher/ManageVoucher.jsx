@@ -386,6 +386,44 @@ function DeleteDialog({ voucher, onClose, onConfirm }) {
   );
 }
 
+// ─── Voucher Detail Dialog ───────────────────────────────────────────────────
+function VoucherDetailDialog({ open, onClose, voucher }) {
+  if (!voucher) return null;
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Chi tiết Voucher</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="flex items-center gap-4">
+            {voucher.image && (
+              <img src={voucher.image} alt={voucher.voucher_name} className="w-20 h-20 object-contain rounded border" />
+            )}
+            <div>
+              <div className="font-bold text-lg mb-1">{voucher.voucher_name}</div>
+              <div className="text-xs text-muted-foreground mb-1">Mã: <span className="font-mono">{voucher.voucher_code}</span></div>
+              <div className="text-xs text-muted-foreground">Điểm quy đổi: <span className="font-semibold text-amber-600">{voucher.points_required}</span></div>
+            </div>
+          </div>
+          <div className="text-sm">{voucher.terms_description}</div>
+          <div className="flex gap-2 text-xs">
+            <span className="px-2 py-1 rounded bg-red-50 text-red-600 border border-red-200">HSD: {voucher.expiry_date}</span>
+            <span className="px-2 py-1 rounded bg-gray-100 text-gray-700 border border-gray-200">{getCategoryMeta(voucher.category).label}</span>
+            <span className="px-2 py-1 rounded bg-gray-100 text-gray-700 border border-gray-200">Nguồn: {getSourceMeta(voucher.source).label}</span>
+          </div>
+          <div className="text-xs text-muted-foreground">Tổng lượt đổi: {voucher.total_redeemed || 0}</div>
+          <div className="flex items-center gap-2 mt-2">
+            <span className={voucher.is_active ? "text-green-600" : "text-gray-400"}>
+              {voucher.is_active ? "Đang bật" : "Đã tắt"}
+            </span>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ManageVoucher() {
@@ -398,6 +436,7 @@ export default function ManageVoucher() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [isHistoryDialogOpen, setHistoryDialogOpen] = useState(false);
   const [voucherHistoryRows, setVoucherHistoryRows] = useState([]);
+  const [detailTarget, setDetailTarget] = useState(null);
 
   const refreshVoucherHistory = useCallback(() => {
     setVoucherHistoryRows(getAllVoucherHistory());
@@ -625,7 +664,8 @@ export default function ManageVoucher() {
               return (
                 <div
                   key={v.voucher_id}
-                  className={`relative flex h-32 bg-white border border-gray-200 rounded-md shadow-sm overflow-hidden group ${!v.is_active ? "opacity-60" : ""}`}
+                  className={`relative flex h-32 bg-white border border-gray-200 rounded-md shadow-sm overflow-hidden group ${!v.is_active ? "opacity-60" : ""} cursor-pointer transition hover:shadow-lg`}
+                  onClick={() => setDetailTarget(v)}
                 >
                   {/* Left Image / Branding */}
                   <div className="w-29.5 shrink-0 bg-primary flex flex-col items-center justify-center relative overflow-hidden border-r border-dashed border-gray-200 box-border p-2">
@@ -784,6 +824,12 @@ export default function ManageVoucher() {
         voucher={deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
+      />
+
+      <VoucherDetailDialog
+        open={!!detailTarget}
+        onClose={() => setDetailTarget(null)}
+        voucher={detailTarget}
       />
     </div>
   );
