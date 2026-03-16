@@ -127,6 +127,8 @@ function History() {
         const mapped = items.map((item) => {
           return {
             id: item.reportId,
+            reportCode:
+              item?.reportCode || item?.wasteCode || item?.reportId || "-",
             area: formatAreaFromLocation(item?.location),
             status: item.status,
             citizenName:
@@ -181,7 +183,7 @@ function History() {
     return collectedJobs.filter((job) => {
       const byKeyword =
         normalizedKeyword.length === 0 ||
-        String(job.id || "")
+        String(job.reportCode || "")
           .toLowerCase()
           .includes(normalizedKeyword) ||
         String(job.wasteType || "")
@@ -233,7 +235,7 @@ function History() {
     const headers = ["Ma Bao Cao", "Loai Rac", "Khu Vuc", "Nguoi Dan"];
 
     const rows = filtered.map((job) => [
-      job.id,
+      job.reportCode,
       job.wasteType,
       job.area,
       job.citizenName || "-",
@@ -413,7 +415,7 @@ function History() {
                 paginated.map((job) => (
                   <TableRow key={job.id}>
                     <TableCell className="font-medium text-cyan-600">
-                      {job.id}
+                      {job.reportCode || "-"}
                     </TableCell>
 
                     <TableCell>{job.wasteType}</TableCell>
@@ -498,7 +500,14 @@ function History() {
           ) : (
             <div className="space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InfoItem label="Mã báo cáo" value={detailData.reportId} />
+                <InfoItem
+                  label="Mã báo cáo"
+                  value={
+                    detailData.reportCode ||
+                    detailData.wasteCode ||
+                    detailData.reportId
+                  }
+                />
                 <InfoItem label="Trạng thái" value={detailData.status} />
                 <InfoItem
                   label="Loại rác"

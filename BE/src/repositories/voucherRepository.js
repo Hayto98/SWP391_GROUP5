@@ -7,8 +7,9 @@ async function findAvailable({ page = 1, limit = 20 } = {}) {
 
   const sql = `SELECT
       voucher_id AS voucherId,
-  voucher_code AS voucherCode,
+      voucher_code AS voucherCode,
       title,
+      description,
       points_required AS pointsRequired,
       quantity_remaining AS quantityRemaining,
       file_uri AS fileUri,

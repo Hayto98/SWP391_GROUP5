@@ -211,6 +211,7 @@ async function getReportById(reportId) {
     data: {
       reportId: report.reportId || report.wasteReportId,
       wasteReportId: report.wasteReportId || report.reportId,
+      reportCode: report?.reportCode ?? null,
       wasteType: {
         id: report?.wasteType?.id ?? null,
         name: report?.wasteType?.name ?? null,

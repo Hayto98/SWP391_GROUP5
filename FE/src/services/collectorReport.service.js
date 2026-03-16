@@ -27,6 +27,16 @@ export function acceptCollectorReport(reportId) {
   });
 }
 
+export function scheduleCollectorReport(reportId, scheduledCollectAt) {
+  return request(`/api/v1/collector/reports/${reportId}/schedule`, {
+    method: "PATCH",
+    data: {
+      scheduledCollectAt,
+    },
+    headers: getAuthHeaders(),
+  });
+}
+
 export function submitCollectorReportResult(reportId, payload) {
   const formData = new FormData();
   formData.append("actualQuantity", String(payload.actualQuantity));

@@ -24,6 +24,7 @@ function mapReportToSelectedReport(report, fallbackReportId) {
 
   return {
     id: report?.wasteReportId || fallbackReportId,
+    reportCode: report?.reportCode || report?.wasteReportId || fallbackReportId,
     status: String(report?.status || "PENDING"),
     wasteType: unitType ? `${wasteName} (${unitType})` : wasteName,
     address: hasLocation
