@@ -1,8 +1,41 @@
 const complaintRepository = require('../repositories/complaintRepository')
 const wasteReportRepository = require('../repositories/wasteReportRepository')
 const ApiError = require('../errors/ApiError')
+const cloudinary = require('../config/cloudinary')
+const sharp = require('sharp')
 
-async function createComplaint({ userAccountId, wasteReportId, complaintReason, attachments }) {
+async function compressImage(buffer, mimetype) {
+  if (!mimetype || !mimetype.startsWith('image/')) return buffer
+  try {
+    return await sharp(buffer).resize({ width: 1200, withoutEnlargement: true }).jpeg({ quality: 80 }).toBuffer()
+  } catch {
+    return buffer
+  }
+}
+
+async function uploadBufferToCloudinary(buffer, mimetype) {
+  const compressed = await compressImage(buffer, mimetype)
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: 'complaint_attachments', resource_type: 'image' },
+      (error, result) => {
+        if (error) return reject(new ApiError(500, 'Cloudinary upload failed: ' + error.message))
+        resolve(result.secure_url)
+      }
+    )
+    stream.end(compressed)
+  })
+}
+
+async function createComplaint({
+  userAccountId,
+  wasteReportId,
+  complaintReason,
+  attachments,
+  fileBuffer,
+  fileMimetype,
+  fileUriFromBody
+}) {
   if (!userAccountId || !wasteReportId) {
     throw new ApiError(400, 'Thiếu userAccountId hoặc wasteReportId.')
   }
@@ -10,7 +43,7 @@ async function createComplaint({ userAccountId, wasteReportId, complaintReason, 
   // Lấy citizenId từ userAccountId
   const citizenId = await wasteReportRepository.findCitizenIdByUserAccountId(userAccountId)
   if (!citizenId) {
-     throw new ApiError(403, 'Người dùng không phải là Citizen hoặc chưa được thiết lập tài khoản Citizen.')
+    throw new ApiError(403, 'Người dùng không phải là Citizen hoặc chưa được thiết lập tài khoản Citizen.')
   }
 
   // Validate wasteReportId tồn tại trong wasteReport
@@ -22,13 +55,27 @@ async function createComplaint({ userAccountId, wasteReportId, complaintReason, 
 
   // Chỉ cho phép khiếu nại nếu trạng thái là ASSIGNED, IN_PROGRESS hoặc COLLECTED
   if (report.status !== 'ASSIGNED' && report.status !== 'IN_PROGRESS' && report.status !== 'COLLECTED') {
-    throw new ApiError(400, 'Chỉ có thể khiếu nại rác thải ở trạng thái Đã được phân công (ASSIGNED), Đang thu gom (IN_PROGRESS) hoặc Đã thu gom (COLLECTED).')
+    throw new ApiError(
+      400,
+      'Chỉ có thể khiếu nại rác thải ở trạng thái Đã được phân công (ASSIGNED), Đang thu gom (IN_PROGRESS) hoặc Đã thu gom (COLLECTED).'
+    )
   }
-  
+
   // Xác thực citizen chỉ được tạo 1 complaint cho 1 report
   const existingComplaint = await complaintRepository.findComplaintByCitizenAndReport(citizenId, wasteReportId)
   if (existingComplaint) {
     throw new ApiError(409, 'Bạn đã gửi khiếu nại cho báo cáo rác thải này rồi.')
+  }
+
+  const normalizedAttachments = Array.isArray(attachments)
+    ? attachments.filter((item) => item && item.fileUri).map((item) => ({ fileUri: item.fileUri }))
+    : []
+
+  if (fileBuffer) {
+    const uploadedUrl = await uploadBufferToCloudinary(fileBuffer, fileMimetype || 'image/jpeg')
+    normalizedAttachments.push({ fileUri: uploadedUrl })
+  } else if (fileUriFromBody) {
+    normalizedAttachments.push({ fileUri: fileUriFromBody })
   }
 
   // Insert vào bảng
@@ -36,7 +83,7 @@ async function createComplaint({ userAccountId, wasteReportId, complaintReason, 
     wasteReportId,
     citizenId,
     complaintReason,
-    attachments
+    attachments: normalizedAttachments
   })
 
   // Trả về dữ liệu như JIRA yêu cầu

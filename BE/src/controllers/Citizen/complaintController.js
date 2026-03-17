@@ -2,8 +2,10 @@ const complaintService = require('../../services/complaintService')
 
 async function createComplaint(req, res, next) {
   try {
-    const { wasteReportId, complaintReason, attachments } = req.body
-    
+    const { wasteReportId, complaintReason, attachments, fileUri } = req.body
+    const fileBuffer = req.file ? req.file.buffer : null
+    const fileMimetype = req.file ? req.file.mimetype : null
+
     // JWT middleware thường gán req.user.sub = userAccountId
     const userAccountId = req.user.sub
 
@@ -11,7 +13,10 @@ async function createComplaint(req, res, next) {
       userAccountId,
       wasteReportId,
       complaintReason,
-      attachments
+      attachments,
+      fileBuffer,
+      fileMimetype,
+      fileUriFromBody: fileUri || null
     })
 
     res.status(201).json({
@@ -81,7 +86,7 @@ async function updateComplaint(req, res, next) {
 
     res.status(200).json({
       success: true,
-      message: "Complaint updated successfully"
+      message: 'Complaint updated successfully'
     })
   } catch (error) {
     next(error)
@@ -100,7 +105,7 @@ async function deleteComplaint(req, res, next) {
 
     res.status(200).json({
       success: true,
-      message: "Complaint deleted successfully"
+      message: 'Complaint deleted successfully'
     })
   } catch (error) {
     next(error)
