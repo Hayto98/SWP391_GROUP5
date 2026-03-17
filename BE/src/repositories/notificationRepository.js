@@ -8,24 +8,14 @@ const db = require('../config/database')
 
 /**
  * Insert a new notification row.
- * Accepts an optional connection for transactional use (e.g. inside completeReport).
- * Falls back to pool when connection is null.
- *
- * @param {object|null} connection - mysql2 connection (for transactions) or null
- * @param {object} data
- * @param {string} data.notificationId
- * @param {string} data.notificationType
- * @param {string} data.recipientUserAccountId
- * @param {string|null} data.wasteReportId
- * @param {string} data.message
  */
 async function create(connection, { notificationId, notificationType, recipientUserAccountId, wasteReportId, message }) {
   const executor = connection || db
 
   await executor.execute(
     `INSERT INTO notification
-       (notification_id, notification_type, recipient_user_account_id,
-        waste_report_id, message, is_read, created_at)
+       (NOTIFICATION_ID, notification_type, RECIPIENT_USER_ACCOUNT_ID,
+        WASTE_REPORT_ID, MESSAGE, is_read, CREATED_AT)
      VALUES (?, ?, ?, ?, ?, 0, NOW())`,
     [notificationId, notificationType, recipientUserAccountId, wasteReportId ?? null, message]
   )
@@ -33,26 +23,20 @@ async function create(connection, { notificationId, notificationType, recipientU
 
 /**
  * Find notifications for a specific user, ordered by created_at DESC.
- *
- * @param {string} userId - recipient_user_account_id
- * @param {object} options
- * @param {number} options.limit
- * @param {number} options.offset
- * @returns {{ notifications: Array, total: number }}
  */
 async function findByRecipientUserId(userId, { limit, offset }) {
   const sql = `
     SELECT SQL_CALC_FOUND_ROWS
-      notification_id,
+      NOTIFICATION_ID AS notification_id,
       notification_type,
-      recipient_user_account_id,
-      waste_report_id,
-      message,
+      RECIPIENT_USER_ACCOUNT_ID AS recipient_user_account_id,
+      WASTE_REPORT_ID AS waste_report_id,
+      MESSAGE AS message,
       is_read,
-      created_at
+      CREATED_AT AS created_at
     FROM notification
-    WHERE recipient_user_account_id = ?
-    ORDER BY created_at DESC
+    WHERE LOWER(RECIPIENT_USER_ACCOUNT_ID) = LOWER(?)
+    ORDER BY CREATED_AT DESC
     LIMIT ? OFFSET ?
   `
 
@@ -70,18 +54,21 @@ async function findByRecipientUserId(userId, { limit, offset }) {
  * @param {string} notificationId
  * @returns {object|null}
  */
+/**
+ * Find a single notification by its ID.
+ */
 async function findById(notificationId) {
   const [rows] = await db.execute(
     `SELECT
-       notification_id,
+       NOTIFICATION_ID AS notification_id,
        notification_type,
-       recipient_user_account_id,
-       waste_report_id,
-       message,
+       RECIPIENT_USER_ACCOUNT_ID AS recipient_user_account_id,
+       WASTE_REPORT_ID AS waste_report_id,
+       MESSAGE AS message,
        is_read,
-       created_at
+       CREATED_AT AS created_at
      FROM notification
-     WHERE notification_id = ?
+     WHERE LOWER(NOTIFICATION_ID) = LOWER(?)
      LIMIT 1`,
     [notificationId]
   )
@@ -90,13 +77,10 @@ async function findById(notificationId) {
 
 /**
  * Mark a notification as read (is_read = 1).
- *
- * @param {string} notificationId
- * @returns {boolean} true if a row was updated
  */
 async function markAsRead(notificationId) {
   const [result] = await db.execute(
-    `UPDATE notification SET is_read = 1 WHERE notification_id = ?`,
+    `UPDATE notification SET is_read = 1 WHERE LOWER(NOTIFICATION_ID) = LOWER(?)`,
     [notificationId]
   )
   return result.affectedRows > 0
@@ -104,17 +88,13 @@ async function markAsRead(notificationId) {
 
 /**
  * Find the citizen's user_account_id from a waste report.
- * Joins: wastereport → citizen → useraccount.
- *
- * @param {string} reportId - waste_report_id
- * @returns {string|null} user_account_id of the citizen
  */
 async function findCitizenUserAccountIdByReportId(reportId) {
   const [rows] = await db.execute(
-    `SELECT ua.user_account_id
+    `SELECT ua.USER_ACCOUNT_ID AS user_account_id
      FROM wastereport wr
      INNER JOIN citizen c ON wr.citizen_id = c.citizen_id
-     INNER JOIN useraccount ua ON c.user_account_id = ua.user_account_id
+     INNER JOIN useraccount ua ON c.user_account_id = ua.USER_ACCOUNT_ID
      WHERE wr.waste_report_id = ?
      LIMIT 1`,
     [reportId]
@@ -122,10 +102,21 @@ async function findCitizenUserAccountIdByReportId(reportId) {
   return rows[0]?.user_account_id ?? null
 }
 
+/**
+ * Mark all notifications for a user as read.
+ */
+async function markAllAsReadByUserId(userId) {
+  await db.execute(
+    `UPDATE notification SET is_read = 1 WHERE LOWER(RECIPIENT_USER_ACCOUNT_ID) = LOWER(?)`,
+    [userId]
+  )
+}
+
 module.exports = {
   create,
   findByRecipientUserId,
   findById,
   markAsRead,
+  markAllAsReadByUserId,
   findCitizenUserAccountIdByReportId
 }
