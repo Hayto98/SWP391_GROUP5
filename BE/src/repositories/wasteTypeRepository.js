@@ -143,10 +143,10 @@ async function findAllWithRewardConfig({
   isActive,
   unitType,
   includeInactiveReward = false,
-  limit = 20,
-  offset = 0
+  limit,
+  offset
 } = {}) {
-  // Embed LIMIT/OFFSET as literals to avoid mysql2 prepared-statement type errors
+  const hasPagination = limit !== undefined || offset !== undefined
   const limitInt = Math.max(1, parseInt(limit, 10) || 20)
   const offsetInt = Math.max(0, parseInt(offset, 10) || 0)
 
@@ -156,8 +156,6 @@ async function findAllWithRewardConfig({
     : `ON wt.waste_type_id = rc.waste_type_id AND rc.is_active = 1`
 
   let whereClause = `WHERE 1=1`
-  // Exclude soft-deleted rows by default
-  whereClause += ` AND wt.is_deleted = 0`
   const params = []
 
   if (isActive !== undefined) {
@@ -180,12 +178,15 @@ async function findAllWithRewardConfig({
         rc.points_per_unit,
         rc.description,
         rc.allowed_variance_percent,
+        rc.min_kg_required,
+        rc.max_kg_required,
+        rc.penalty_percent,
         rc.is_active AS rc_is_active
     FROM wastetype wt
     LEFT JOIN rewardconfig rc ${joinCondition}
     ${whereClause}
     ORDER BY wt.waste_type_name ASC
-    LIMIT ${limitInt} OFFSET ${offsetInt}
+    ${hasPagination ? `LIMIT ${limitInt} OFFSET ${offsetInt}` : ''}
   `
 
   const countQuery = `
@@ -209,6 +210,9 @@ async function findAllWithRewardConfig({
           pointsPerUnit: row.points_per_unit,
           description: row.description,
           allowedVariancePercent: row.allowed_variance_percent,
+          minKgRequired: row.min_kg_required,
+          maxKgRequired: row.max_kg_required,
+          penaltyPercent: row.penalty_percent,
           isActive: row.rc_is_active === 1
         }
       : null
@@ -222,7 +226,8 @@ async function findAllWithRewardConfig({
 async function findByIdWithRewardConfig(wasteTypeId, { includeInactiveReward = false } = {}) {
   let query = `SELECT
                  wt.waste_type_id, wt.waste_type_name, wt.unit_type, wt.is_active, IFNULL(wt.is_deleted,0) AS is_deleted,
-                 rc.reward_config_id, rc.points_per_unit, rc.description, rc.allowed_variance_percent, rc.is_active AS rc_is_active
+                 rc.reward_config_id, rc.points_per_unit, rc.description, rc.allowed_variance_percent,
+                 rc.min_kg_required, rc.max_kg_required, rc.penalty_percent, rc.is_active AS rc_is_active
                FROM wastetype wt
                LEFT JOIN rewardconfig rc ON wt.waste_type_id = rc.waste_type_id`
 
@@ -250,6 +255,9 @@ async function findByIdWithRewardConfig(wasteTypeId, { includeInactiveReward = f
           pointsPerUnit: row.points_per_unit,
           description: row.description,
           allowedVariancePercent: row.allowed_variance_percent,
+          minKgRequired: row.min_kg_required,
+          maxKgRequired: row.max_kg_required,
+          penaltyPercent: row.penalty_percent,
           isActive: row.rc_is_active === 1
         }
       : null

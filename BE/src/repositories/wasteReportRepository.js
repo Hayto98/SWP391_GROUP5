@@ -538,22 +538,49 @@ async function updateReportById(reportId, updateData) {
 }
 
 /**
- * Xóa một báo cáo rác thải
- * Yêu cầu xóa các bảng phụ có khóa ngoại trỏ tới WasteReport trước
+ * "Xóa" một báo cáo rác thải bằng cách chuyển trạng thái sang REJECTED (ID 5)
+ * Ghi lại lịch sử trạng thái và lý do vào bảng Feedback.
  */
-async function deleteReportById(reportId) {
+async function deleteReportById(reportId, userAccountId) {
+  const REJECTED_STATUS_ID = 5
   const connection = await db.getConnection()
   try {
     await connection.beginTransaction()
 
-    // 1. Xóa CollectedRecord (nếu có - do seed script lúc nãy có gắn)
-    await connection.execute('DELETE FROM collectedrecord WHERE waste_report_id = ?', [reportId])
+    // 1. Cập nhật trạng thái WasteReport thành REJECTED
+    const [result] = await connection.execute(
+      'UPDATE wastereport SET report_status_type_id = ? WHERE waste_report_id = ?',
+      [REJECTED_STATUS_ID, reportId]
+    )
 
-    // 2. Xóa ReportStatusHistory
-    await connection.execute('DELETE FROM reportstatushistory WHERE waste_report_id = ?', [reportId])
+    if (result.affectedRows > 0) {
+      const historyId = uuidv4()
+      const feedbackId = uuidv4()
+      const now = new Date()
 
-    // 4. Xóa bảng cha WasteReport
-    const [result] = await connection.execute('DELETE FROM wastereport WHERE waste_report_id = ?', [reportId])
+      // 2. Ghi vào ReportStatusHistory
+      await connection.execute(
+        `INSERT INTO reportstatushistory
+          (report_status_history_id, waste_report_id, report_status_type_id,
+           changed_by_user_account_id, changed_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        [historyId, reportId, REJECTED_STATUS_ID, userAccountId, now]
+      )
+
+      // 3. Ghi lý do vào Feedback (theo yêu cầu soft-delete/cancellation)
+      // Lấy citizen_id từ report để điền vào feedback
+      const [reportRows] = await connection.execute(
+        'SELECT citizen_id FROM wastereport WHERE waste_report_id = ?',
+        [reportId]
+      )
+      const citizenId = reportRows[0]?.citizen_id
+
+      await connection.execute(
+        `INSERT INTO feedback (feedback_id, waste_report_id, citizen_id, feedback_text, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        [feedbackId, reportId, citizenId, 'Báo cáo bị hủy bởi người dùng (Xóa mềm)', now]
+      )
+    }
 
     await connection.commit()
     return result.affectedRows > 0

@@ -4,7 +4,13 @@ const { v4: uuidv4 } = require('uuid')
 const cloudinary = require('../config/cloudinary')
 const sharp = require('sharp')
 const db = require('../config/database')
+<<<<<<< HEAD
 const rewardService = require('./rewardService')
+=======
+const userRepository = require('../repositories/userRepository')
+const notificationService = require('./notificationService')
+const { ROLES, NOTIFICATION_TYPES } = require('../utils/constants')
+>>>>>>> b98e9ab85659c615586076b403ebd1262938b902
 
 // ==================== HELPERS ====================
 
@@ -186,6 +192,23 @@ async function createReport({
     throw error
   } finally {
     if (connection && !isTransactionCommitted) connection.release();
+  }
+
+  // ── 6. Send notifications to Enterprises ───────────────────────
+  try {
+    const enterprises = await userRepository.findAll({ roleId: ROLES.ENTERPRISE })
+    console.log(`[DEBUG] Notifying ${enterprises.length} Enterprises of new report ${created.wasteReportId}`);
+    for (const ent of enterprises) {
+      console.log(`[DEBUG] Sending notif to Enterprise: ${ent.userAccountId || ent.user_account_id}`);
+      await notificationService.createNotification({
+        notificationType: NOTIFICATION_TYPES.NEW_REPORT_PENDING,
+        recipientUserAccountId: ent.userAccountId || ent.user_account_id,
+        wasteReportId: created.wasteReportId,
+        message: `Có báo cáo rác thải mới (${created.reportCode || created?.report_code}) đang chờ xử lý.`
+      })
+    }
+  } catch (notifError) {
+    console.error('Failed to notify enterprises of new report:', notifError.message)
   }
 
   return {
@@ -399,8 +422,8 @@ async function deleteReport(reportId, userAccountId) {
     throw new ApiError(400, 'Bạn chỉ có thể xóa báo cáo khi đang ở trạng thái chờ xử lý (PENDING).')
   }
 
-  // 3. Delete the record via repository
-  await wasteReportRepository.deleteReportById(reportId)
+  // 3. Delete the record via repository (Soft Delete)
+  await wasteReportRepository.deleteReportById(reportId, userAccountId)
 
   return {
     success: true,
