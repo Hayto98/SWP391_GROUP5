@@ -426,9 +426,22 @@ export default function ManageVoucher() {
     setFormOpen(true);
   };
 
-  const handleDelete = (v) => {
-    setVouchers((prev) => prev.filter((x) => x.voucher_id !== v.voucher_id));
-
+  const handleDelete = async (v) => {
+    try {
+      const res = await fetch(`http://localhost:3000/api/enterprise/vouchers/${v.voucher_id || v.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Xóa voucher thất bại!");
+      toast.success(`Đã xóa voucher "${v.voucher_name}"`);
+      // Reload lại danh sách voucher
+      const reload = await fetch("http://localhost:3000/api/enterprise/vouchers");
+      if (reload.ok) {
+        const data = await reload.json();
+        setVouchers(data.vouchers || []);
+      }
+    } catch (err) {
+      toast.error("Xóa voucher thất bại!");
+    }
     recordVoucherHistory({
       action: "delete",
       voucherId: v.voucher_id,
@@ -436,10 +449,8 @@ export default function ManageVoucher() {
       voucherName: v.voucher_name,
       detail: "Xóa voucher khỏi kho.",
     });
-
     refreshVoucherHistory();
     setDeleteTarget(null);
-    toast.success(`Đã xóa voucher "${v.voucher_name}"`);
   };
 
   const handleToggle = (v) => {
