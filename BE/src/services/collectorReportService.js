@@ -99,6 +99,15 @@ module.exports = {
 
 // ==================== SCHEDULE COLLECTION ====================
 
+<<<<<<< HEAD
+const wasteReportRepository = require('../repositories/wasteReportRepository')
+const notificationService = require('./notificationService')
+const notificationRepository = require('../repositories/notificationRepository')
+const rewardService = require('./rewardService')
+const { NOTIFICATION_TYPES } = require('../utils/constants')
+
+=======
+>>>>>>> b98e9ab85659c615586076b403ebd1262938b902
 /**
  * PATCH /collector/reports/:reportId/schedule
  * Collector sets the scheduled collection time for a waste report.
@@ -572,6 +581,7 @@ async function completeReport(collectorId, reportId, { actualQuantity, quantityU
   const connection = await db.getConnection()
 
   let pointsAwarded = 0
+  let rewardResult = null
 
   try {
     await connection.beginTransaction()
@@ -614,16 +624,29 @@ async function completeReport(collectorId, reportId, { actualQuantity, quantityU
       recordedAt
     )
 
-    // 7f. Calculate and award points
-    //     points = actualQuantity × pointsPerUnit (0 if no active reward config)
-    const rewardConfig = await collectorReportRepository.findRewardConfig(connection, report.waste_type_id)
-    if (rewardConfig) {
-      pointsAwarded = Number((qty * Number(rewardConfig.points_per_unit)).toFixed(2))
+    // 7f. Process reward (10-step: variance check, fake detection, penalties, etc.)
+    const citizenReportKg = report.weight !== null ? Number(report.weight) : qty
+    rewardResult = await rewardService.processReward(connection, {
+      citizenId: report.citizen_id,
+      userAccountId: report.citizen_user_account_id,
+      wasteReportId: reportId,
+      citizenReportKg,
+      collectorActualKg: qty,
+      currentTime: recordedAt,
+      wasteTypeId: report.waste_type_id
+    })
+    pointsAwarded = rewardResult.finalPoints
 
-      await collectorReportRepository.insertPointTransaction(connection, {
-        pointTransactionId: uuidv4(),
-        citizenId: report.citizen_id,
+    // 7g. Create POINT_REWARDED notification (inside transaction)
+    if (pointsAwarded > 0 && report.citizen_user_account_id) {
+      await notificationService.createNotification({
+        notificationType: NOTIFICATION_TYPES.POINT_REWARDED,
+        recipientUserAccountId: report.citizen_user_account_id,
         wasteReportId: reportId,
+<<<<<<< HEAD
+        message: `Bạn nhận được ${pointsAwarded} điểm thưởng`
+      }, connection)
+=======
         pointsDelta: pointsAwarded,
         transactionReason: 'WASTE_COLLECTION_COMPLETED',
         createdAt: recordedAt
@@ -661,6 +684,7 @@ async function completeReport(collectorId, reportId, { actualQuantity, quantityU
           message: `Báo cáo rác thải (${report.report_code || reportId}) đã được hoàn thành bởi người thu gom.`
         }, connection)
       }
+>>>>>>> b98e9ab85659c615586076b403ebd1262938b902
     }
 
     await connection.commit()
@@ -678,7 +702,16 @@ async function completeReport(collectorId, reportId, { actualQuantity, quantityU
       status: 'COMPLETED',
       actualQuantity: qty,
       pointsAwarded,
-      completedAt: recordedAt
+      completedAt: recordedAt,
+      reward: rewardResult
+        ? {
+            variancePercent: rewardResult.variancePercent,
+            penaltyApplied: rewardResult.penaltyApplied,
+            isFake: rewardResult.isFake,
+            currentLevel: rewardResult.currentLevel,
+            reportBlockedUntil: rewardResult.reportBlockedUntil
+          }
+        : null
     }
   }
 }
