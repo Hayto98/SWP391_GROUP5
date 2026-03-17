@@ -368,7 +368,27 @@ export default function ManageVoucher() {
   };
   const handleSave = async (data) => {
     if (editTarget) {
-      // ...cập nhật logic nếu cần...
+      try {
+        const formData = new FormData();
+        formData.append("voucherCode", data.voucherCode);
+        formData.append("title", data.title);
+        formData.append("description", data.description);
+        formData.append("pointsRequired", data.pointsRequired);
+        formData.append("quantityTotal", data.quantityTotal);
+        formData.append("validFrom", data.validFrom);
+        formData.append("validTo", data.validTo);
+        if (data.file) formData.append("file", data.file);
+
+        const res = await fetch(`http://localhost:3000/api/enterprise/vouchers/${editTarget.voucher_id || editTarget.id}`, {
+          method: "PUT",
+          body: formData,
+        });
+        if (!res.ok) throw new Error("Cập nhật voucher thất bại!");
+        toast.success("Đã cập nhật voucher thành công!");
+      } catch (err) {
+        toast.error("Cập nhật voucher thất bại!");
+        return;
+      }
     } else {
       try {
         // Gửi form-data lên API
