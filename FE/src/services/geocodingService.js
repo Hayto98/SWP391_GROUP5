@@ -74,11 +74,12 @@ export async function reverseGeocode(lat, lng, precision = 6) {
             lat: latNum,
             lon: lngNum,
             "accept-language": "vi",
+            addressdetails: 1,
+            zoom: 18,
           },
           headers: {
             Accept: "application/json",
             "Accept-Language": "vi",
-            "User-Agent": "SWP391_GROUP5/1.0",
           },
         }),
       ),
@@ -116,21 +117,33 @@ export async function searchAddress(query, limit = 5, options = {}) {
             format: "json",
             limit,
             "accept-language": "vi",
+            countrycodes: "vn",
+            viewbox: "106.35,11.16,107.03,10.35",
+            bounded: 1,
+            addressdetails: 1,
           },
           headers: {
             Accept: "application/json",
             "Accept-Language": "vi",
-            "User-Agent": "SWP391_GROUP5/1.0",
           },
         }),
       ),
     );
 
-    const results = res.data.map((item) => ({
-      address: item.display_name,
-      lat: Number(item.lat),
-      lng: Number(item.lon),
-    }));
+    const results = (Array.isArray(res.data) ? res.data : []).map((item) => {
+      const addr = item?.address || {};
+
+      return {
+        address: item?.display_name || "",
+        houseNumber: addr.house_number || "",
+        road: addr.road || "",
+        suburb: addr.suburb || addr.neighbourhood || "",
+        district: addr.district || addr.county || "",
+        city: addr.city || addr.state || "",
+        lat: Number(item?.lat),
+        lng: Number(item?.lon),
+      };
+    });
 
     searchCache.set(cacheKey, results);
     return results;

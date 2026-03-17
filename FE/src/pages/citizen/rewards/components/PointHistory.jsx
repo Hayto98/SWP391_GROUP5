@@ -54,7 +54,9 @@ function PointHistory({ pointTransactions }) {
                         transaction.type === "REDEEM" ? "secondary" : "default"
                       }
                     >
-                      {transaction.type}
+                      {transaction.type === "REDEEM"
+                        ? "Đổi quà"
+                        : "Điểm thưởng"}
                     </Badge>
                   </TableCell>
                   <TableCell className="font-medium">

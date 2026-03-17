@@ -43,6 +43,7 @@ function LocationSelection({ marker, onMapClick, onDeleteMarker }) {
 
   const [search, setSearch] = useState("");
   const [suggestions, setSuggestions] = useState([]);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const searchDebounceRef = useRef(null);
   const searchControllerRef = useRef(null);
 
@@ -162,15 +163,24 @@ function LocationSelection({ marker, onMapClick, onDeleteMarker }) {
             placeholder="Nhập địa chỉ..."
             value={search}
             onChange={(e) => handleSearch(e.target.value)}
+            onFocus={() => setIsSearchFocused(true)}
+            onBlur={() => {
+              setTimeout(() => {
+                setIsSearchFocused(false);
+              }, 120);
+            }}
           />
 
-          {suggestions.length > 0 && (
+          {isSearchFocused && suggestions.length > 0 && (
             <div className="absolute z-50 bg-white border w-full rounded-md shadow-md max-h-60 overflow-auto">
               {suggestions.map((item, index) => (
                 <button
                   key={index}
                   className="w-full text-left px-3 py-2 hover:bg-gray-100 text-sm"
-                  onClick={() => handleSelectLocation(item)}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleSelectLocation(item);
+                  }}
                 >
                   {item.address}
                 </button>
