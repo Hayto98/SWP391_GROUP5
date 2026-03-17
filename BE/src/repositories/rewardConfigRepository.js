@@ -11,14 +11,23 @@ const { v4: uuidv4 } = require('uuid')
  * @param {string} [params.description] - Mô tả
  * @returns {Object} - rewardConfig mới tạo
  */
-async function createRewardConfig({ wasteTypeId, pointsPerUnit, description = null, allowedVariancePercent = 10 }) {
+async function createRewardConfig({
+  wasteTypeId,
+  pointsPerUnit,
+  description = null,
+  allowedVariancePercent = 10,
+  minKgRequired = 0,
+  maxKgRequired = 20,
+  penaltyPercent = 0
+}) {
   const rewardConfigId = uuidv4()
   const createdAt = new Date()
 
   await db.execute(
-    `INSERT INTO rewardconfig (reward_config_id, waste_type_id, points_per_unit, description, allowed_variance_percent, is_active)
-     VALUES (?, ?, ?, ?, ?, 1)`,
-    [rewardConfigId, wasteTypeId, pointsPerUnit, description, allowedVariancePercent]
+    `INSERT INTO rewardconfig
+      (reward_config_id, waste_type_id, points_per_unit, description, allowed_variance_percent, min_kg_required, max_kg_required, penalty_percent, is_active)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+    [rewardConfigId, wasteTypeId, pointsPerUnit, description, allowedVariancePercent, minKgRequired, maxKgRequired, penaltyPercent]
   )
 
   return {
@@ -27,6 +36,9 @@ async function createRewardConfig({ wasteTypeId, pointsPerUnit, description = nu
     pointsPerUnit,
     description,
     allowedVariancePercent,
+    minKgRequired,
+    maxKgRequired,
+    penaltyPercent,
     isActive: true,
     createdAt
   }
@@ -39,7 +51,8 @@ async function createRewardConfig({ wasteTypeId, pointsPerUnit, description = nu
  */
 async function findById(rewardConfigId) {
   const [rows] = await db.execute(
-    `SELECT reward_config_id, waste_type_id, points_per_unit, description, allowed_variance_percent, is_active
+    `SELECT reward_config_id, waste_type_id, points_per_unit, description, allowed_variance_percent,
+            min_kg_required, max_kg_required, penalty_percent, is_active
      FROM rewardconfig
      WHERE reward_config_id = ?`,
     [rewardConfigId]
@@ -54,6 +67,9 @@ async function findById(rewardConfigId) {
     pointsPerUnit: row.points_per_unit,
     description: row.description,
     allowedVariancePercent: row.allowed_variance_percent,
+    minKgRequired: row.min_kg_required,
+    maxKgRequired: row.max_kg_required,
+    penaltyPercent: row.penalty_percent,
     isActive: row.is_active === 1,
     createdAt: null,
     updatedAt: null
@@ -65,7 +81,8 @@ async function findById(rewardConfigId) {
  */
 async function findByWasteTypeId(wasteTypeId) {
   const [rows] = await db.execute(
-    `SELECT reward_config_id, waste_type_id, points_per_unit, description, allowed_variance_percent, is_active
+    `SELECT reward_config_id, waste_type_id, points_per_unit, description, allowed_variance_percent,
+            min_kg_required, max_kg_required, penalty_percent, is_active
      FROM rewardconfig
      WHERE waste_type_id = ?`,
     [wasteTypeId]
@@ -80,6 +97,9 @@ async function findByWasteTypeId(wasteTypeId) {
     pointsPerUnit: row.points_per_unit,
     description: row.description,
     allowedVariancePercent: row.allowed_variance_percent,
+    minKgRequired: row.min_kg_required,
+    maxKgRequired: row.max_kg_required,
+    penaltyPercent: row.penalty_percent,
     isActive: row.is_active === 1,
     createdAt: null,
     updatedAt: null
@@ -92,7 +112,7 @@ async function findByWasteTypeId(wasteTypeId) {
 async function findAll({ isActive, limit = 20, offset = 0 } = {}) {
   let query = `SELECT SQL_CALC_FOUND_ROWS 
                  rc.reward_config_id, rc.waste_type_id, rc.points_per_unit, rc.description, 
-                 rc.allowed_variance_percent, rc.is_active,
+                 rc.allowed_variance_percent, rc.min_kg_required, rc.max_kg_required, rc.penalty_percent, rc.is_active,
                  wt.waste_type_name, wt.unit_type
                FROM rewardconfig rc
                JOIN wastetype wt ON rc.waste_type_id = wt.waste_type_id
@@ -119,6 +139,9 @@ async function findAll({ isActive, limit = 20, offset = 0 } = {}) {
     pointsPerUnit: row.points_per_unit,
     description: row.description,
     allowedVariancePercent: row.allowed_variance_percent,
+    minKgRequired: row.min_kg_required,
+    maxKgRequired: row.max_kg_required,
+    penaltyPercent: row.penalty_percent,
     isActive: row.is_active === 1,
     createdAt: null,
     updatedAt: null
@@ -132,7 +155,10 @@ async function findAll({ isActive, limit = 20, offset = 0 } = {}) {
 /**
  * Cập nhật RewardConfig
  */
-async function updateRewardConfig(rewardConfigId, { pointsPerUnit, description, allowedVariancePercent }) {
+async function updateRewardConfig(
+  rewardConfigId,
+  { pointsPerUnit, description, allowedVariancePercent, minKgRequired, maxKgRequired, penaltyPercent }
+) {
   const fields = []
   const values = []
 
@@ -149,6 +175,21 @@ async function updateRewardConfig(rewardConfigId, { pointsPerUnit, description, 
   if (allowedVariancePercent !== undefined) {
     fields.push('allowed_variance_percent = ?')
     values.push(allowedVariancePercent)
+  }
+
+  if (minKgRequired !== undefined) {
+    fields.push('min_kg_required = ?')
+    values.push(minKgRequired)
+  }
+
+  if (maxKgRequired !== undefined) {
+    fields.push('max_kg_required = ?')
+    values.push(maxKgRequired)
+  }
+
+  if (penaltyPercent !== undefined) {
+    fields.push('penalty_percent = ?')
+    values.push(penaltyPercent)
   }
 
   if (fields.length === 0) {
