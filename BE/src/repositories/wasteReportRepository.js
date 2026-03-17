@@ -31,7 +31,8 @@ async function createReport({
   gpsLng,
   description,
   weight,
-  fileUri
+  fileUri,
+  isDuplicate = false
 }, existingConnection = null) {
   const PENDING_STATUS_ID = 1
 
@@ -61,8 +62,8 @@ async function createReport({
     await connection.execute(
       `INSERT INTO wastereport
         (waste_report_id, report_code, citizen_id, waste_type_id, report_status_type_id,
-         assigned_collector_id, gps_lat, gps_lng, description, weight, file_uri, created_at)
-       VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)`,
+         assigned_collector_id, gps_lat, gps_lng, description, weight, file_uri, created_at, is_duplicate)
+       VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)`,
       [
         wasteReportId,
         reportCode,
@@ -74,7 +75,8 @@ async function createReport({
         description,
         weight ?? 0,
         fileUri || null,
-        createdAt
+        createdAt,
+        isDuplicate ? 1 : 0
       ]
     )
 

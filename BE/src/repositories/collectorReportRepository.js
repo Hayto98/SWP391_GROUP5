@@ -448,12 +448,16 @@ async function findReportForComplete(reportId, collectorId) {
        wr.assigned_collector_id,
        wr.waste_type_id,
        wr.citizen_id,
+       wr.weight,
+       c.user_account_id      AS citizen_user_account_id,
        rst.status_name        AS status,
        cr.collected_record_id,
        cr.actual_quantity_value
      FROM wastereport wr
      INNER JOIN reportstatustype rst
        ON wr.report_status_type_id = rst.report_status_type_id
+     INNER JOIN citizen c
+       ON wr.citizen_id = c.citizen_id
      LEFT JOIN collectedrecord cr
        ON cr.waste_report_id = wr.waste_report_id
       AND cr.collector_user_account_id = ?
@@ -463,6 +467,7 @@ async function findReportForComplete(reportId, collectorId) {
   )
   return rows[0] || null
 }
+
 
 /**
  * Fetch active reward config for a waste type.
