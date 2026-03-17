@@ -27,11 +27,11 @@ const resolveRole = (user) => {
     case 1:
       return "admin";
     case 2:
-      return "citizen";
-    case 3:
       return "enterprise";
-    case 4:
+    case 3:
       return "collector";
+    case 4:
+      return "citizen";
     default:
       return "";
   }

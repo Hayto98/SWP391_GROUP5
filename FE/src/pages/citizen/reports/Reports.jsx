@@ -216,6 +216,7 @@ function mapReport(report) {
 
   return {
     id: report.wasteReportId,
+    reportCode: report?.reportCode || report.wasteReportId,
     wasteTypeId: report?.wasteType?.id || null,
     title: report?.wasteType?.name || "-",
     unitType: report?.wasteType?.unitType || "-",
@@ -533,7 +534,7 @@ function Reports() {
                 paginatedReports.map((report) => (
                   <TableRow key={report.id}>
                     <TableCell className="font-medium text-cyan-600 truncate max-w-25">
-                      {report.id}
+                      {report.reportCode}
                     </TableCell>
                     <TableCell>{report.title}</TableCell>
 

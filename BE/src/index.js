@@ -36,16 +36,28 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes)
 app.use('/api/v1/admin', adminRoutes)
 app.use('/api/v1/collector', require('./routes/collectorRoutes'))
-app.use('/api/v1/citizen', require('./routes/citizenRoutes'))
-app.use('/api/enterprise', enterpriseRoutes)
+app.use('/api/v1/citizen', citizenRoutes)
+app.use('/api/v1/enterprise', enterpriseRoutes)
+
+// Legacy or alternate prefixes (if needed by frontend)
 app.use('/api/reports', require('./routes/wasteReportRoutes'))
 app.use('/api/waste-types', require('./routes/wasteTypeRoutes'))
-app.use('/enterprise', require('./routes/enterpriseRoutes'))
-app.use('/citizen', require('./routes/citizenRoutes'))
+app.use('/enterprise', enterpriseRoutes)
+app.use('/citizen', citizenRoutes)
 app.use('/vouchers', require('./routes/voucherRoutes'))
 
+app.get('/debug-routes', (req, res) => {
+  res.status(200).json({ routes: ['/enterprise/notifications', '/api/v1/enterprise/notifications', '/enterprise/ping'] })
+})
+
 app.use((req, res) => {
-  res.status(404).json({ message: 'Route not found' })
+  console.log(`404 Fallthrough: ${req.method} ${req.url}`)
+  res.status(404).json({ 
+    message: 'MMA_SERVER_404_NOT_FOUND',
+    method: req.method,
+    url: req.url,
+    originalUrl: req.originalUrl
+  })
 })
 
 app.use(errorHandler)

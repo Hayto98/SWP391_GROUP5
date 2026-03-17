@@ -52,16 +52,21 @@ async function getNotifications(userId, queryParams) {
   const limit = Math.min(100, Math.max(1, Number(queryParams.limit) || 20))
   const offset = (page - 1) * limit
 
+  console.log(`[DEBUG] Fetching notifications for userId: ${userId}`);
   const { notifications, total } = await notificationRepository.findByRecipientUserId(userId, { limit, offset })
+  console.log(`[DEBUG] Found ${notifications.length} notifications. Total: ${total}`);
 
-  const data = notifications.map((row) => ({
-    notificationId: row.notification_id,
-    type: row.notification_type,
-    message: row.message,
-    isRead: row.is_read === 1,
-    wasteReportId: row.waste_report_id ?? null,
-    createdAt: row.created_at
-  }))
+  const data = notifications.map((row) => {
+    // Handle both lowercase and uppercase keys due to inconsistent DB collation
+    return {
+      notificationId: row.notification_id || row.NOTIFICATION_ID,
+      type: row.notification_type || row.NOTIFICATION_TYPE,
+      message: row.message || row.MESSAGE,
+      isRead: (row.is_read ?? row.IS_READ) === 1,
+      wasteReportId: row.waste_report_id || row.WASTE_REPORT_ID || null,
+      createdAt: row.created_at || row.CREATED_AT
+    };
+  })
 
   return {
     success: true,
@@ -91,12 +96,13 @@ async function markAsRead(userId, notificationId) {
     throw new ApiError(404, 'Notification not found')
   }
 
-  // Authorization: only the recipient can mark their notification as read
-  if (notification.recipient_user_account_id !== userId) {
+  const recipientId = notification.recipient_user_account_id || notification.RECIPIENT_USER_ACCOUNT_ID;
+  if (recipientId !== userId) {
     throw new ApiError(403, 'You do not have permission to access this notification')
   }
 
-  await notificationRepository.markAsRead(notificationId)
+  const id = notification.notification_id || notification.NOTIFICATION_ID;
+  await notificationRepository.markAsRead(id)
 
   return {
     success: true,
@@ -104,8 +110,20 @@ async function markAsRead(userId, notificationId) {
   }
 }
 
+/**
+ * Mark all notifications for a user as read.
+ */
+async function markAllAsRead(userId) {
+  await notificationRepository.markAllAsReadByUserId(userId)
+  return {
+    success: true,
+    message: 'All notifications marked as read'
+  }
+}
+
 module.exports = {
   createNotification,
   getNotifications,
-  markAsRead
+  markAsRead,
+  markAllAsRead
 }

@@ -48,4 +48,5 @@ router.get('/points/history', citizenController.getPointHistory)
 // GET /citizen/vouchers/redeemed
 router.get('/vouchers/redeemed', voucherController.getRedeemedHistory)
 
+router.post('/vouchers/redeem', voucherController.redeem)
 module.exports = router

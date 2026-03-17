@@ -14,7 +14,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Star } from "lucide-react";
 
 function RedemptionHistory({ redemptionHistory }) {
@@ -42,36 +41,37 @@ function RedemptionHistory({ redemptionHistory }) {
               <TableHead>Mã Voucher</TableHead>
               <TableHead className="text-right">Điểm Đã Dùng</TableHead>
               <TableHead>Ngày Đổi</TableHead>
-              <TableHead className="text-center">Trạng Thái</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {redemptionHistory.map((item) => (
-              <TableRow key={item.voucher_redemption_id}>
-                <TableCell className="font-medium">
-                  {item.voucher_name}
-                </TableCell>
-                <TableCell>
-                  <code className="text-xs bg-gray-100 px-2 py-1 rounded">
-                    {item.voucher_code}
-                  </code>
-                </TableCell>
-                <TableCell className="text-right">
-                  <span className="flex items-center justify-end gap-1">
-                    <Star className="size-3 fill-amber-500 text-amber-500" />
-                    {item.points_used}
-                  </span>
-                </TableCell>
-                <TableCell>{formatDate(item.redeemed_at)}</TableCell>
-                <TableCell className="text-center">
-                  <Badge
-                    variant={item.status === "active" ? "default" : "secondary"}
-                  >
-                    {item.status === "active" ? "Đang dùng" : "Đã dùng"}
-                  </Badge>
+            {redemptionHistory.length ? (
+              redemptionHistory.map((item) => (
+                <TableRow key={`${item.voucherCode}-${item.redeemedAt}`}>
+                  <TableCell className="font-medium">{item.title}</TableCell>
+                  <TableCell>
+                    <code className="text-xs bg-gray-100 px-2 py-1 rounded">
+                      {item.voucherCode}
+                    </code>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <span className="flex items-center justify-end gap-1">
+                      <Star className="size-3 fill-amber-500 text-amber-500" />
+                      {item.pointsUsed}
+                    </span>
+                  </TableCell>
+                  <TableCell>{formatDate(item.redeemedAt)}</TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell
+                  colSpan={5}
+                  className="py-8 text-center text-muted-foreground"
+                >
+                  Bạn chưa đổi voucher nào.
                 </TableCell>
               </TableRow>
-            ))}
+            )}
           </TableBody>
         </Table>
       </CardContent>
