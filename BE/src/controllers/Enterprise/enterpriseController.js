@@ -86,10 +86,13 @@ async function createRewardConfig(req, res, next) {
   try {
     // Accept both camelCase and snake_case input keys
     const payload = {
-      wasteTypeId: req.body.wasteTypeId || req.body.waste_type_id,
-      pointsPerUnit: req.body.pointsPerUnit || req.body.points_per_unit,
+      wasteTypeId: req.body.wasteTypeId ?? req.body.waste_type_id,
+      pointsPerUnit: req.body.pointsPerUnit ?? req.body.points_per_unit,
       description: req.body.description,
-      allowedVariancePercent: req.body.allowedVariancePercent || req.body.allowed_variance_percent
+      allowedVariancePercent: req.body.allowedVariancePercent ?? req.body.allowed_variance_percent,
+      minKgRequired: req.body.minKgRequired ?? req.body.min_kg_required,
+      maxKgRequired: req.body.maxKgRequired ?? req.body.max_kg_required,
+      penaltyPercent: req.body.penaltyPercent ?? req.body.penalty_percent
     }
 
     const result = await enterpriseService.createRewardConfig(payload)
@@ -141,9 +144,12 @@ async function getRewardConfigByWasteTypeId(req, res, next) {
 async function updateRewardConfig(req, res, next) {
   try {
     const payload = {
-      pointsPerUnit: req.body.pointsPerUnit || req.body.points_per_unit,
+      pointsPerUnit: req.body.pointsPerUnit ?? req.body.points_per_unit,
       description: req.body.description,
-      allowedVariancePercent: req.body.allowedVariancePercent || req.body.allowed_variance_percent
+      allowedVariancePercent: req.body.allowedVariancePercent ?? req.body.allowed_variance_percent,
+      minKgRequired: req.body.minKgRequired ?? req.body.min_kg_required,
+      maxKgRequired: req.body.maxKgRequired ?? req.body.max_kg_required,
+      penaltyPercent: req.body.penaltyPercent ?? req.body.penalty_percent
     }
 
     const result = await enterpriseService.updateRewardConfig(req.params.rewardConfigId, payload)
