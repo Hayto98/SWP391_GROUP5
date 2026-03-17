@@ -75,34 +75,7 @@ const CATEGORIES = [
   },
 ];
 
-// TODO: API 
-const INITIAL_VOUCHERS = [
-  {
-    voucher_id: "1",
-    voucher_name: "Phúc Long - Giảm 30K",
-    voucher_code: "PHUCLONG30K",
-    points_required: 500,
-    terms_description: "Áp dụng cho đơn hàng từ 100.000đ tại tất cả chi nhánh Phúc Long.",
-    expiry_date: "31/03/2026",
-    category: "discount",
-    source: "partner",
-    image: "https://cdn.haitrieu.com/wp-content/uploads/2022/01/Logo-Phuc-Long-PL.png",
-    is_active: true,
-    total_redeemed: 128,
-  },
-  {
-    voucher_id: "2",
-    voucher_name: "Tặng cây xanh cho môi trường",
-    voucher_code: "GREENTREE",
-    points_required: 1500,
-    terms_description: "Chúng tôi sẽ trồng 1 cây xanh nhân danh bạn.",
-    expiry_date: "31/12/2026",
-    category: "environment",
-    source: "partner",
-    is_active: false,
-    total_redeemed: 45,
-  }
-];
+// Lấy danh sách voucher từ API khi load trang
 
 const EMPTY_FORM = {
   voucherCode: "",
@@ -344,7 +317,7 @@ function DeleteDialog({ voucher, onClose, onConfirm }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ManageVoucher() {
-  const [vouchers, setVouchers] = useState(INITIAL_VOUCHERS);
+  const [vouchers, setVouchers] = useState([]);
   const [filterSource, setFilterSource] = useState("all");
   const [search, setSearch] = useState("");
 
@@ -457,6 +430,23 @@ export default function ManageVoucher() {
       `Voucher "${v.voucher_name}" ${v.is_active ? "đã tắt" : "đã bật"}.`,
     );
   };
+
+
+  // Lấy danh sách voucher từ API khi mount
+  useEffect(() => {
+    const fetchVouchers = async () => {
+      try {
+        const res = await fetch("http://localhost:3000/api/enterprise/vouchers");
+        if (!res.ok) throw new Error("Không lấy được danh sách voucher");
+        const data = await res.json();
+        // Giả sử API trả về mảng vouchers
+        setVouchers(data.vouchers || []);
+      } catch (err) {
+        toast.error("Không lấy được danh sách voucher");
+      }
+    };
+    fetchVouchers();
+  }, []);
 
   useEffect(() => {
     if (!isHistoryDialogOpen) return;
