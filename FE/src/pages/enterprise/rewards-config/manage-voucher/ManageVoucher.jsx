@@ -318,6 +318,12 @@ function DeleteDialog({ voucher, onClose, onConfirm }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ManageVoucher() {
   const [vouchers, setVouchers] = useState([]);
+  const [statistics, setStatistics] = useState({
+    totalVoucher: 0,
+    totalActive: 0,
+    totalRedeemed: 0,
+    avgPoints: 0,
+  });
   const [detailVoucher, setDetailVoucher] = useState(null);
   const [isDetailOpen, setDetailOpen] = useState(false);
   const [filterSource, setFilterSource] = useState("all");
@@ -333,15 +339,8 @@ export default function ManageVoucher() {
     setVoucherHistoryRows(getAllVoucherHistory());
   }, []);
 
-  // ── Derived stats ──
-  const totalVoucher = vouchers.length;
-  const totalActive = vouchers.filter((v) => v.is_active).length;
-  const totalRedeemed = vouchers.reduce((s, v) => s + (v.total_redeemed || 0), 0);
-  const avgPoints = vouchers.length
-    ? Math.round(
-      vouchers.reduce((s, v) => s + (v.points_required || v.pointsRequired || 0), 0) / vouchers.length,
-    )
-    : 0;
+  // ── Derived stats (from API statistics) ──
+  const { totalVoucher, totalActive, totalRedeemed, avgPoints } = statistics;
 
   // ── Filtered list ──
   const filtered = vouchers.filter((v) => {
@@ -478,20 +477,35 @@ export default function ManageVoucher() {
   };
 
 
-  // Lấy danh sách voucher từ API khi mount
+  // Lấy danh sách voucher và statistics từ API khi mount
   useEffect(() => {
     const fetchVouchers = async () => {
       try {
         const res = await fetch("http://localhost:3000/api/enterprise/vouchers");
         if (!res.ok) throw new Error("Không lấy được danh sách voucher");
         const data = await res.json();
-        // Giả sử API trả về mảng vouchers
         setVouchers(data.vouchers || []);
       } catch (err) {
         toast.error("Không lấy được danh sách voucher");
       }
     };
+    const fetchStatistics = async () => {
+      try {
+        const res = await fetch("http://localhost:3000/api/enterprise/vouchers/statistics");
+        if (!res.ok) throw new Error("Không lấy được thống kê");
+        const data = await res.json();
+        setStatistics({
+          totalVoucher: data.totalVoucher || 0,
+          totalActive: data.totalActive || 0,
+          totalRedeemed: data.totalRedeemed || 0,
+          avgPoints: data.avgPoints || 0,
+        });
+      } catch (err) {
+        toast.error("Không lấy được thống kê");
+      }
+    };
     fetchVouchers();
+    fetchStatistics();
   }, []);
 
   useEffect(() => {
