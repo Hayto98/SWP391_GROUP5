@@ -105,15 +105,14 @@ const INITIAL_VOUCHERS = [
 ];
 
 const EMPTY_FORM = {
-  voucher_name: "",
-  voucher_code: "",
-  points_required: "",
-  terms_description: "",
-  expiry_date: "",
-  image: "",
-  category: "discount",
-  source: "enterprise",
-  is_active: true,
+  voucherCode: "",
+  title: "",
+  description: "",
+  pointsRequired: "",
+  quantityTotal: "",
+  validFrom: "",
+  validTo: "",
+  file: null,
 };
 
 const SOURCES = [
@@ -182,14 +181,18 @@ function VoucherFormDialog({ open, onClose, onSave, initial }) {
   };
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
+  const handleFileChange = (e) => set("file", e.target.files[0] || null);
 
   const handleSave = () => {
-    if (!form.voucher_name.trim()) return toast.error("Nhập tên voucher!");
-    if (!form.voucher_code.trim()) return toast.error("Nhập mã voucher!");
-    if (!form.points_required || Number(form.points_required) <= 0)
-      return toast.error("Điểm quy đổi phải lớn hơn 0!");
-    if (!form.expiry_date.trim()) return toast.error("Nhập ngày hết hạn!");
-    onSave({ ...form, points_required: Number(form.points_required) });
+    if (!form.voucherCode.trim()) return toast.error("Nhập mã voucher!");
+    if (!form.title.trim()) return toast.error("Nhập tiêu đề!");
+    if (!form.description.trim()) return toast.error("Nhập mô tả!");
+    if (!form.pointsRequired || Number(form.pointsRequired) <= 0) return toast.error("Điểm quy đổi phải lớn hơn 0!");
+    if (!form.quantityTotal || Number(form.quantityTotal) <= 0) return toast.error("Số lượng phải lớn hơn 0!");
+    if (!form.validFrom.trim()) return toast.error("Nhập ngày bắt đầu!");
+    if (!form.validTo.trim()) return toast.error("Nhập ngày hết hạn!");
+    if (!form.file) return toast.error("Chọn ảnh voucher!");
+    onSave({ ...form, pointsRequired: Number(form.pointsRequired), quantityTotal: Number(form.quantityTotal) });
   };
 
   const isEdit = !!initial?.voucher_id;
@@ -209,31 +212,40 @@ function VoucherFormDialog({ open, onClose, onSave, initial }) {
         </DialogHeader>
 
         <div className="grid gap-4 py-2">
-          {/* Tên */}
+          {/* Mã voucher */}
           <div className="space-y-1.5">
-            <Label htmlFor="vf-name">Tên voucher *</Label>
+            <Label htmlFor="vf-code">Mã voucher *</Label>
             <Input
-              id="vf-name"
-              placeholder="VD: Giảm 50k đơn từ 200k"
-              value={form.voucher_name}
-              onChange={(e) => set("voucher_name", e.target.value)}
+              id="vf-code"
+              placeholder="VD: SAVE50K"
+              value={form.voucherCode}
+              onChange={(e) => set("voucherCode", e.target.value.toUpperCase())}
+              className="font-mono"
             />
           </div>
-
-          {/* Mã & Điểm */}
+          {/* Tiêu đề */}
+          <div className="space-y-1.5">
+            <Label htmlFor="vf-title">Tiêu đề *</Label>
+            <Input
+              id="vf-title"
+              placeholder="VD: Giảm 50k đơn từ 200k"
+              value={form.title}
+              onChange={(e) => set("title", e.target.value)}
+            />
+          </div>
+          {/* Mô tả */}
+          <div className="space-y-1.5">
+            <Label htmlFor="vf-desc">Mô tả *</Label>
+            <Textarea
+              id="vf-desc"
+              placeholder="Nhập mô tả voucher..."
+              value={form.description}
+              onChange={(e) => set("description", e.target.value)}
+              rows={3}
+            />
+          </div>
+          {/* Điểm quy đổi & Số lượng */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="vf-code">Mã voucher *</Label>
-              <Input
-                id="vf-code"
-                placeholder="VD: SAVE50K"
-                value={form.voucher_code}
-                onChange={(e) =>
-                  set("voucher_code", e.target.value.toUpperCase())
-                }
-                className="font-mono"
-              />
-            </div>
             <div className="space-y-1.5">
               <Label htmlFor="vf-pts">Điểm quy đổi *</Label>
               <Input
@@ -241,98 +253,51 @@ function VoucherFormDialog({ open, onClose, onSave, initial }) {
                 type="number"
                 min={1}
                 placeholder="VD: 500"
-                value={form.points_required}
-                onChange={(e) => set("points_required", e.target.value)}
+                value={form.pointsRequired}
+                onChange={(e) => set("pointsRequired", e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="vf-qty">Số lượng *</Label>
+              <Input
+                id="vf-qty"
+                type="number"
+                min={1}
+                placeholder="VD: 10"
+                value={form.quantityTotal}
+                onChange={(e) => set("quantityTotal", e.target.value)}
               />
             </div>
           </div>
-
-          {/* Danh mục & Nguồn */}
+          {/* Ngày bắt đầu & Ngày hết hạn */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Danh mục</Label>
-              <Select
-                value={form.category}
-                onValueChange={(v) => set("category", v)}
-              >
-                <SelectTrigger id="vf-cat">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>
-                      {c.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="vf-from">Ngày bắt đầu *</Label>
+              <Input
+                id="vf-from"
+                type="date"
+                value={form.validFrom}
+                onChange={(e) => set("validFrom", e.target.value)}
+              />
             </div>
             <div className="space-y-1.5">
-              <Label>Nguồn Voucher</Label>
-              <Select
-                value={form.source}
-                onValueChange={(v) => set("source", v)}
-              >
-                <SelectTrigger id="vf-src">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SOURCES.map((s) => (
-                    <SelectItem key={s.value} value={s.value}>
-                      {s.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="vf-to">Ngày hết hạn *</Label>
+              <Input
+                id="vf-to"
+                type="date"
+                value={form.validTo}
+                onChange={(e) => set("validTo", e.target.value)}
+              />
             </div>
           </div>
-
-          {/* Ngày hết hạn */}
-          <div className="space-y-1.5">
-            <Label htmlFor="vf-exp">Ngày hết hạn *</Label>
-            <Input
-              id="vf-exp"
-              placeholder="VD: 31/12/2026"
-              value={form.expiry_date}
-              onChange={(e) => set("expiry_date", e.target.value)}
-            />
-          </div>
-
-          {/* Mô tả */}
-          <div className="space-y-1.5">
-            <Label htmlFor="vf-desc">Điều kiện / Mô tả</Label>
-            <Textarea
-              id="vf-desc"
-              placeholder="Nhập điều kiện sử dụng voucher..."
-              value={form.terms_description}
-              onChange={(e) => set("terms_description", e.target.value)}
-              rows={3}
-            />
-          </div>
-
           {/* Ảnh */}
           <div className="space-y-1.5">
-            <Label htmlFor="vf-img">URL ảnh (tùy chọn)</Label>
+            <Label htmlFor="vf-img">Ảnh voucher *</Label>
             <Input
               id="vf-img"
-              placeholder="https://..."
-              value={form.image}
-              onChange={(e) => set("image", e.target.value)}
-            />
-          </div>
-
-          {/* Trạng thái */}
-          <div className="flex items-center justify-between rounded-lg border p-3">
-            <div>
-              <p className="text-sm font-medium">Kích hoạt ngay</p>
-              <p className="text-xs text-muted-foreground">
-                Citizen sẽ thấy voucher này khi được bật
-              </p>
-            </div>
-            <Switch
-              id="vf-active"
-              checked={form.is_active}
-              onCheckedChange={(v) => set("is_active", v)}
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
             />
           </div>
         </div>
@@ -414,38 +379,34 @@ export default function ManageVoucher() {
   });
 
   // ── Handlers ──
-  const handleSave = (data) => {
+  const handleSave = async (data) => {
     if (editTarget) {
-      setVouchers((prev) =>
-        prev.map((v) =>
-          v.voucher_id === editTarget.voucher_id ? { ...v, ...data } : v,
-        ),
-      );
-
-      recordVoucherHistory({
-        action: "update",
-        voucherId: editTarget.voucher_id,
-        voucherCode: data.voucher_code,
-        voucherName: data.voucher_name,
-        detail: `Cập nhật voucher (${data.points_required} điểm).`,
-      });
-      toast.success("Đã cập nhật voucher thành công!");
+      // ...cập nhật logic nếu cần...
     } else {
-      const newV = {
-        ...data,
-        voucher_id: String(Date.now()),
-        total_redeemed: 0,
-      };
-      setVouchers((prev) => [newV, ...prev]);
+      try {
+        // Gửi form-data lên API
+        const formData = new FormData();
+        formData.append("voucherCode", data.voucherCode);
+        formData.append("title", data.title);
+        formData.append("description", data.description);
+        formData.append("pointsRequired", data.pointsRequired);
+        formData.append("quantityTotal", data.quantityTotal);
+        formData.append("validFrom", data.validFrom);
+        formData.append("validTo", data.validTo);
+        formData.append("file", data.file);
 
-      recordVoucherHistory({
-        action: "create",
-        voucherId: newV.voucher_id,
-        voucherCode: newV.voucher_code,
-        voucherName: newV.voucher_name,
-        detail: `Tạo voucher mới (${newV.points_required} điểm).`,
-      });
-      toast.success("Đã tạo voucher mới thành công!");
+        const res = await fetch("http://localhost:3000/api/enterprise/vouchers", {
+          method: "POST",
+          body: formData,
+        });
+        if (!res.ok) throw new Error("Tạo voucher thất bại!");
+        const result = await res.json();
+        toast.success("Đã tạo voucher mới thành công!");
+        // Optionally: setVouchers((prev) => [result.voucher, ...prev]);
+      } catch (err) {
+        toast.error("Tạo voucher thất bại!");
+        return;
+      }
     }
 
     refreshVoucherHistory();
