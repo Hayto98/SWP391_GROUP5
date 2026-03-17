@@ -318,6 +318,8 @@ function DeleteDialog({ voucher, onClose, onConfirm }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ManageVoucher() {
   const [vouchers, setVouchers] = useState([]);
+  const [detailVoucher, setDetailVoucher] = useState(null);
+  const [isDetailOpen, setDetailOpen] = useState(false);
   const [filterSource, setFilterSource] = useState("all");
   const [search, setSearch] = useState("");
 
@@ -352,6 +354,18 @@ export default function ManageVoucher() {
   });
 
   // ── Handlers ──
+  // Xem chi tiết voucher
+  const handleViewDetail = async (voucherId) => {
+    try {
+      const res = await fetch(`http://localhost:3000/api/enterprise/vouchers/${voucherId}`);
+      if (!res.ok) throw new Error("Không lấy được chi tiết voucher");
+      const data = await res.json();
+      setDetailVoucher(data.voucher || data);
+      setDetailOpen(true);
+    } catch (err) {
+      toast.error("Không lấy được chi tiết voucher");
+    }
+  };
   const handleSave = async (data) => {
     if (editTarget) {
       // ...cập nhật logic nếu cần...
@@ -532,6 +546,8 @@ export default function ManageVoucher() {
             <div
               key={v.voucher_id}
               className={`relative flex h-32 bg-white border border-gray-200 rounded-md shadow-sm overflow-hidden group ${!v.is_active ? "opacity-60" : ""}`}
+              onClick={() => handleViewDetail(v.voucher_id)}
+              style={{ cursor: 'pointer' }}
             >
               {/* Left Image / Branding */}
               <div className="w-[118px] flex-shrink-0 bg-primary flex flex-col items-center justify-center relative overflow-hidden border-r border-dashed border-gray-200 box-border p-2">
@@ -569,7 +585,7 @@ export default function ManageVoucher() {
                 </div>
 
                 {/* Bottom Actions Overlay */}
-                <div className="absolute bottom-3 right-3 flex items-center gap-2">
+                <div className="absolute bottom-3 right-3 flex items-center gap-2" onClick={e => e.stopPropagation()}>
                   <Switch
                     checked={v.is_active}
                     onCheckedChange={() => handleToggle(v)}
@@ -596,6 +612,30 @@ export default function ManageVoucher() {
             </div>
           );
         })}
+            {/* ── Voucher Detail Dialog ── */}
+            <Dialog open={isDetailOpen} onOpenChange={setDetailOpen}>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Chi tiết Voucher</DialogTitle>
+                </DialogHeader>
+                {detailVoucher ? (
+                  <div className="space-y-2">
+                    <div><b>Mã:</b> {detailVoucher.voucherCode || detailVoucher.voucher_code}</div>
+                    <div><b>Tiêu đề:</b> {detailVoucher.title || detailVoucher.voucher_name}</div>
+                    <div><b>Mô tả:</b> {detailVoucher.description || detailVoucher.terms_description}</div>
+                    <div><b>Điểm quy đổi:</b> {detailVoucher.pointsRequired || detailVoucher.points_required}</div>
+                    <div><b>Số lượng:</b> {detailVoucher.quantityTotal}</div>
+                    <div><b>Ngày bắt đầu:</b> {detailVoucher.validFrom}</div>
+                    <div><b>Ngày hết hạn:</b> {detailVoucher.validTo || detailVoucher.expiry_date}</div>
+                    {detailVoucher.imageUrl || detailVoucher.image ? (
+                      <img src={detailVoucher.imageUrl || detailVoucher.image} alt="voucher" className="w-full max-h-40 object-contain rounded" />
+                    ) : null}
+                  </div>
+                ) : (
+                  <div>Đang tải...</div>
+                )}
+              </DialogContent>
+            </Dialog>
       </div>
 
       <Dialog open={isHistoryDialogOpen} onOpenChange={setHistoryDialogOpen}>
