@@ -334,11 +334,12 @@ export default function ManageVoucher() {
   }, []);
 
   // ── Derived stats ──
+  const totalVoucher = vouchers.length;
   const totalActive = vouchers.filter((v) => v.is_active).length;
   const totalRedeemed = vouchers.reduce((s, v) => s + (v.total_redeemed || 0), 0);
   const avgPoints = vouchers.length
     ? Math.round(
-      vouchers.reduce((s, v) => s + v.points_required, 0) / vouchers.length,
+      vouchers.reduce((s, v) => s + (v.points_required || v.pointsRequired || 0), 0) / vouchers.length,
     )
     : 0;
 
@@ -503,6 +504,53 @@ export default function ManageVoucher() {
     setFormOpen(true);
   }; return (
     <div className="space-y-6">
+      {/* ── Voucher Statistics ── */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="flex items-center gap-4 pt-6">
+            <div className="rounded-full p-3 bg-blue-100 text-blue-700">
+              <Ticket className="size-5" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Tổng số voucher</p>
+              <p className="text-2xl font-bold">{totalVoucher}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-4 pt-6">
+            <div className="rounded-full p-3 bg-green-100 text-green-700">
+              <Star className="size-5" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Voucher đang bật</p>
+              <p className="text-2xl font-bold">{totalActive}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-4 pt-6">
+            <div className="rounded-full p-3 bg-amber-100 text-amber-700">
+              <Gift className="size-5" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Tổng lượt đổi thưởng</p>
+              <p className="text-2xl font-bold">{totalRedeemed}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-4 pt-6">
+            <div className="rounded-full p-3 bg-purple-100 text-purple-700">
+              <Tag className="size-5" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Điểm quy đổi TB</p>
+              <p className="text-2xl font-bold">{avgPoints}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
       {/* ── Header ── */}
       <Card className="mb-6">
         <CardHeader className="flex flex-row items-center justify-between gap-4 py-4">
