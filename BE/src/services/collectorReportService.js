@@ -8,7 +8,7 @@ const notificationRepository = require('../repositories/notificationRepository')
 const { ROLES, NOTIFICATION_TYPES } = require('../utils/constants')
 const db = require('../config/database')
 const { v4: uuidv4 } = require('uuid')
-
+const rewardService = require('./rewardService')
 /**
  * Upload a Buffer to Cloudinary and return secure_url.
  * @private
