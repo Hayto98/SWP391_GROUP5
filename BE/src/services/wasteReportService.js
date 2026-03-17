@@ -157,10 +157,12 @@ async function createReport({
   // ── 6. Send notifications to Enterprises ───────────────────────
   try {
     const enterprises = await userRepository.findAll({ roleId: ROLES.ENTERPRISE })
+    console.log(`[DEBUG] Notifying ${enterprises.length} Enterprises of new report ${created.wasteReportId}`);
     for (const ent of enterprises) {
+      console.log(`[DEBUG] Sending notif to Enterprise: ${ent.userAccountId || ent.user_account_id}`);
       await notificationService.createNotification({
         notificationType: NOTIFICATION_TYPES.NEW_REPORT_PENDING,
-        recipientUserAccountId: ent.userAccountId,
+        recipientUserAccountId: ent.userAccountId || ent.user_account_id,
         wasteReportId: created.wasteReportId,
         message: `Có báo cáo rác thải mới (${created.reportCode || created?.report_code}) đang chờ xử lý.`
       })

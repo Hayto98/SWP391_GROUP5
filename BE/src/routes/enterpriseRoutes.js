@@ -46,6 +46,11 @@ router.get('/ping', (req, res) => {
 router.get('/notifications', notificationController.getNotifications)
 
 /**
+ * PATCH /enterprise/notifications/read-all - Đánh dấu tất cả đã đọc
+ */
+router.patch('/notifications/read-all', notificationController.markAllAsRead)
+
+/**
  * PATCH /enterprise/notifications/:notificationId/read - Đánh dấu đã đọc
  */
 router.patch('/notifications/:notificationId/read', notificationController.markAsRead)
