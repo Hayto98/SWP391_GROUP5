@@ -99,15 +99,7 @@ module.exports = {
 
 // ==================== SCHEDULE COLLECTION ====================
 
-<<<<<<< HEAD
-const wasteReportRepository = require('../repositories/wasteReportRepository')
-const notificationService = require('./notificationService')
-const notificationRepository = require('../repositories/notificationRepository')
-const rewardService = require('./rewardService')
-const { NOTIFICATION_TYPES } = require('../utils/constants')
 
-=======
->>>>>>> b98e9ab85659c615586076b403ebd1262938b902
 /**
  * PATCH /collector/reports/:reportId/schedule
  * Collector sets the scheduled collection time for a waste report.
@@ -243,9 +235,9 @@ async function getReportById(userId, reportId) {
 
   const joinedUris = report.citizen_image_uris
     ? report.citizen_image_uris
-        .split('|||')
-        .map((value) => value.trim())
-        .filter(Boolean)
+      .split('|||')
+      .map((value) => value.trim())
+      .filter(Boolean)
     : []
 
   const fallbackUris = Array.isArray(fallbackCitizenImages)
@@ -308,16 +300,16 @@ async function getReportById(userId, reportId) {
 
       collectedRecord: collectedRecord
         ? {
-            collectedRecordId: collectedRecord.collected_record_id,
-            wasteReportId: collectedRecord.waste_report_id,
-            collectorUserAccountId: collectedRecord.collector_user_account_id,
-            actualQuantityValue: Number(collectedRecord.actual_quantity_value),
-            quantityUnit: collectedRecord.quantity_unit,
-            recordedAt: collectedRecord.recorded_at,
-            fileUri: collectedRecord.file_uri,
-            note: collectedRecord.note,
-            completionImages: collectedRecord.completion_images || []
-          }
+          collectedRecordId: collectedRecord.collected_record_id,
+          wasteReportId: collectedRecord.waste_report_id,
+          collectorUserAccountId: collectedRecord.collector_user_account_id,
+          actualQuantityValue: Number(collectedRecord.actual_quantity_value),
+          quantityUnit: collectedRecord.quantity_unit,
+          recordedAt: collectedRecord.recorded_at,
+          fileUri: collectedRecord.file_uri,
+          note: collectedRecord.note,
+          completionImages: collectedRecord.completion_images || []
+        }
         : null,
 
       status: report.status
@@ -643,10 +635,6 @@ async function completeReport(collectorId, reportId, { actualQuantity, quantityU
         notificationType: NOTIFICATION_TYPES.POINT_REWARDED,
         recipientUserAccountId: report.citizen_user_account_id,
         wasteReportId: reportId,
-<<<<<<< HEAD
-        message: `Bạn nhận được ${pointsAwarded} điểm thưởng`
-      }, connection)
-=======
         pointsDelta: pointsAwarded,
         transactionReason: 'WASTE_COLLECTION_COMPLETED',
         createdAt: recordedAt
@@ -684,7 +672,6 @@ async function completeReport(collectorId, reportId, { actualQuantity, quantityU
           message: `Báo cáo rác thải (${report.report_code || reportId}) đã được hoàn thành bởi người thu gom.`
         }, connection)
       }
->>>>>>> b98e9ab85659c615586076b403ebd1262938b902
     }
 
     await connection.commit()
@@ -705,12 +692,12 @@ async function completeReport(collectorId, reportId, { actualQuantity, quantityU
       completedAt: recordedAt,
       reward: rewardResult
         ? {
-            variancePercent: rewardResult.variancePercent,
-            penaltyApplied: rewardResult.penaltyApplied,
-            isFake: rewardResult.isFake,
-            currentLevel: rewardResult.currentLevel,
-            reportBlockedUntil: rewardResult.reportBlockedUntil
-          }
+          variancePercent: rewardResult.variancePercent,
+          penaltyApplied: rewardResult.penaltyApplied,
+          isFake: rewardResult.isFake,
+          currentLevel: rewardResult.currentLevel,
+          reportBlockedUntil: rewardResult.reportBlockedUntil
+        }
         : null
     }
   }

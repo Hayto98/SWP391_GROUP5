@@ -4,13 +4,10 @@ const { v4: uuidv4 } = require('uuid')
 const cloudinary = require('../config/cloudinary')
 const sharp = require('sharp')
 const db = require('../config/database')
-<<<<<<< HEAD
 const rewardService = require('./rewardService')
-=======
 const userRepository = require('../repositories/userRepository')
 const notificationService = require('./notificationService')
 const { ROLES, NOTIFICATION_TYPES } = require('../utils/constants')
->>>>>>> b98e9ab85659c615586076b403ebd1262938b902
 
 // ==================== HELPERS ====================
 
@@ -154,7 +151,7 @@ async function createReport({
       fileUri: imageUrl || null,
       currentTime
     })
-    
+
     if (duplicateResult.isDuplicate) {
       await connection.commit();
       isTransactionCommitted = true;
