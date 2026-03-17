@@ -1,7 +1,13 @@
 const collectorReportRepository = require('../repositories/collectorReportRepository')
+const wasteReportRepository = require('../repositories/wasteReportRepository')
 const userRepository = require('../repositories/userRepository')
 const ApiError = require('../errors/ApiError')
 const cloudinary = require('../config/cloudinary')
+const notificationService = require('./notificationService')
+const notificationRepository = require('../repositories/notificationRepository')
+const { ROLES, NOTIFICATION_TYPES } = require('../utils/constants')
+const db = require('../config/database')
+const { v4: uuidv4 } = require('uuid')
 
 /**
  * Upload a Buffer to Cloudinary and return secure_url.
@@ -90,11 +96,6 @@ module.exports = {
 
 // ==================== SCHEDULE COLLECTION ====================
 
-const wasteReportRepository = require('../repositories/wasteReportRepository')
-const notificationService = require('./notificationService')
-const notificationRepository = require('../repositories/notificationRepository')
-const { NOTIFICATION_TYPES } = require('../utils/constants')
-
 /**
  * PATCH /collector/reports/:reportId/schedule
  * Collector sets the scheduled collection time for a waste report.
@@ -159,7 +160,7 @@ async function scheduleCollection(collectorId, reportId, scheduledCollectAt) {
         notificationType: NOTIFICATION_TYPES.COLLECTION_SCHEDULED,
         recipientUserAccountId: citizenUserAccountId,
         wasteReportId: reportId,
-        message: `Collector will arrive at ${parsedDate.toISOString()}`
+        message: `Người thu gom dự kiến sẽ đến vào lúc ${parsedDate.toLocaleString('vi-VN')}`
       })
     }
   } catch (notifError) {
@@ -312,8 +313,6 @@ async function getReportById(userId, reportId) {
 
 // ==================== ACCEPT REPORT ====================
 
-const db = require('../config/database')
-
 const ASSIGNED_STATUS_ID = 3
 const IN_PROGRESS_STATUS_ID = 6
 const MAX_ACTIVE_REPORTS = 10
@@ -404,8 +403,6 @@ async function acceptAssignedReport(collectorId, reportId) {
 }
 
 // ==================== SUBMIT RESULT ====================
-
-const { v4: uuidv4 } = require('uuid')
 
 /**
  * Submit the collection result for an ASSIGNED report.
@@ -629,14 +626,34 @@ async function completeReport(collectorId, reportId, { actualQuantity, quantityU
 
       await collectorReportRepository.updateCitizenPoints(connection, report.citizen_id, pointsAwarded)
 
-      // 7g. Create POINT_REWARDED notification (inside transaction)
+      // 7g. Create notifications (inside transaction)
       const citizenUserAccountId = await notificationRepository.findCitizenUserAccountIdByReportId(reportId)
       if (citizenUserAccountId) {
+        // Point Reward Notification
         await notificationService.createNotification({
           notificationType: NOTIFICATION_TYPES.POINT_REWARDED,
           recipientUserAccountId: citizenUserAccountId,
           wasteReportId: reportId,
-          message: `You received ${pointsAwarded} reward points`
+          message: `Bạn đã nhận được ${pointsAwarded} điểm thưởng từ báo cáo rác thải.`
+        }, connection)
+
+        // Collection Completed Notification
+        await notificationService.createNotification({
+          notificationType: NOTIFICATION_TYPES.COLLECTION_COMPLETED,
+          recipientUserAccountId: citizenUserAccountId,
+          wasteReportId: reportId,
+          message: 'Đơn thu gom của bạn đã hoàn thành thành công.'
+        }, connection)
+      }
+
+      // 7h. Notify all Enterprises that the report is completed
+      const enterprises = await userRepository.findAll({ roleId: ROLES.ENTERPRISE })
+      for (const ent of enterprises) {
+        await notificationService.createNotification({
+          notificationType: NOTIFICATION_TYPES.REPORT_COMPLETED,
+          recipientUserAccountId: ent.userAccountId,
+          wasteReportId: reportId,
+          message: `Báo cáo rác thải (${report.report_code || reportId}) đã được hoàn thành bởi người thu gom.`
         }, connection)
       }
     }

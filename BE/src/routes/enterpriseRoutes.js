@@ -4,11 +4,24 @@ const enterpriseReportController = require('../controllers/Enterprise/enterprise
 const enterpriseCollectorController = require('../controllers/Enterprise/enterpriseCollectorController')
 const voucherController = require('../controllers/Enterprise/voucherController')
 const voucherRedemptionController = require('../controllers/Enterprise/voucherRedemptionController')
+const notificationController = require('../controllers/Enterprise/notificationController')
 const { verifyToken } = require('../middlewares/authMiddleware')
 const { requireRole } = require('../middlewares/roleMiddleware')
 const { ROLES } = require('../utils/constants')
 
 const router = express.Router()
+
+router.use((req, res, next) => {
+  console.log(`Enterprise Router hit: ${req.method} ${req.url}`)
+  next()
+})
+
+/**
+ * GET /enterprise/ping - Unprotected test route
+ */
+router.get('/ping', (req, res) => {
+  res.status(200).json({ message: 'Enterprise router is reached (unprotected)' })
+})
 
 // ==================== MIDDLEWARE ====================
 // Apply authentication to ALL enterprise routes
@@ -17,6 +30,25 @@ router.use(verifyToken)
 // Apply ENTERPRISE role check to ALL enterprise routes
 // Only authenticated users with role ENTERPRISE can access /api/enterprise/*
 router.use(requireRole(ROLES.ENTERPRISE))
+
+// ==================== DEBUG & NOTIFICATION ROUTES ====================
+
+/**
+ * GET /enterprise/ping - Test route
+ */
+router.get('/ping', (req, res) => {
+  res.status(200).json({ message: 'Enterprise router is active' })
+})
+
+/**
+ * GET /enterprise/notifications - Danh sách thông báo
+ */
+router.get('/notifications', notificationController.getNotifications)
+
+/**
+ * PATCH /enterprise/notifications/:notificationId/read - Đánh dấu đã đọc
+ */
+router.patch('/notifications/:notificationId/read', notificationController.markAsRead)
 
 // ==================== WASTE TYPE ROUTES ====================
 
@@ -152,5 +184,6 @@ router.get('/vouchers/statistics', voucherRedemptionController.getVoucherStatist
  * GET /enterprise/vouchers/:voucherId - Chi tiết Voucher
  */
 router.get('/vouchers/:voucherId', voucherController.getVoucherById)
+
 
 module.exports = router

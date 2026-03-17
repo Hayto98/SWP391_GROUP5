@@ -1,8 +1,10 @@
+const userRepository = require('../repositories/userRepository')
 const wasteReportRepository = require('../repositories/wasteReportRepository')
 const enterpriseReportRepository = require('../repositories/enterpriseReportRepository')
 const ApiError = require('../errors/ApiError')
-const { ROLES } = require('../utils/constants')
-const userRepository = require('../repositories/userRepository')
+const notificationService = require('./notificationService')
+const notificationRepository = require('../repositories/notificationRepository')
+const { ROLES, NOTIFICATION_TYPES } = require('../utils/constants')
 
 /**
  * Xử lý logic doanh nghiệp chấp nhận báo cáo rác thải (ACCEPT)
@@ -32,7 +34,7 @@ async function acceptReport(reportId, userAccountId) {
   const { changedAt } = await enterpriseReportRepository.addReportStatusHistory(reportId, statusTypeId, userAccountId)
 
   // 5. Return response
-  return {
+  const response = {
     success: true,
     data: {
       reportId: report.wasteReportId,
@@ -40,6 +42,23 @@ async function acceptReport(reportId, userAccountId) {
       acceptedAt: changedAt.toISOString()
     }
   }
+
+  // 6. Send notification to citizen
+  try {
+    const citizenUserAccountId = await notificationRepository.findCitizenUserAccountIdByReportId(reportId)
+    if (citizenUserAccountId) {
+      await notificationService.createNotification({
+        notificationType: NOTIFICATION_TYPES.REPORT_ACCEPTED,
+        recipientUserAccountId: citizenUserAccountId,
+        wasteReportId: reportId,
+        message: 'Báo cáo của bạn đã được doanh nghiệp chấp nhận.'
+      })
+    }
+  } catch (notifError) {
+    console.error('Failed to create accept notification:', notifError.message)
+  }
+
+  return response
 }
 
 /**
@@ -75,7 +94,7 @@ async function rejectReport(reportId, reason, userAccountId) {
   await enterpriseReportRepository.addFeedback(reportId, report.citizenId, reason.trim())
 
   // 6. Return response
-  return {
+  const response = {
     success: true,
     data: {
       reportId: report.wasteReportId,
@@ -83,6 +102,23 @@ async function rejectReport(reportId, reason, userAccountId) {
       reason: reason.trim()
     }
   }
+
+  // 7. Send notification to citizen
+  try {
+    const citizenUserAccountId = await notificationRepository.findCitizenUserAccountIdByReportId(reportId)
+    if (citizenUserAccountId) {
+      await notificationService.createNotification({
+        notificationType: NOTIFICATION_TYPES.REPORT_REJECTED,
+        recipientUserAccountId: citizenUserAccountId,
+        wasteReportId: reportId,
+        message: `Báo cáo của bạn đã bị từ chối. Lý do: ${reason}`
+      })
+    }
+  } catch (notifError) {
+    console.error('Failed to create reject notification:', notifError.message)
+  }
+
+  return response
 }
 
 /**
@@ -140,8 +176,8 @@ async function assignReport(reportId, collectorUserAccountId, enterpriseUserAcco
     enterpriseUserAccountId
   )
 
-  // 8. Return spec struct
-  return {
+  // 8. Return response
+  const response = {
     success: true,
     data: {
       reportId: report.wasteReportId,
@@ -153,6 +189,33 @@ async function assignReport(reportId, collectorUserAccountId, enterpriseUserAcco
       assignedAt: changedAt.toISOString()
     }
   }
+
+  // 9. Send notifications
+  try {
+    const citizenUserAccountId = await notificationRepository.findCitizenUserAccountIdByReportId(reportId)
+
+    // Notify citizen
+    if (citizenUserAccountId) {
+      await notificationService.createNotification({
+        notificationType: NOTIFICATION_TYPES.REPORT_ASSIGNED,
+        recipientUserAccountId: citizenUserAccountId,
+        wasteReportId: reportId,
+        message: `Báo cáo của bạn đã được giao cho người thu gom: ${collector.fullname}`
+      })
+    }
+
+    // Notify collector
+    await notificationService.createNotification({
+      notificationType: NOTIFICATION_TYPES.NEW_ASSIGNMENT,
+      recipientUserAccountId: collectorUserAccountId,
+      wasteReportId: reportId,
+      message: 'Bạn vừa được giao một báo cáo rác thải mới.'
+    })
+  } catch (notifError) {
+    console.error('Failed to create assign notifications:', notifError.message)
+  }
+
+  return response
 }
 
 /**
