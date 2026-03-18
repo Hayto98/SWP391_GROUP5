@@ -13,7 +13,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { searchAddress } from "@/services/geocodingService";
+import { searchAddress, getPlaceDetails } from "@/services/geocodingService";
 
 // Fix default marker icon
 delete L.Icon.Default.prototype._getIconUrl;
@@ -128,8 +128,22 @@ function LocationSelection({ marker, onMapClick, onDeleteMarker }) {
   };
 
   // Chọn địa chỉ
-  const handleSelectLocation = (item) => {
-    const { lat, lng, address } = item;
+  const handleSelectLocation = async (item) => {
+    const { place_id, address } = item;
+    let lat = item.lat;
+    let lng = item.lng;
+
+    // Fetch coordinates if not available (from autocomplete)
+    if (!lat || !lng) {
+      const details = await getPlaceDetails(place_id);
+      if (details) {
+        lat = details.lat;
+        lng = details.lng;
+      } else {
+        toast.error("Không thể lấy tọa độ để định vị địa điểm này");
+        return;
+      }
+    }
 
     onMapClick?.({
       lat,

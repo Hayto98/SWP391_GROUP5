@@ -11,9 +11,19 @@ async function getActiveWasteTypes() {
     wasteTypeId: row.wasteTypeId,
     wasteTypeName: row.wasteTypeName,
     unitType: row.unitType,
+    rewardConfigId: row.rewardConfigId ?? null,
     pointsPerUnit: row.pointsPerUnit,
     description: row.description || `${row.pointsPerUnit} điểm / 1 ${row.unitType}`,
-    isActive: Boolean(row.isActive)
+    allowedVariancePercent:
+      row.allowedVariancePercent !== null && row.allowedVariancePercent !== undefined
+        ? Number(row.allowedVariancePercent)
+        : null,
+    penaltyPercent: row.penaltyPercent !== null && row.penaltyPercent !== undefined ? Number(row.penaltyPercent) : null,
+    minKgRequired: row.minKgRequired !== null && row.minKgRequired !== undefined ? Number(row.minKgRequired) : null,
+    maxKgRequired: row.maxKgRequired !== null && row.maxKgRequired !== undefined ? Number(row.maxKgRequired) : null,
+    rewardConfigCreatedAt: row.rewardConfigCreatedAt || null,
+    isActive: Boolean(row.isActive),
+    rewardConfigActive: Boolean(row.rewardConfigActive)
   }))
 
   return { success: true, data }
@@ -38,6 +48,17 @@ async function getWasteTypeById(wasteTypeId) {
             rewardConfigId: row.rewardConfigId,
             pointsPerUnit: row.pointsPerUnit,
             description: row.description || `${row.pointsPerUnit} điểm / 1 ${row.unitType}`,
+            allowedVariancePercent:
+              row.allowedVariancePercent !== null && row.allowedVariancePercent !== undefined
+                ? Number(row.allowedVariancePercent)
+                : null,
+            penaltyPercent:
+              row.penaltyPercent !== null && row.penaltyPercent !== undefined ? Number(row.penaltyPercent) : null,
+            minKgRequired:
+              row.minKgRequired !== null && row.minKgRequired !== undefined ? Number(row.minKgRequired) : null,
+            maxKgRequired:
+              row.maxKgRequired !== null && row.maxKgRequired !== undefined ? Number(row.maxKgRequired) : null,
+            createdAt: row.rewardConfigCreatedAt || null,
             isActive: Boolean(row.rewardConfigActive)
           }
         : null
