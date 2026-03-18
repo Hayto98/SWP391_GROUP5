@@ -572,7 +572,7 @@ async function completeReport(collectorId, reportId, { actualQuantity, quantityU
   const collectedRecordId = uuidv4()
   const connection = await db.getConnection()
 
-  let pointsAwarded = 0
+  let processReward = 0
   let rewardResult = null
 
   try {
@@ -635,10 +635,8 @@ async function completeReport(collectorId, reportId, { actualQuantity, quantityU
         notificationType: NOTIFICATION_TYPES.POINT_REWARDED,
         recipientUserAccountId: report.citizen_user_account_id,
         wasteReportId: reportId,
-        pointsDelta: pointsAwarded,
-        transactionReason: 'WASTE_COLLECTION_COMPLETED',
-        createdAt: recordedAt
-      })
+        message: `Bạn đã được thưởng ${pointsAwarded} điểm cho báo cáo rác thải`
+      }, connection)
 
       await collectorReportRepository.updateCitizenPoints(connection, report.citizen_id, pointsAwarded)
 

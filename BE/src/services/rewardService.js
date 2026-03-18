@@ -101,15 +101,19 @@ async function applyPenaltyIfLevelEscalated(connection, {
     }
 
     if (currentLevel === 4) {
-      // Lock the user account
-      await rewardRepository.lockUserAccount(connection, userAccountId)
+      if (!userAccountId) {
+        console.warn('[applyPenaltyIfLevelEscalated] userAccountId is missing — skipping account lock')
+      } else {
+        // Lock the user account
+        await rewardRepository.lockUserAccount(connection, userAccountId)
 
-      await notificationService.createNotification({
-        notificationType: NOTIFICATION_TYPES.ACCOUNT_LOCKED,
-        recipientUserAccountId: userAccountId,
-        wasteReportId: wasteReportId || null,
-        message: 'Tài khoản của bạn đã bị khóa do vi phạm nhiều lần'
-      }, connection)
+        await notificationService.createNotification({
+          notificationType: NOTIFICATION_TYPES.ACCOUNT_LOCKED,
+          recipientUserAccountId: userAccountId,
+          wasteReportId: wasteReportId || null,
+          message: 'Tài khoản của bạn đã bị khóa do vi phạm nhiều lần'
+        }, connection)
+      }
     }
 
     return {
