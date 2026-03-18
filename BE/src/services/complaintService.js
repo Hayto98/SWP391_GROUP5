@@ -54,7 +54,12 @@ async function createComplaint({
   }
 
   // Chỉ cho phép khiếu nại nếu trạng thái là ASSIGNED, IN_PROGRESS hoặc COLLECTED
-  if (report.status !== 'ASSIGNED' && report.status !== 'IN_PROGRESS' && report.status !== 'COLLECTED') {
+  if (
+    report.status !== 'ASSIGNED' &&
+    report.status !== 'IN_PROGRESS' &&
+    report.status !== 'COLLECTED' &&
+    report.status !== 'REJECTED'
+  ) {
     throw new ApiError(
       400,
       'Chỉ có thể khiếu nại rác thải ở trạng thái Đã được phân công (ASSIGNED), Đang thu gom (IN_PROGRESS) hoặc Đã thu gom (COLLECTED).'

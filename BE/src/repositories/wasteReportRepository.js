@@ -22,18 +22,21 @@ const { ROLES } = require('../utils/constants')
  * @param {any} [connection]                       - optional transaction connection
  * @returns {{ wasteReportId: string, status: 'PENDING' }}
  */
-async function createReport({
-  citizenId,
-  citizenUserAccountId,
-  wasteTypeId,
-  reportCode,
-  gpsLat,
-  gpsLng,
-  description,
-  weight,
-  fileUri,
-  isDuplicate = false
-}, existingConnection = null) {
+async function createReport(
+  {
+    citizenId,
+    citizenUserAccountId,
+    wasteTypeId,
+    reportCode,
+    gpsLat,
+    gpsLng,
+    description,
+    weight,
+    fileUri,
+    isDuplicate = false
+  },
+  existingConnection = null
+) {
   const PENDING_STATUS_ID = 1
 
   // ── 1. Validate wasteType (outside transaction — read-only) ────────
@@ -54,7 +57,7 @@ async function createReport({
   const createdAt = new Date()
 
   // ── 3. Transaction: insert report + history ────────────────────────
-  const connection = existingConnection || await db.getConnection()
+  const connection = existingConnection || (await db.getConnection())
 
   try {
     if (!existingConnection) await connection.beginTransaction()
@@ -381,16 +384,16 @@ async function findReportById(reportId) {
   const attachments =
     attachmentRows.length > 0
       ? attachmentRows
-        .map((item) => ({
-          fileUri: normalizeAttachmentUri(item.file_uri),
-          uploadedAt: item.uploaded_at
-        }))
-        .filter((item) => Boolean(item.fileUri))
-        .map((item) => ({
-          fileUri: item.fileUri,
-          file_uri: item.fileUri,
-          uploadedAt: item.uploadedAt
-        }))
+          .map((item) => ({
+            fileUri: normalizeAttachmentUri(item.file_uri),
+            uploadedAt: item.uploaded_at
+          }))
+          .filter((item) => Boolean(item.fileUri))
+          .map((item) => ({
+            fileUri: item.fileUri,
+            file_uri: item.fileUri,
+            uploadedAt: item.uploadedAt
+          }))
       : normalizeAttachmentUri(row.file_uri)
         ? [{ fileUri: normalizeAttachmentUri(row.file_uri), file_uri: normalizeAttachmentUri(row.file_uri) }]
         : []
@@ -432,16 +435,16 @@ async function findReportById(reportId) {
 
   const collectedRecord = collectedRow
     ? {
-      collectedRecordId: collectedRow.collected_record_id,
-      wasteReportId: collectedRow.waste_report_id,
-      collectorUserAccountId: collectedRow.collector_user_account_id,
-      actualQuantityValue: Number(collectedRow.actual_quantity_value),
-      quantityUnit: collectedRow.quantity_unit,
-      recordedAt: collectedRow.recorded_at,
-      fileUri: collectedRow.file_uri,
-      note: collectedRow.note,
-      completionImages: (collectedRow.completion_image_uris || '').split('|||').filter(Boolean)
-    }
+        collectedRecordId: collectedRow.collected_record_id,
+        wasteReportId: collectedRow.waste_report_id,
+        collectorUserAccountId: collectedRow.collector_user_account_id,
+        actualQuantityValue: Number(collectedRow.actual_quantity_value),
+        quantityUnit: collectedRow.quantity_unit,
+        recordedAt: collectedRow.recorded_at,
+        fileUri: collectedRow.file_uri,
+        note: collectedRow.note,
+        completionImages: (collectedRow.completion_image_uris || '').split('|||').filter(Boolean)
+      }
     : null
 
   const statusVal = row.current_status || 'PENDING'
@@ -569,16 +572,15 @@ async function deleteReportById(reportId, userAccountId) {
 
       // 3. Ghi lý do vào Feedback (theo yêu cầu soft-delete/cancellation)
       // Lấy citizen_id từ report để điền vào feedback
-      const [reportRows] = await connection.execute(
-        'SELECT citizen_id FROM wastereport WHERE waste_report_id = ?',
-        [reportId]
-      )
+      const [reportRows] = await connection.execute('SELECT citizen_id FROM wastereport WHERE waste_report_id = ?', [
+        reportId
+      ])
       const citizenId = reportRows[0]?.citizen_id
 
       await connection.execute(
         `INSERT INTO feedback (feedback_id, waste_report_id, citizen_id, feedback_text, created_at)
          VALUES (?, ?, ?, ?, ?)`,
-        [feedbackId, reportId, citizenId, 'Báo cáo bị hủy bởi người dùng (Xóa mềm)', now]
+        [feedbackId, reportId, citizenId, 'Báo cáo bị hủy bởi người dùng ', now]
       )
     }
 
