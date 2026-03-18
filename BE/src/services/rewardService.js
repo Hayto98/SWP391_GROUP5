@@ -56,7 +56,7 @@ async function applyPenaltyIfLevelEscalated(connection, {
   currentTime
 }) {
   let reportBlockedUntil = null;
-  
+
   if (currentLevel > lastPenaltyLevel) {
     if (currentLevel === 1) {
       // Warning notification
@@ -117,7 +117,7 @@ async function applyPenaltyIfLevelEscalated(connection, {
       reportBlockedUntil
     };
   }
-  
+
   return {
     lastPenaltyLevel,
     reportBlockedUntil
@@ -141,11 +141,11 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   const deltaLambda = (lon2 - lon1) * toRad;
 
   const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
-            Math.cos(phi1) * Math.cos(phi2) *
-            Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+    Math.cos(phi1) * Math.cos(phi2) *
+    Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-  return R * c; 
+  return R * c;
 }
 
 function normalizeDescription(desc) {
@@ -182,11 +182,11 @@ async function checkDuplicateAndHandleSpam(connection, {
      FOR UPDATE`,
     [citizenId]
   );
-  
+
   if (citizens.length === 0) {
     throw new ApiError(404, 'Citizen not found');
   }
-  
+
   const citizen = citizens[0];
 
   if (citizen.is_locked === 1) {
@@ -194,7 +194,7 @@ async function checkDuplicateAndHandleSpam(connection, {
   }
 
   const thirtyMinsAgo = new Date(currentTime.getTime() - 30 * 60 * 1000);
-  
+
   const [recentReports] = await connection.execute(
     `SELECT gps_lat, gps_lng, description, file_uri 
      FROM wastereport 
@@ -208,15 +208,13 @@ async function checkDuplicateAndHandleSpam(connection, {
 
   for (const report of recentReports) {
     const distance = calculateDistance(gpsLat, gpsLng, report.gps_lat, report.gps_lng);
-    
-    if (distance <= 50) {
-      const normalizedExistingDesc = normalizeDescription(report.description);
-      const isDescriptionIdentical = normalizedNewDesc !== '' && normalizedNewDesc === normalizedExistingDesc;
-      const isFileIdentical = fileUri != null && fileUri !== '' && fileUri === report.file_uri;
 
-      if (isDescriptionIdentical || isFileIdentical) {
-        duplicateCount++;
-      }
+    const normalizedExistingDesc = normalizeDescription(report.description);
+    const isDescriptionIdentical = normalizedNewDesc !== '' && normalizedNewDesc === normalizedExistingDesc;
+    const isFileIdentical = fileUri != null && fileUri !== '' && fileUri === report.file_uri;
+
+    if (distance <= 50 || isDescriptionIdentical || isFileIdentical) {
+      duplicateCount++;
     }
   }
 
@@ -226,12 +224,12 @@ async function checkDuplicateAndHandleSpam(connection, {
   if (duplicateCount >= 1) {
     isDuplicate = true;
     message = "Báo cáo này bị trùng";
-    
+
     const newSpamCount = (citizen.spam_violation_count || 0) + 1;
     const newTotalCount = (citizen.total_violation_count || 0) + 1;
 
     const currentLevel = getViolationLevel(newTotalCount);
-    
+
     // Apply penalty if level escalated
     const penaltyResult = await applyPenaltyIfLevelEscalated(connection, {
       citizenId,
@@ -251,11 +249,11 @@ async function checkDuplicateAndHandleSpam(connection, {
            report_blocked_until = ?
        WHERE citizen_id = ?`,
       [
-        newSpamCount, 
-        newTotalCount, 
-        currentTime, 
-        penaltyResult.lastPenaltyLevel, 
-        penaltyResult.reportBlockedUntil || citizen.report_blocked_until, 
+        newSpamCount,
+        newTotalCount,
+        currentTime,
+        penaltyResult.lastPenaltyLevel,
+        penaltyResult.reportBlockedUntil || citizen.report_blocked_until,
         citizenId
       ]
     );
@@ -483,7 +481,7 @@ async function processReward(connection, {
   // STEP 4: Calculate variance
   // ════════════════════════════════════════════════════════════════════
   let variancePercent = 0
-  
+
   if (actualKg === 0) {
     variancePercent = 100
   } else if (actualKg < citizenReportKg) {
