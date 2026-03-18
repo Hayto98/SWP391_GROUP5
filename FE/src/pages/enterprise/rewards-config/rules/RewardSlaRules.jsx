@@ -353,6 +353,16 @@ export default function RewardSlaRules() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [wasteToDelete, setWasteToDelete] = useState(null);
   const [wasteToEdit, setWasteToEdit] = useState(null);
+  const [editRewardDialog, setEditRewardDialog] = useState(false);
+  const [editRewardPayload, setEditRewardPayload] = useState({
+    pointsPerUnit: '',
+    description: '',
+    allowedVariancePercent: '',
+    penaltyPercent: '',
+    minKgRequired: '',
+    maxKgRequired: ''
+  });
+  const [editRewardErr, setEditRewardErr] = useState('');
   // State cho dialog thêm reward-config
   // Dialog thêm reward config cho loại rác chưa có
   const [showRewardDialog, setShowRewardDialog] = useState(false);
@@ -490,12 +500,23 @@ export default function RewardSlaRules() {
                         readOnly
                         disabled={!w.rewardConfigId}
                       />
+                      {/* Button sửa reward config */}
                       <Button
                         size="icon"
                         variant="outline"
                         onClick={() => {
                           if (w.rewardConfigId) {
                             setWasteToEdit(w);
+                            setEditRewardPayload({
+                              pointsPerUnit: w.factor || '',
+                              description: w.description || '',
+                              allowedVariancePercent: w.allowed_variance_percent || '',
+                              penaltyPercent: w.penaltyPercent || '',
+                              minKgRequired: w.minKgRequired || '',
+                              maxKgRequired: w.maxKgRequired || ''
+                            });
+                            setEditRewardErr('');
+                            setEditRewardDialog(true);
                           } else {
                             setRewardDialogWaste(w);
                             setRewardPayload({
@@ -510,18 +531,15 @@ export default function RewardSlaRules() {
                             setShowRewardDialog(true);
                           }
                         }}
-                        title={
-                          w.rewardConfigId
-                            ? 'Sửa loại rác'
-                            : 'Thêm reward config'
-                        }
+                        title={w.rewardConfigId ? 'Sửa reward config' : 'Thêm reward config'}
                       >
                         {w.rewardConfigId ? (
-                          <Pencil className="size-4" />
+                          <Pencil className="size-4 text-green-600" />
                         ) : (
                           <Plus className="size-4 text-green-600" />
                         )}
                       </Button>
+                      {/* Button xóa loại rác */}
                       <Button
                         size="icon"
                         variant="outline"
@@ -534,6 +552,132 @@ export default function RewardSlaRules() {
                   </TableCell>
                 </TableRow>
               ))}
+                  {/* Dialog sửa reward config - render ngoài bảng, chỉ hiện khi editRewardDialog và wasteToEdit có giá trị */}
+                  <Dialog open={editRewardDialog && !!wasteToEdit} onOpenChange={v => { setEditRewardDialog(v); if (!v) setWasteToEdit(null); }}>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Sửa Điểm Thưởng</DialogTitle>
+                        <DialogDescription>
+                          Cập nhật điểm thưởng cho loại rác <b>{wasteToEdit?.name}</b> (ID: {wasteToEdit?.id})
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-3">
+                        {editRewardErr && (
+                          <div className="mt-1 text-red-600 font-semibold text-sm">{editRewardErr}</div>
+                        )}
+                        <div className="space-y-1">
+                          <Label htmlFor="edit-reward-points">Điểm mỗi đơn vị</Label>
+                          <Input
+                            id="edit-reward-points"
+                            type="number"
+                            value={editRewardPayload.pointsPerUnit}
+                            onChange={e => setEditRewardPayload(p => ({ ...p, pointsPerUnit: e.target.value }))}
+                            placeholder="VD: 9"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="edit-reward-desc">Mô tả</Label>
+                          <Input
+                            id="edit-reward-desc"
+                            value={editRewardPayload.description}
+                            onChange={e => setEditRewardPayload(p => ({ ...p, description: e.target.value }))}
+                            placeholder="VD: 100 điểm mỗi kg"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="edit-reward-variance">Tỷ lệ sai số (%)</Label>
+                          <Input
+                            id="edit-reward-variance"
+                            type="number"
+                            value={editRewardPayload.allowedVariancePercent}
+                            onChange={e => setEditRewardPayload(p => ({ ...p, allowedVariancePercent: e.target.value }))}
+                            placeholder="VD: 8"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="edit-reward-minkg">Số kg tối thiểu</Label>
+                          <Input
+                            id="edit-reward-minkg"
+                            type="number"
+                            value={editRewardPayload.minKgRequired}
+                            onChange={e => setEditRewardPayload(p => ({ ...p, minKgRequired: e.target.value }))}
+                            placeholder="VD: 1"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="edit-reward-maxkg">Số kg tối đa</Label>
+                          <Input
+                            id="edit-reward-maxkg"
+                            type="number"
+                            value={editRewardPayload.maxKgRequired}
+                            onChange={e => setEditRewardPayload(p => ({ ...p, maxKgRequired: e.target.value }))}
+                            placeholder="VD: 30"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="edit-reward-penalty">Phần trăm phạt (%)</Label>
+                          <Input
+                            id="edit-reward-penalty"
+                            type="number"
+                            value={editRewardPayload.penaltyPercent}
+                            onChange={e => setEditRewardPayload(p => ({ ...p, penaltyPercent: e.target.value }))}
+                            placeholder="VD: 6"
+                          />
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setEditRewardDialog(false)}>
+                          Hủy
+                        </Button>
+                        <Button
+                          onClick={async () => {
+                            setEditRewardErr('');
+                            if (!editRewardPayload.pointsPerUnit || isNaN(Number(editRewardPayload.pointsPerUnit)) || Number(editRewardPayload.pointsPerUnit) <= 0) {
+                              setEditRewardErr('Điểm mỗi đơn vị phải là số > 0!'); return;
+                            }
+                            if (editRewardPayload.allowedVariancePercent && (isNaN(Number(editRewardPayload.allowedVariancePercent)) || Number(editRewardPayload.allowedVariancePercent) < 0)) {
+                              setEditRewardErr('Tỷ lệ sai số phải là số >= 0!'); return;
+                            }
+                            if (editRewardPayload.minKgRequired && (isNaN(Number(editRewardPayload.minKgRequired)) || Number(editRewardPayload.minKgRequired) < 0)) {
+                              setEditRewardErr('Số kg tối thiểu phải là số >= 0!'); return;
+                            }
+                            if (editRewardPayload.maxKgRequired && (isNaN(Number(editRewardPayload.maxKgRequired)) || Number(editRewardPayload.maxKgRequired) < 0)) {
+                              setEditRewardErr('Số kg tối đa phải là số >= 0!'); return;
+                            }
+                            if (editRewardPayload.penaltyPercent && (isNaN(Number(editRewardPayload.penaltyPercent)) || Number(editRewardPayload.penaltyPercent) < 0)) {
+                              setEditRewardErr('Phần trăm phạt phải là số >= 0!'); return;
+                            }
+                            try {
+                              const res = await fetch(`http://localhost:3000/enterprise/reward-config/${wasteToEdit.rewardConfigId || wasteToEdit.id}`,
+                                {
+                                  method: 'PUT',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    pointsPerUnit: Number(editRewardPayload.pointsPerUnit),
+                                    description: editRewardPayload.description,
+                                    allowedVariancePercent: editRewardPayload.allowedVariancePercent ? Number(editRewardPayload.allowedVariancePercent) : undefined,
+                                    penaltyPercent: editRewardPayload.penaltyPercent ? Number(editRewardPayload.penaltyPercent) : undefined,
+                                    minKgRequired: editRewardPayload.minKgRequired ? Number(editRewardPayload.minKgRequired) : undefined,
+                                    maxKgRequired: editRewardPayload.maxKgRequired ? Number(editRewardPayload.maxKgRequired) : undefined
+                                  })
+                                });
+                              if (res.ok) {
+                                alert('Cập nhật reward config thành công!');
+                                setEditRewardDialog(false);
+                                setWasteToEdit(null);
+                              } else {
+                                setEditRewardErr('Cập nhật reward config thất bại!');
+                              }
+                            } catch (e) {
+                              setEditRewardErr('Lỗi khi gọi API cập nhật reward config!');
+                            }
+                          }}
+                        >
+                          Cập Nhật
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
             </TableBody>
           </Table>
         </CardContent>
@@ -543,7 +687,7 @@ export default function RewardSlaRules() {
       <Dialog open={showRewardDialog && !!rewardDialogWaste} onOpenChange={v => { setShowRewardDialog(v); if (!v) setRewardDialogWaste(null); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Thêm Reward Config cho loại rác</DialogTitle>
+            <DialogTitle>Thêm điểm thưởng cho loại rác</DialogTitle>
             <DialogDescription>
               Nhập thông tin điểm thưởng cho loại rác <b>{rewardDialogWaste?.name}</b> (ID: {rewardDialogWaste?.id})
             </DialogDescription>
@@ -681,7 +825,8 @@ export default function RewardSlaRules() {
         adding={adding}
       />
 
-      {wasteToEdit && (
+      {/* Chỉ render 1 dialog: nếu đang sửa reward config thì không render EditWasteTypeModal */}
+      {wasteToEdit && !editRewardDialog && (
         <EditWasteTypeModal
           open={Boolean(wasteToEdit)}
           onClose={() => setWasteToEdit(null)}
