@@ -45,9 +45,13 @@ export async function getAcceptWasteConfig() {
 // Gọi API PATCH /enterprise/waste-types/:wasteTypeId/status
 export async function updateAcceptWasteCategory({ categoryId, enabled }) {
   // enabled=true → isActive=true | enabled=false → isActive=false
+  const token = localStorage.getItem("accessToken");
   const res = await fetch(`http://localhost:3000/enterprise/waste-types/${categoryId}/status`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
     body: JSON.stringify({ isActive: enabled })
   });
   if (!res.ok) throw new Error('Cập nhật trạng thái loại rác thất bại');
