@@ -353,6 +353,19 @@ export default function RewardSlaRules() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [wasteToDelete, setWasteToDelete] = useState(null);
   const [wasteToEdit, setWasteToEdit] = useState(null);
+  // State cho dialog thêm reward-config
+  // Dialog thêm reward config cho loại rác chưa có
+  const [showRewardDialog, setShowRewardDialog] = useState(false);
+  const [rewardDialogWaste, setRewardDialogWaste] = useState(null);
+  const [rewardPayload, setRewardPayload] = useState({
+    pointsPerUnit: '',
+    description: '',
+    allowedVariancePercent: '',
+    minKgRequired: '',
+    maxKgRequired: '',
+    penaltyPercent: ''
+  });
+  const [rewardErr, setRewardErr] = useState('');
 
   const {
     draft,
@@ -364,9 +377,29 @@ export default function RewardSlaRules() {
     save,
     reset,
     addWasteType,
-    removeWasteType,
     editWasteType,
   } = useRewardSlaRules();
+
+  // Xóa loại rác qua API
+  async function removeWasteType(wasteTypeId) {
+    try {
+      const res = await fetch(`http://localhost:3000/api/enterprise/waste-types/${wasteTypeId}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        alert('Xóa loại rác thành công!');
+        setWasteToDelete(null);
+        // Có thể cần reload lại danh sách loại rác ở đây nếu cần
+        return { ok: true };
+      } else {
+        alert('Xóa loại rác thất bại!');
+        return { ok: false };
+      }
+    } catch (e) {
+      alert('Lỗi khi gọi API xóa loại rác!');
+      return { ok: false };
+    }
+  }
 
   const operationBusy = adding || saving;
 
@@ -403,13 +436,16 @@ export default function RewardSlaRules() {
               lượng lớn.
             </p>
           </div>
-          <Button
-            onClick={() => setShowAddModal(true)}
-            disabled={adding || saving}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm flex items-center gap-2 px-6"
-          >
-            <Plus className="size-4" /> Thêm loại rác mới
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => setShowAddModal(true)}
+              disabled={adding || saving}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm flex items-center gap-2 px-6"
+            >
+              <Plus className="size-4" /> Thêm loại rác mới
+            </Button>
+
+          </div>
         </CardHeader>
       </Card>
 
@@ -457,11 +493,27 @@ export default function RewardSlaRules() {
                       <Button
                         size="icon"
                         variant="outline"
-                        onClick={() => setWasteToEdit(w)}
+                        onClick={() => {
+                          if (w.rewardConfigId) {
+                            setWasteToEdit(w);
+                          } else {
+                            setRewardDialogWaste(w);
+                            setRewardPayload({
+                              pointsPerUnit: '',
+                              description: '',
+                              allowedVariancePercent: '',
+                              minKgRequired: '',
+                              maxKgRequired: '',
+                              penaltyPercent: ''
+                            });
+                            setRewardErr('');
+                            setShowRewardDialog(true);
+                          }
+                        }}
                         title={
                           w.rewardConfigId
-                            ? "Sửa loại rác"
-                            : "Thêm reward config"
+                            ? 'Sửa loại rác'
+                            : 'Thêm reward config'
                         }
                       >
                         {w.rewardConfigId ? (
@@ -486,6 +538,133 @@ export default function RewardSlaRules() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Dialog thêm reward config - render ngoài bảng, chỉ hiện khi showRewardDialog và rewardDialogWaste có giá trị */}
+      <Dialog open={showRewardDialog && !!rewardDialogWaste} onOpenChange={v => { setShowRewardDialog(v); if (!v) setRewardDialogWaste(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Thêm Reward Config cho loại rác</DialogTitle>
+            <DialogDescription>
+              Nhập thông tin điểm thưởng cho loại rác <b>{rewardDialogWaste?.name}</b> (ID: {rewardDialogWaste?.id})
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {rewardErr && (
+              <div className="mt-1 text-red-600 font-semibold text-sm">{rewardErr}</div>
+            )}
+            <div className="space-y-1">
+              <Label htmlFor="reward-points">Điểm mỗi đơn vị</Label>
+              <Input
+                id="reward-points"
+                type="number"
+                value={rewardPayload.pointsPerUnit}
+                onChange={e => setRewardPayload(p => ({ ...p, pointsPerUnit: e.target.value }))}
+                placeholder="VD: 5"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="reward-desc">Mô tả</Label>
+              <Input
+                id="reward-desc"
+                value={rewardPayload.description}
+                onChange={e => setRewardPayload(p => ({ ...p, description: e.target.value }))}
+                placeholder="VD: 5 điểm mỗi kg"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="reward-variance">Tỷ lệ sai số (%)</Label>
+              <Input
+                id="reward-variance"
+                type="number"
+                value={rewardPayload.allowedVariancePercent}
+                onChange={e => setRewardPayload(p => ({ ...p, allowedVariancePercent: e.target.value }))}
+                placeholder="VD: 10"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="reward-minkg">Số kg tối thiểu</Label>
+              <Input
+                id="reward-minkg"
+                type="number"
+                value={rewardPayload.minKgRequired}
+                onChange={e => setRewardPayload(p => ({ ...p, minKgRequired: e.target.value }))}
+                placeholder="VD: 1"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="reward-maxkg">Số kg tối đa</Label>
+              <Input
+                id="reward-maxkg"
+                type="number"
+                value={rewardPayload.maxKgRequired}
+                onChange={e => setRewardPayload(p => ({ ...p, maxKgRequired: e.target.value }))}
+                placeholder="VD: 5"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="reward-penalty">Phần trăm phạt (%)</Label>
+              <Input
+                id="reward-penalty"
+                type="number"
+                value={rewardPayload.penaltyPercent}
+                onChange={e => setRewardPayload(p => ({ ...p, penaltyPercent: e.target.value }))}
+                placeholder="VD: 5"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRewardDialog(false)}>
+              Hủy
+            </Button>
+            <Button
+              onClick={async () => {
+                setRewardErr('');
+                if (!rewardPayload.pointsPerUnit || isNaN(Number(rewardPayload.pointsPerUnit)) || Number(rewardPayload.pointsPerUnit) <= 0) {
+                  setRewardErr('Điểm mỗi đơn vị phải là số > 0!'); return;
+                }
+                if (rewardPayload.allowedVariancePercent && (isNaN(Number(rewardPayload.allowedVariancePercent)) || Number(rewardPayload.allowedVariancePercent) < 0)) {
+                  setRewardErr('Tỷ lệ sai số phải là số >= 0!'); return;
+                }
+                if (rewardPayload.minKgRequired && (isNaN(Number(rewardPayload.minKgRequired)) || Number(rewardPayload.minKgRequired) < 0)) {
+                  setRewardErr('Số kg tối thiểu phải là số >= 0!'); return;
+                }
+                if (rewardPayload.maxKgRequired && (isNaN(Number(rewardPayload.maxKgRequired)) || Number(rewardPayload.maxKgRequired) < 0)) {
+                  setRewardErr('Số kg tối đa phải là số >= 0!'); return;
+                }
+                if (rewardPayload.penaltyPercent && (isNaN(Number(rewardPayload.penaltyPercent)) || Number(rewardPayload.penaltyPercent) < 0)) {
+                  setRewardErr('Phần trăm phạt phải là số >= 0!'); return;
+                }
+                try {
+                  const res = await fetch('http://localhost:3000/enterprise/reward-config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      wasteTypeId: rewardDialogWaste.id,
+                      pointsPerUnit: Number(rewardPayload.pointsPerUnit),
+                      description: rewardPayload.description,
+                      allowedVariancePercent: rewardPayload.allowedVariancePercent ? Number(rewardPayload.allowedVariancePercent) : undefined,
+                      minKgRequired: rewardPayload.minKgRequired ? Number(rewardPayload.minKgRequired) : undefined,
+                      maxKgRequired: rewardPayload.maxKgRequired ? Number(rewardPayload.maxKgRequired) : undefined,
+                      penaltyPercent: rewardPayload.penaltyPercent ? Number(rewardPayload.penaltyPercent) : undefined
+                    })
+                  });
+                  if (res.ok) {
+                    alert('Thêm reward config thành công!');
+                    setShowRewardDialog(false);
+                    setRewardDialogWaste(null);
+                  } else {
+                    setRewardErr('Thêm reward config thất bại!');
+                  }
+                } catch (e) {
+                  setRewardErr('Lỗi khi gọi API reward-config!');
+                }
+              }}
+            >
+              Thêm reward config
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         {footerMeta.map((meta) => (
@@ -537,8 +716,7 @@ export default function RewardSlaRules() {
               variant="destructive"
               disabled={operationBusy}
               onClick={async () => {
-                const res = await removeWasteType(wasteToDelete.id);
-                if (res?.ok) setWasteToDelete(null);
+                await removeWasteType(wasteToDelete.id);
               }}
             >
               Xóa
