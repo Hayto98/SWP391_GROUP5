@@ -36,8 +36,8 @@ function getViolationLevel(total) {
 
 /**
  * Apply penalty if the citizen's violation level escalated.
- * 
- * @param {object} connection 
+ *
+ * @param {object} connection
  * @param {object} params
  * @param {string} params.citizenId
  * @param {string} params.userAccountId
@@ -47,25 +47,24 @@ function getViolationLevel(total) {
  * @param {Date} params.currentTime
  * @returns {object} { lastPenaltyLevel, reportBlockedUntil } updated values
  */
-async function applyPenaltyIfLevelEscalated(connection, {
-  citizenId,
-  userAccountId,
-  wasteReportId,
-  currentLevel,
-  lastPenaltyLevel,
-  currentTime
-}) {
-  let reportBlockedUntil = null;
+async function applyPenaltyIfLevelEscalated(
+  connection,
+  { citizenId, userAccountId, wasteReportId, currentLevel, lastPenaltyLevel, currentTime }
+) {
+  let reportBlockedUntil = null
 
   if (currentLevel > lastPenaltyLevel) {
     if (currentLevel === 1) {
       // Warning notification
-      await notificationService.createNotification({
-        notificationType: NOTIFICATION_TYPES.VIOLATION_WARNING,
-        recipientUserAccountId: userAccountId,
-        wasteReportId: wasteReportId || null,
-        message: 'Bạn đã nhận cảnh báo do hoạt động bất thường'
-      }, connection)
+      await notificationService.createNotification(
+        {
+          notificationType: NOTIFICATION_TYPES.VIOLATION_WARNING,
+          recipientUserAccountId: userAccountId,
+          wasteReportId: wasteReportId || null,
+          message: 'Bạn đã nhận cảnh báo do hoạt động bất thường'
+        },
+        connection
+      )
     }
 
     if (currentLevel === 2) {
@@ -80,24 +79,30 @@ async function applyPenaltyIfLevelEscalated(connection, {
       })
       await rewardRepository.updateCitizenPoints(connection, citizenId, -5)
 
-      await notificationService.createNotification({
-        notificationType: NOTIFICATION_TYPES.POINT_DEDUCTED,
-        recipientUserAccountId: userAccountId,
-        wasteReportId: wasteReportId || null,
-        message: 'Bạn đã bị trừ điểm do vi phạm'
-      }, connection)
+      await notificationService.createNotification(
+        {
+          notificationType: NOTIFICATION_TYPES.POINT_DEDUCTED,
+          recipientUserAccountId: userAccountId,
+          wasteReportId: wasteReportId || null,
+          message: 'Bạn đã bị trừ điểm do vi phạm'
+        },
+        connection
+      )
     }
 
     if (currentLevel === 3) {
       // Block report creation for 24 hours
       reportBlockedUntil = new Date(currentTime.getTime() + 24 * 60 * 60 * 1000)
 
-      await notificationService.createNotification({
-        notificationType: NOTIFICATION_TYPES.REPORT_BLOCKED,
-        recipientUserAccountId: userAccountId,
-        wasteReportId: wasteReportId || null,
-        message: 'Bạn bị tạm khóa tạo báo cáo trong 24 giờ'
-      }, connection)
+      await notificationService.createNotification(
+        {
+          notificationType: NOTIFICATION_TYPES.REPORT_BLOCKED,
+          recipientUserAccountId: userAccountId,
+          wasteReportId: wasteReportId || null,
+          message: 'Bạn bị tạm khóa tạo báo cáo trong 24 giờ'
+        },
+        connection
+      )
     }
 
     if (currentLevel === 4) {
@@ -107,25 +112,28 @@ async function applyPenaltyIfLevelEscalated(connection, {
         // Lock the user account
         await rewardRepository.lockUserAccount(connection, userAccountId)
 
-        await notificationService.createNotification({
-          notificationType: NOTIFICATION_TYPES.ACCOUNT_LOCKED,
-          recipientUserAccountId: userAccountId,
-          wasteReportId: wasteReportId || null,
-          message: 'Tài khoản của bạn đã bị khóa do vi phạm nhiều lần'
-        }, connection)
+        await notificationService.createNotification(
+          {
+            notificationType: NOTIFICATION_TYPES.ACCOUNT_LOCKED,
+            recipientUserAccountId: userAccountId,
+            wasteReportId: wasteReportId || null,
+            message: 'Tài khoản của bạn đã bị khóa do vi phạm nhiều lần'
+          },
+          connection
+        )
+      }
+
+      return {
+        lastPenaltyLevel: currentLevel,
+        reportBlockedUntil
       }
     }
 
     return {
-      lastPenaltyLevel: currentLevel,
+      lastPenaltyLevel,
       reportBlockedUntil
-    };
+    }
   }
-
-  return {
-    lastPenaltyLevel,
-    reportBlockedUntil
-  };
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -136,30 +144,30 @@ async function applyPenaltyIfLevelEscalated(connection, {
  * Calculates distance in meters between two coordinates.
  */
 function calculateDistance(lat1, lon1, lat2, lon2) {
-  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return Infinity;
-  const R = 6371e3; // Earth radius in meters
-  const toRad = Math.PI / 180;
-  const phi1 = lat1 * toRad;
-  const phi2 = lat2 * toRad;
-  const deltaPhi = (lat2 - lat1) * toRad;
-  const deltaLambda = (lon2 - lon1) * toRad;
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return Infinity
+  const R = 6371e3 // Earth radius in meters
+  const toRad = Math.PI / 180
+  const phi1 = lat1 * toRad
+  const phi2 = lat2 * toRad
+  const deltaPhi = (lat2 - lat1) * toRad
+  const deltaLambda = (lon2 - lon1) * toRad
 
-  const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
-    Math.cos(phi1) * Math.cos(phi2) *
-    Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const a =
+    Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+    Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 
-  return R * c;
+  return R * c
 }
 
 function normalizeDescription(desc) {
-  if (!desc) return '';
-  return String(desc).toLowerCase().trim().replace(/\s+/g, ' ');
+  if (!desc) return ''
+  return String(desc).toLowerCase().trim().replace(/\s+/g, ' ')
 }
 
 /**
  * Detect duplicate reports and handle spam violation.
- * 
+ *
  * @param {object} connection - mysql2 connection (active transaction)
  * @param {object} params
  * @param {string} params.citizenId
@@ -170,14 +178,10 @@ function normalizeDescription(desc) {
  * @param {Date} params.currentTime
  * @returns {object} { isDuplicate, duplicateCount, message }
  */
-async function checkDuplicateAndHandleSpam(connection, {
-  citizenId,
-  gpsLat,
-  gpsLng,
-  description,
-  fileUri,
-  currentTime
-}) {
+async function checkDuplicateAndHandleSpam(
+  connection,
+  { citizenId, gpsLat, gpsLng, description, fileUri, currentTime }
+) {
   const [citizens] = await connection.execute(
     `SELECT citizen_id, user_account_id, spam_violation_count, total_violation_count, 
             last_violation_at, last_penalty_level, report_blocked_until 
@@ -185,54 +189,54 @@ async function checkDuplicateAndHandleSpam(connection, {
      WHERE citizen_id = ? 
      FOR UPDATE`,
     [citizenId]
-  );
+  )
 
   if (citizens.length === 0) {
-    throw new ApiError(404, 'Citizen not found');
+    throw new ApiError(404, 'Citizen not found')
   }
 
-  const citizen = citizens[0];
+  const citizen = citizens[0]
 
   if (citizen.is_locked === 1) {
-    throw new ApiError(403, 'Tài khoản của bạn đã bị khóa. Không thể thực hiện hành động này.');
+    throw new ApiError(403, 'Tài khoản của bạn đã bị khóa. Không thể thực hiện hành động này.')
   }
 
-  const thirtyMinsAgo = new Date(currentTime.getTime() - 30 * 60 * 1000);
+  const thirtyMinsAgo = new Date(currentTime.getTime() - 30 * 60 * 1000)
 
   const [recentReports] = await connection.execute(
     `SELECT gps_lat, gps_lng, description, file_uri 
      FROM wastereport 
      WHERE citizen_id = ? AND created_at >= ?`,
     [citizenId, thirtyMinsAgo]
-  );
+  )
 
-  const normalizedNewDesc = normalizeDescription(description);
+  const normalizedNewDesc = normalizeDescription(description)
 
-  let duplicateCount = 0;
+  let duplicateCount = 0
 
   for (const report of recentReports) {
-    const distance = calculateDistance(gpsLat, gpsLng, report.gps_lat, report.gps_lng);
+    const distance = calculateDistance(gpsLat, gpsLng, report.gps_lat, report.gps_lng)
 
-    const normalizedExistingDesc = normalizeDescription(report.description);
-    const isDescriptionIdentical = normalizedNewDesc !== '' && normalizedNewDesc === normalizedExistingDesc;
-    const isFileIdentical = fileUri != null && fileUri !== '' && fileUri === report.file_uri;
+    const normalizedExistingDesc = normalizeDescription(report.description)
+    const isDescriptionIdentical = normalizedNewDesc !== '' && normalizedNewDesc === normalizedExistingDesc
+    const isFileIdentical = fileUri != null && fileUri !== '' && fileUri === report.file_uri
 
     if (distance <= 50 || isDescriptionIdentical || isFileIdentical) {
-      duplicateCount++;
+      duplicateCount++
     }
   }
 
-  let isDuplicate = false;
-  let message = null;
+  let isDuplicate = false
+  let message = null
 
   if (duplicateCount >= 1) {
-    isDuplicate = true;
-    message = "Báo cáo này bị trùng";
+    isDuplicate = true
+    message = 'Báo cáo này bị trùng'
 
-    const newSpamCount = (citizen.spam_violation_count || 0) + 1;
-    const newTotalCount = (citizen.total_violation_count || 0) + 1;
+    const newSpamCount = (citizen.spam_violation_count || 0) + 1
+    const newTotalCount = (citizen.total_violation_count || 0) + 1
 
-    const currentLevel = getViolationLevel(newTotalCount);
+    const currentLevel = getViolationLevel(newTotalCount)
 
     // Apply penalty if level escalated
     const penaltyResult = await applyPenaltyIfLevelEscalated(connection, {
@@ -242,7 +246,7 @@ async function checkDuplicateAndHandleSpam(connection, {
       currentLevel,
       lastPenaltyLevel: citizen.last_penalty_level || 0,
       currentTime
-    });
+    })
 
     await connection.execute(
       `UPDATE citizen 
@@ -260,14 +264,14 @@ async function checkDuplicateAndHandleSpam(connection, {
         penaltyResult.reportBlockedUntil || citizen.report_blocked_until,
         citizenId
       ]
-    );
+    )
   }
 
   return {
     isDuplicate,
     duplicateCount,
     message
-  };
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -345,7 +349,7 @@ async function checkSpam(connection, { citizenId, currentTime }) {
     totalViolationCount += 1
     lastViolationAt = currentTime
 
-    const currentLevel = getViolationLevel(totalViolationCount);
+    const currentLevel = getViolationLevel(totalViolationCount)
 
     const penaltyResult = await applyPenaltyIfLevelEscalated(connection, {
       citizenId,
@@ -354,7 +358,7 @@ async function checkSpam(connection, { citizenId, currentTime }) {
       currentLevel,
       lastPenaltyLevel: citizen.lastPenaltyLevel || 0,
       currentTime
-    });
+    })
 
     // Persist spam violation
     await rewardRepository.updateCitizenSpamViolation(connection, citizenId, {
@@ -400,15 +404,10 @@ async function checkSpam(connection, { citizenId, currentTime }) {
  * @param {string|number} params.wasteTypeId
  * @returns {object} Result with final_points, variance_percent, etc.
  */
-async function processReward(connection, {
-  citizenId,
-  userAccountId,
-  wasteReportId,
-  citizenReportKg,
-  collectorActualKg,
-  currentTime,
-  wasteTypeId
-}) {
+async function processReward(
+  connection,
+  { citizenId, userAccountId, wasteReportId, citizenReportKg, collectorActualKg, currentTime, wasteTypeId }
+) {
   // ── Fetch citizen data (with FOR UPDATE lock) ──────────────────────
   const citizen = await rewardRepository.findCitizenForReward(connection, citizenId)
   if (!citizen) {
@@ -429,13 +428,7 @@ async function processReward(connection, {
     }
   }
 
-  const {
-    pointsPerUnit,
-    allowedVariancePercent,
-    penaltyPercent,
-    minKgRequired,
-    maxKgRequired
-  } = config
+  const { pointsPerUnit, allowedVariancePercent, penaltyPercent, minKgRequired, maxKgRequired } = config
 
   // ════════════════════════════════════════════════════════════════════
   // STEP 0: Check cooldown (block)
@@ -528,7 +521,7 @@ async function processReward(connection, {
   } else {
     // Fake report → reward then penalize
     penaltyApplied = true
-    const penalty = Math.floor(points * Number(penaltyPercent) / 100)
+    const penalty = Math.floor((points * Number(penaltyPercent)) / 100)
     finalPoints = points - penalty
 
     // Insert reward transaction
@@ -585,11 +578,11 @@ async function processReward(connection, {
     currentLevel,
     lastPenaltyLevel,
     currentTime
-  });
+  })
 
-  lastPenaltyLevel = penaltyResult.lastPenaltyLevel;
+  lastPenaltyLevel = penaltyResult.lastPenaltyLevel
   if (penaltyResult.reportBlockedUntil) {
-    reportBlockedUntil = penaltyResult.reportBlockedUntil;
+    reportBlockedUntil = penaltyResult.reportBlockedUntil
   }
 
   // ── Persist violation updates ──────────────────────────────────────
@@ -614,8 +607,72 @@ async function processReward(connection, {
   }
 }
 
+/**
+ * Force mark a report as fake by collector decision.
+ *
+ * Business behavior:
+ *   - Base points are always 0
+ *   - Fake + total violation counters are incremented
+ *   - Escalation penalties are applied exactly like create-report violations
+ *
+ * @param {object} connection - mysql2 connection (active transaction)
+ * @param {object} params
+ * @param {string} params.citizenId
+ * @param {string} params.userAccountId
+ * @param {string} params.wasteReportId
+ * @param {Date} params.currentTime
+ * @returns {object}
+ */
+async function processForcedFakeViolation(connection, { citizenId, userAccountId, wasteReportId, currentTime }) {
+  const citizen = await rewardRepository.findCitizenForReward(connection, citizenId)
+  if (!citizen) {
+    throw new ApiError(404, 'Citizen not found')
+  }
+
+  const fakeViolationCount = (citizen.fakeViolationCount || 0) + 1
+  const totalViolationCount = (citizen.totalViolationCount || 0) + 1
+  const lastViolationAt = currentTime
+
+  const currentLevel = getViolationLevel(totalViolationCount)
+  const penaltyResult = await applyPenaltyIfLevelEscalated(connection, {
+    citizenId,
+    userAccountId,
+    wasteReportId,
+    currentLevel,
+    lastPenaltyLevel: citizen.lastPenaltyLevel || 0,
+    currentTime
+  })
+
+  await rewardRepository.insertPointTransaction(connection, {
+    pointTransactionId: uuidv4(),
+    citizenId,
+    wasteReportId,
+    pointsDelta: 0,
+    transactionReason: 'Báo cáo bị đánh dấu giả - không cộng điểm',
+    createdAt: currentTime
+  })
+
+  await rewardRepository.updateCitizenViolation(connection, citizenId, {
+    fakeViolationCount,
+    totalViolationCount,
+    lastViolationAt,
+    lastPenaltyLevel: penaltyResult.lastPenaltyLevel,
+    reportBlockedUntil: penaltyResult.reportBlockedUntil || citizen.reportBlockedUntil
+  })
+
+  return {
+    finalPoints: 0,
+    variancePercent: 100,
+    penaltyApplied: true,
+    isFake: true,
+    currentLevel,
+    reportBlockedUntil: penaltyResult.reportBlockedUntil || citizen.reportBlockedUntil
+  }
+}
+
 module.exports = {
   processReward,
+  processForcedFakeViolation,
   checkSpam,
   checkDuplicateAndHandleSpam,
   getViolationLevel

@@ -4,6 +4,7 @@ import { Calendar, Loader2, MapPin, Phone, Recycle, Scale } from "lucide-react";
 import {
   acceptCollectorReport,
   getCollectorReportById,
+  markCollectorReportAsFake,
   scheduleCollectorReport,
   submitCollectorReportResult,
 } from "@/services/collectorReport.service";
@@ -128,6 +129,11 @@ function TaskDetail() {
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
   const [submitSaving, setSubmitSaving] = useState(false);
+  const [markingFake, setMarkingFake] = useState(false);
+  const [fakeDialogOpen, setFakeDialogOpen] = useState(false);
+  const [fakeNote, setFakeNote] = useState("");
+  const [fakeFile, setFakeFile] = useState(null);
+  const [fakeFilePreview, setFakeFilePreview] = useState("");
   const [actualQuantity, setActualQuantity] = useState("");
   const [quantityUnit, setQuantityUnit] = useState("KG");
   const [note, setNote] = useState("");
@@ -147,6 +153,20 @@ function TaskDetail() {
       URL.revokeObjectURL(previewUrl);
     };
   }, [resultFile]);
+
+  useEffect(() => {
+    if (!fakeFile) {
+      setFakeFilePreview("");
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(fakeFile);
+    setFakeFilePreview(previewUrl);
+
+    return () => {
+      URL.revokeObjectURL(previewUrl);
+    };
+  }, [fakeFile]);
 
   useEffect(() => {
     const fetchDetail = async () => {
@@ -281,6 +301,43 @@ function TaskDetail() {
     } finally {
       setScheduleSaving(false);
       setAccepting(false);
+    }
+  };
+
+  const handleOpenMarkAsFakeDialog = () => {
+    if (!task || task.status !== "IN_PROGRESS") {
+      return;
+    }
+
+    setFakeNote("");
+    setFakeFile(null);
+    setFakeDialogOpen(true);
+  };
+
+  const handleMarkAsFake = async () => {
+    if (!task || markingFake || task.status !== "IN_PROGRESS") {
+      return;
+    }
+
+    setMarkingFake(true);
+    try {
+      const response = await markCollectorReportAsFake(task.reportId, {
+        quantityUnit: task.unitType || "KG",
+        note: fakeNote,
+        file: fakeFile,
+      });
+
+      setTask((prev) => ({
+        ...prev,
+        status: response?.data?.status || "COLLECTED",
+        actualQuantity: response?.data?.actualQuantity ?? 0,
+      }));
+      setFakeDialogOpen(false);
+      toast.success("Đã đánh dấu báo cáo giả thành công");
+    } catch (error) {
+      toast.error(error.message || "Đánh dấu báo cáo giả thất bại");
+    } finally {
+      setMarkingFake(false);
     }
   };
 
@@ -431,7 +488,10 @@ function TaskDetail() {
                 handleAcceptTask();
               }}
               disabled={
-                accepting || scheduleSaving || task.status === "COLLECTED"
+                accepting ||
+                scheduleSaving ||
+                markingFake ||
+                task.status === "COLLECTED"
               }
               className="w-full rounded-xl bg-green-500 text-white py-3 font-semibold hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -441,6 +501,18 @@ function TaskDetail() {
                   ? "Cập nhật kết quả thu gom"
                   : "Nhận nhiệm vụ"}
             </button>
+
+            {task.status === "IN_PROGRESS" && (
+              <button
+                onClick={handleOpenMarkAsFakeDialog}
+                disabled={
+                  markingFake || submitSaving || accepting || scheduleSaving
+                }
+                className="w-full rounded-xl bg-red-500 text-white py-3 font-semibold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {markingFake ? "Đang xử lý..." : "Báo cáo giả"}
+              </button>
+            )}
           </div>
         </div>
       </main>
@@ -522,6 +594,60 @@ function TaskDetail() {
           </DialogHeader>
           <DialogFooter>
             <Button onClick={() => setSuccessDialogOpen(false)}>Đóng</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={fakeDialogOpen} onOpenChange={setFakeDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Đánh dấu báo cáo giả</DialogTitle>
+            <DialogDescription>
+              Nhập ghi chú và ảnh minh chứng trước khi xác nhận.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm font-medium mb-1">Ghi chú</p>
+              <Textarea
+                value={fakeNote}
+                onChange={(e) => setFakeNote(e.target.value)}
+                placeholder="Ví dụ: Không tìm thấy rác tại vị trí báo cáo"
+                rows={3}
+              />
+            </div>
+
+            <div>
+              <p className="text-sm font-medium mb-1">Ảnh minh chứng</p>
+              <Input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setFakeFile(e.target.files?.[0] || null)}
+              />
+
+              {fakeFilePreview && (
+                <div className="mt-3">
+                  <ImageSection
+                    title="Xem trước ảnh minh chứng"
+                    image={fakeFilePreview}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setFakeDialogOpen(false)}
+              disabled={markingFake}
+            >
+              Hủy
+            </Button>
+            <Button onClick={handleMarkAsFake} disabled={markingFake}>
+              {markingFake ? "Đang xử lý..." : "Xác nhận báo cáo giả"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

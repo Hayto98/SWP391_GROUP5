@@ -3,6 +3,7 @@ const router = express.Router()
 
 const { verifyToken } = require('../middlewares/authMiddleware')
 const { requireRole } = require('../middlewares/roleMiddleware')
+const { uploadSingle } = require('../middlewares/upload')
 const { ROLES } = require('../utils/constants')
 
 const complaintController = require('../controllers/Citizen/complaintController')
@@ -19,7 +20,7 @@ router.use(requireRole(ROLES.CITIZEN))
 
 // --- COMPLAINTS ---
 // POST /citizen/report-complaints
-router.post('/report-complaints', complaintController.createComplaint)
+router.post('/report-complaints', uploadSingle, complaintController.createComplaint)
 
 // GET /citizen/report-complaints
 router.get('/report-complaints', complaintController.getComplaints)

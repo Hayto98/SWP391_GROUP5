@@ -38,7 +38,7 @@ function PointHistory({ pointTransactions }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Loại</TableHead>
+              <TableHead>thứ tự</TableHead>
               <TableHead>Nội Dung</TableHead>
               <TableHead className="text-right">Điểm Thay Đổi</TableHead>
               <TableHead>Thời Gian</TableHead>
@@ -46,17 +46,9 @@ function PointHistory({ pointTransactions }) {
           </TableHeader>
           <TableBody>
             {pointTransactions.length ? (
-              pointTransactions.map((transaction) => (
+              pointTransactions.map((transaction, i) => (
                 <TableRow key={transaction.transactionId}>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        transaction.type === "REDEEM" ? "secondary" : "default"
-                      }
-                    >
-                      {transaction.type}
-                    </Badge>
-                  </TableCell>
+                  <TableCell>{i + 1}</TableCell>
                   <TableCell className="font-medium">
                     {transaction.reason}
                   </TableCell>

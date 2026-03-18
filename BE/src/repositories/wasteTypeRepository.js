@@ -139,13 +139,7 @@ async function findAll({ isActive, limit = 20, offset = 0 } = {}) {
  * Lấy tất cả WasteType kèm RewardConfig (LEFT JOIN)
  * includeInactiveReward: nếu false -> chỉ lấy RewardConfig is_active = 1
  */
-async function findAllWithRewardConfig({
-  isActive,
-  unitType,
-  includeInactiveReward = false,
-  limit,
-  offset
-} = {}) {
+async function findAllWithRewardConfig({ isActive, unitType, includeInactiveReward = false, limit, offset } = {}) {
   const hasPagination = limit !== undefined || offset !== undefined
   const limitInt = Math.max(1, parseInt(limit, 10) || 20)
   const offsetInt = Math.max(0, parseInt(offset, 10) || 0)
@@ -387,8 +381,15 @@ async function findActiveWithReward() {
             wt.waste_type_name   AS wasteTypeName,
             wt.unit_type         AS unitType,
             wt.is_active         AS isActive,
+            rc.reward_config_id  AS rewardConfigId,
             rc.points_per_unit   AS pointsPerUnit,
-            rc.description       AS description
+            rc.description       AS description,
+            rc.allowed_variance_percent AS allowedVariancePercent,
+            rc.penalty_percent   AS penaltyPercent,
+            rc.min_kg_required   AS minKgRequired,
+            rc.max_kg_required   AS maxKgRequired,
+            rc.created_at        AS rewardConfigCreatedAt,
+            rc.is_active         AS rewardConfigActive
        FROM wastetype wt
        JOIN rewardconfig rc ON wt.waste_type_id = rc.waste_type_id
       WHERE wt.is_active = 1
@@ -407,6 +408,11 @@ async function findByIdWithReward(wasteTypeId) {
             rc.reward_config_id     AS rewardConfigId,
             rc.points_per_unit      AS pointsPerUnit,
             rc.description          AS description,
+            rc.allowed_variance_percent AS allowedVariancePercent,
+            rc.penalty_percent      AS penaltyPercent,
+            rc.min_kg_required      AS minKgRequired,
+            rc.max_kg_required      AS maxKgRequired,
+            rc.created_at           AS rewardConfigCreatedAt,
             rc.is_active            AS rewardConfigActive
        FROM wastetype wt
        LEFT JOIN rewardconfig rc

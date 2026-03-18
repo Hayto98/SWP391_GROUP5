@@ -36,6 +36,7 @@ router.get('/reports/:reportId/result', collectorReportController.getResult)
 router.patch('/reports/:reportId/accept', collectorReportController.acceptReport)
 router.post('/reports/:reportId/result', uploadSingle, collectorReportController.submitResult)
 router.post('/reports/:reportId/complete', smartUploadComplete, collectorReportController.completeReport)
+router.patch('/reports/:reportId/mark-fake', smartUploadComplete, collectorReportController.markReportAsFake)
 router.patch('/reports/:reportId/schedule', collectorReportController.scheduleCollection)
 
 // --- NOTIFICATIONS ---

@@ -13,7 +13,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { searchAddress } from "@/services/geocodingService";
+import { searchAddress, getPlaceDetails } from "@/services/geocodingService";
 
 // Fix default marker icon
 delete L.Icon.Default.prototype._getIconUrl;
@@ -43,6 +43,7 @@ function LocationSelection({ marker, onMapClick, onDeleteMarker }) {
 
   const [search, setSearch] = useState("");
   const [suggestions, setSuggestions] = useState([]);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const searchDebounceRef = useRef(null);
   const searchControllerRef = useRef(null);
 
@@ -127,8 +128,22 @@ function LocationSelection({ marker, onMapClick, onDeleteMarker }) {
   };
 
   // Chọn địa chỉ
-  const handleSelectLocation = (item) => {
-    const { lat, lng, address } = item;
+  const handleSelectLocation = async (item) => {
+    const { place_id, address } = item;
+    let lat = item.lat;
+    let lng = item.lng;
+
+    // Fetch coordinates if not available (from autocomplete)
+    if (!lat || !lng) {
+      const details = await getPlaceDetails(place_id);
+      if (details) {
+        lat = details.lat;
+        lng = details.lng;
+      } else {
+        toast.error("Không thể lấy tọa độ để định vị địa điểm này");
+        return;
+      }
+    }
 
     onMapClick?.({
       lat,
@@ -162,15 +177,24 @@ function LocationSelection({ marker, onMapClick, onDeleteMarker }) {
             placeholder="Nhập địa chỉ..."
             value={search}
             onChange={(e) => handleSearch(e.target.value)}
+            onFocus={() => setIsSearchFocused(true)}
+            onBlur={() => {
+              setTimeout(() => {
+                setIsSearchFocused(false);
+              }, 120);
+            }}
           />
 
-          {suggestions.length > 0 && (
+          {isSearchFocused && suggestions.length > 0 && (
             <div className="absolute z-50 bg-white border w-full rounded-md shadow-md max-h-60 overflow-auto">
               {suggestions.map((item, index) => (
                 <button
                   key={index}
                   className="w-full text-left px-3 py-2 hover:bg-gray-100 text-sm"
-                  onClick={() => handleSelectLocation(item)}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleSelectLocation(item);
+                  }}
                 >
                   {item.address}
                 </button>

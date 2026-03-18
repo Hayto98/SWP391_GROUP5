@@ -103,6 +103,27 @@ async function completeReport(req, res, next) {
 }
 
 /**
+ * PATCH /collector/reports/:reportId/mark-fake
+ * Collector marks report as fake with auto actualQuantity = 0 and auto points = 0.
+ * Body: multipart/form-data OR application/json { quantityUnit?, note?, files[]? }
+ */
+async function markReportAsFake(req, res, next) {
+  try {
+    const collectorId = req.user.sub
+    const { reportId } = req.params
+
+    const { quantityUnit, note } = req.body || {}
+    const files = req.files || []
+
+    const result = await collectorReportService.markReportAsFake(collectorId, reportId, { quantityUnit, note }, files)
+
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
  * GET /collector/reports/:reportId/result
  * Returns the collection record and proof images for a completed report.
  */
@@ -143,6 +164,7 @@ module.exports = {
   acceptReport,
   submitResult,
   completeReport,
+  markReportAsFake,
   getResult,
   scheduleCollection
 }

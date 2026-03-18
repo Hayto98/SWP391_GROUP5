@@ -92,7 +92,7 @@ function AppRoutes() {
               <Route path="leaderboard" element={<CitizenLeaderboard />} />
               <Route path="complaints" element={<CitizenComplaints />} />
               <Route
-                path="complaints/:reportId"
+                path="complaints/:id"
                 element={<ComplaintDetail />}
               />
             </Route>

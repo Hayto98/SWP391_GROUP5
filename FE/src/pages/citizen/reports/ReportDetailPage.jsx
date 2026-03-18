@@ -29,6 +29,7 @@ import { vi } from "date-fns/locale";
 import { getReportById } from "@/services/wasteReportService";
 import { reverseGeocode } from "@/services/geocodingService";
 import { getWasteTypeById } from "@/services/wasteService";
+import { createReportComplaint } from "@/services/citizenComplaintService";
 import ImageSection from "@/components/ui/image-section";
 
 // Fix Leaflet default icon issue
@@ -224,6 +225,7 @@ function ReportDetailPage() {
   const [complaintReason, setComplaintReason] = useState("");
   const [complaintImagePreview, setComplaintImagePreview] = useState(null);
   const [complaintImageFile, setComplaintImageFile] = useState(null);
+  const [submittingComplaint, setSubmittingComplaint] = useState(false);
   const complaintFileRef = useRef(null);
 
   const handleComplaintImageChange = (e) => {
@@ -233,17 +235,40 @@ function ReportDetailPage() {
     setComplaintImagePreview(URL.createObjectURL(file));
   };
 
-  const handleComplaintSubmit = () => {
-    // TODO: gọi API POST /citizen/report-complaints
-    console.log("Submit complaint:", {
-      wasteReportId: reportId,
-      complaintReason,
-      attachmentFile: complaintImageFile,
-    });
-    setIsComplaintOpen(false);
-    setComplaintReason("");
-    setComplaintImagePreview(null);
-    setComplaintImageFile(null);
+  const handleComplaintSubmit = async () => {
+    const normalizedReason = complaintReason.trim();
+    if (!normalizedReason) {
+      toast.warning("Vui lòng nhập lý do khiếu nại");
+      return;
+    }
+
+    const payload = new FormData();
+    payload.append("wasteReportId", reportId);
+    payload.append("complaintReason", normalizedReason);
+    if (complaintImageFile) {
+      payload.append("file", complaintImageFile);
+    }
+
+    setSubmittingComplaint(true);
+    try {
+      const response = await createReportComplaint(payload);
+
+      const complaintId = response?.data?.reportComplaintId;
+      if (!complaintId) {
+        throw new Error("Không nhận được mã khiếu nại từ hệ thống");
+      }
+
+      toast.success("Gửi khiếu nại thành công");
+      setIsComplaintOpen(false);
+      setComplaintReason("");
+      setComplaintImagePreview(null);
+      setComplaintImageFile(null);
+      navigate(`/citizen/complaints/${complaintId}`);
+    } catch (error) {
+      toast.error(error.message || "Gửi khiếu nại thất bại");
+    } finally {
+      setSubmittingComplaint(false);
+    }
   };
 
   useEffect(() => {
@@ -624,12 +649,6 @@ function ReportDetailPage() {
             <DialogTitle>Gửi khiếu nại</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">
-                Mã báo cáo:{" "}
-                <span className="font-medium text-foreground">{reportId}</span>
-              </p>
-            </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Lý do khiếu nại</label>
               <Textarea
@@ -687,9 +706,16 @@ function ReportDetailPage() {
             </Button>
             <Button
               onClick={handleComplaintSubmit}
-              disabled={!complaintReason.trim()}
+              disabled={!complaintReason.trim() || submittingComplaint}
             >
-              Gửi
+              {submittingComplaint ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Đang gửi...
+                </>
+              ) : (
+                "Gửi"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
