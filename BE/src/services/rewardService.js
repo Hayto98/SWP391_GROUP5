@@ -227,38 +227,42 @@ async function checkDuplicateAndHandleSpam(connection, {
     isDuplicate = true;
     message = "Báo cáo này bị trùng";
     
-    const newSpamCount = (citizen.spam_violation_count || 0) + 1;
-    const newTotalCount = (citizen.total_violation_count || 0) + 1;
+    // Only apply penalties if they duplicate MULTIPLE times (2 or more)
+    // 1 match = just block. >= 2 matches = intentional spam
+    if (duplicateCount >= 2) {
+      const newSpamCount = (citizen.spam_violation_count || 0) + 1;
+      const newTotalCount = (citizen.total_violation_count || 0) + 1;
 
-    const currentLevel = getViolationLevel(newTotalCount);
-    
-    // Apply penalty if level escalated
-    const penaltyResult = await applyPenaltyIfLevelEscalated(connection, {
-      citizenId,
-      userAccountId: citizen.user_account_id,
-      wasteReportId: null, // duplicate spam check happens before report is created
-      currentLevel,
-      lastPenaltyLevel: citizen.last_penalty_level || 0,
-      currentTime
-    });
+      const currentLevel = getViolationLevel(newTotalCount);
+      
+      // Apply penalty if level escalated
+      const penaltyResult = await applyPenaltyIfLevelEscalated(connection, {
+        citizenId,
+        userAccountId: citizen.user_account_id,
+        wasteReportId: null, // duplicate spam check happens before report is created
+        currentLevel,
+        lastPenaltyLevel: citizen.last_penalty_level || 0,
+        currentTime
+      });
 
-    await connection.execute(
-      `UPDATE citizen 
-       SET spam_violation_count = ?, 
-           total_violation_count = ?, 
-           last_violation_at = ?,
-           last_penalty_level = ?,
-           report_blocked_until = ?
-       WHERE citizen_id = ?`,
-      [
-        newSpamCount, 
-        newTotalCount, 
-        currentTime, 
-        penaltyResult.lastPenaltyLevel, 
-        penaltyResult.reportBlockedUntil || citizen.report_blocked_until, 
-        citizenId
-      ]
-    );
+      await connection.execute(
+        `UPDATE citizen 
+         SET spam_violation_count = ?, 
+             total_violation_count = ?, 
+             last_violation_at = ?,
+             last_penalty_level = ?,
+             report_blocked_until = ?
+         WHERE citizen_id = ?`,
+        [
+          newSpamCount, 
+          newTotalCount, 
+          currentTime, 
+          penaltyResult.lastPenaltyLevel, 
+          penaltyResult.reportBlockedUntil || citizen.report_blocked_until, 
+          citizenId
+        ]
+      );
+    }
   }
 
   return {
