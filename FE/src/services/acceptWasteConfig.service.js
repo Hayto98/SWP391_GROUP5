@@ -42,7 +42,14 @@ export async function getAcceptWasteConfig() {
   return { ...FAKE_META, categories };
 }
 
+// Gọi API PATCH /enterprise/waste-types/:wasteTypeId/status
 export async function updateAcceptWasteCategory({ categoryId, enabled }) {
-  // enabled=true → IS_ACTIVE=1 | enabled=false → IS_ACTIVE=0
-  return toggleWasteTypeStatus(Number(categoryId), enabled);
+  // enabled=true → isActive=true | enabled=false → isActive=false
+  const res = await fetch(`http://localhost:3000/enterprise/waste-types/${categoryId}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ isActive: enabled })
+  });
+  if (!res.ok) throw new Error('Cập nhật trạng thái loại rác thất bại');
+  return res.json();
 }
