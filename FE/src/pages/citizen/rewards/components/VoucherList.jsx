@@ -33,11 +33,11 @@ function VoucherList({ vouchers, onRedeemVoucher }) {
         >
           {voucher.fileUri ? (
             <>
-              <div className="absolute inset-0 z-30 h-64 bg-black/20" />
+              <div className="absolute inset-0 z-30 h-64 " />
               <img
                 src={voucher.fileUri}
                 alt={voucher.title}
-                className="hover:scale-105 duration-300 relative z-20 h-64 w-full object-cover brightness-90 dark:brightness-75"
+                className="hover:scale-105 duration-300 relative z-30 h-64 w-full object-cover brightness-90 dark:brightness-75"
               />
             </>
           ) : (

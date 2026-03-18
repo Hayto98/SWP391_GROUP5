@@ -34,11 +34,7 @@ export const navByRole = {
       url: "/citizen/rewards",
       icon: Gift,
     },
-    {
-      title: "Bảng xếp hạng",
-      url: "/citizen/leaderboard",
-      icon: Trophy,
-    },
+
     {
       title: "Khiếu nại",
       url: "/citizen/complaints",
