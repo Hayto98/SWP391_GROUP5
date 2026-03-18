@@ -126,10 +126,11 @@ function EditWasteTypeModal({ open, onClose, onConfirm, adding, wasteItem }) {
   const [wasteTypeName, setWasteTypeName] = useState(wasteItem?.name || "");
   const [unitType, setUnitType] = useState(wasteItem?.unitType || "KG");
   const [points, setPoints] = useState(wasteItem?.factor || 0);
-  const [variance, setVariance] = useState(
-    wasteItem?.allowed_variance_percent || 0,
-  );
+  const [variance, setVariance] = useState(wasteItem?.allowed_variance_percent || wasteItem?.allowedVariancePercent || 0);
   const [desc, setDesc] = useState(wasteItem?.description || "");
+  const [minKg, setMinKg] = useState(wasteItem?.minKgRequired || 0);
+  const [maxKg, setMaxKg] = useState(wasteItem?.maxKgRequired || 0);
+  const [penalty, setPenalty] = useState(wasteItem?.penaltyPercent || 0);
   const [localErr, setLocalErr] = useState("");
 
   useEffect(() => {
@@ -169,7 +170,10 @@ function EditWasteTypeModal({ open, onClose, onConfirm, adding, wasteItem }) {
       wasteTypeId: wasteItem.wasteTypeId || wasteItem.id,
       rewardConfigId: wasteItem.rewardConfigId,
       pointsPerUnit: Number(points),
-      allowed_variance_percent: Number(variance),
+      allowedVariancePercent: Number(variance),
+      minKgRequired: Number(minKg),
+      maxKgRequired: Number(maxKg),
+      penaltyPercent: Number(penalty),
       description: desc,
       waste_type_name: wasteTypeName.trim(),
       unit_type: unitType.trim(),
@@ -269,6 +273,42 @@ function EditWasteTypeModal({ open, onClose, onConfirm, adding, wasteItem }) {
                 setVariance(value);
                 setLocalErr("");
               }}
+              disabled={adding}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit-waste-minkg">Số kg tối thiểu áp dụng</Label>
+            <Input
+              id="edit-waste-minkg"
+              type="number"
+              min={0}
+              value={minKg}
+              onChange={(e) => setMinKg(e.target.value)}
+              disabled={adding}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit-waste-maxkg">Số kg tối đa áp dụng</Label>
+            <Input
+              id="edit-waste-maxkg"
+              type="number"
+              min={0}
+              value={maxKg}
+              onChange={(e) => setMaxKg(e.target.value)}
+              disabled={adding}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit-waste-penalty">Phần trăm phạt (%)</Label>
+            <Input
+              id="edit-waste-penalty"
+              type="number"
+              min={0}
+              value={penalty}
+              onChange={(e) => setPenalty(e.target.value)}
               disabled={adding}
             />
           </div>

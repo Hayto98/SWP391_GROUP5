@@ -357,7 +357,7 @@ export default function ManageVoucher() {
   // Xem chi tiết voucher
   const handleViewDetail = async (voucherId) => {
     try {
-      const res = await fetch(`http://localhost:3000/api/enterprise/vouchers/${voucherId}`);
+      const res = await fetch(`http://localhost:3000/api/v1/enterprise/vouchers/${voucherId}`);
       if (!res.ok) throw new Error("Không lấy được chi tiết voucher");
       const data = await res.json();
       setDetailVoucher(data.voucher || data);
@@ -379,7 +379,7 @@ export default function ManageVoucher() {
         formData.append("validTo", data.validTo);
         if (data.file) formData.append("file", data.file);
 
-        const res = await fetch(`http://localhost:3000/api/enterprise/vouchers/${editTarget.voucher_id || editTarget.id}`, {
+        const res = await fetch(`http://localhost:3000/api/v1/enterprise/vouchers/${editTarget.voucher_id || editTarget.id}`, {
           method: "PUT",
           body: formData,
         });
@@ -402,7 +402,7 @@ export default function ManageVoucher() {
         formData.append("validTo", data.validTo);
         formData.append("file", data.file);
 
-        const res = await fetch("http://localhost:3000/api/enterprise/vouchers", {
+        const res = await fetch("http://localhost:3000/api/v1/enterprise/vouchers", {
           method: "POST",
           body: formData,
         });
@@ -428,13 +428,13 @@ export default function ManageVoucher() {
 
   const handleDelete = async (v) => {
     try {
-      const res = await fetch(`http://localhost:3000/api/enterprise/vouchers/${v.voucher_id || v.id}`, {
+      const res = await fetch(`http://localhost:3000/api/v1/enterprise/vouchers/${v.voucher_id || v.id}`, {
         method: "DELETE",
       });
       if (!res.ok) throw new Error("Xóa voucher thất bại!");
       toast.success(`Đã xóa voucher "${v.voucher_name}"`);
       // Reload lại danh sách voucher
-      const reload = await fetch("http://localhost:3000/api/enterprise/vouchers");
+      const reload = await fetch("http://localhost:3000/api/v1/enterprise/vouchers");
       if (reload.ok) {
         const data = await reload.json();
         setVouchers(data.vouchers || []);
@@ -481,7 +481,7 @@ export default function ManageVoucher() {
   useEffect(() => {
     const fetchVouchers = async () => {
       try {
-        const res = await fetch("http://localhost:3000/api/enterprise/vouchers");
+        const res = await fetch("http://localhost:3000/api/v1/enterprise/vouchers");
         if (!res.ok) throw new Error("Không lấy được danh sách voucher");
         const data = await res.json();
         setVouchers(data.vouchers || []);
@@ -491,7 +491,7 @@ export default function ManageVoucher() {
     };
     const fetchStatistics = async () => {
       try {
-        const res = await fetch("http://localhost:3000/api/enterprise/vouchers/statistics");
+        const res = await fetch("http://localhost:3000/api/v1/enterprise/vouchers/statistics");
         if (!res.ok) throw new Error("Không lấy được thống kê");
         const data = await res.json();
         setStatistics({
