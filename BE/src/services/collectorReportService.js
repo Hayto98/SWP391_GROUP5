@@ -8,7 +8,7 @@ const notificationRepository = require('../repositories/notificationRepository')
 const { ROLES, NOTIFICATION_TYPES } = require('../utils/constants')
 const db = require('../config/database')
 const { v4: uuidv4 } = require('uuid')
-
+const rewardService = require('./rewardService')
 /**
  * Upload a Buffer to Cloudinary and return secure_url.
  * @private
@@ -98,6 +98,7 @@ module.exports = {
 }
 
 // ==================== SCHEDULE COLLECTION ====================
+
 
 /**
  * PATCH /collector/reports/:reportId/schedule
@@ -234,9 +235,9 @@ async function getReportById(userId, reportId) {
 
   const joinedUris = report.citizen_image_uris
     ? report.citizen_image_uris
-        .split('|||')
-        .map((value) => value.trim())
-        .filter(Boolean)
+      .split('|||')
+      .map((value) => value.trim())
+      .filter(Boolean)
     : []
 
   const fallbackUris = Array.isArray(fallbackCitizenImages)
@@ -299,16 +300,16 @@ async function getReportById(userId, reportId) {
 
       collectedRecord: collectedRecord
         ? {
-            collectedRecordId: collectedRecord.collected_record_id,
-            wasteReportId: collectedRecord.waste_report_id,
-            collectorUserAccountId: collectedRecord.collector_user_account_id,
-            actualQuantityValue: Number(collectedRecord.actual_quantity_value),
-            quantityUnit: collectedRecord.quantity_unit,
-            recordedAt: collectedRecord.recorded_at,
-            fileUri: collectedRecord.file_uri,
-            note: collectedRecord.note,
-            completionImages: collectedRecord.completion_images || []
-          }
+          collectedRecordId: collectedRecord.collected_record_id,
+          wasteReportId: collectedRecord.waste_report_id,
+          collectorUserAccountId: collectedRecord.collector_user_account_id,
+          actualQuantityValue: Number(collectedRecord.actual_quantity_value),
+          quantityUnit: collectedRecord.quantity_unit,
+          recordedAt: collectedRecord.recorded_at,
+          fileUri: collectedRecord.file_uri,
+          note: collectedRecord.note,
+          completionImages: collectedRecord.completion_images || []
+        }
         : null,
 
       status: report.status
@@ -572,6 +573,7 @@ async function completeReport(collectorId, reportId, { actualQuantity, quantityU
   const connection = await db.getConnection()
 
   let pointsAwarded = 0
+  let rewardResult = null
 
   try {
     await connection.beginTransaction()
@@ -614,15 +616,24 @@ async function completeReport(collectorId, reportId, { actualQuantity, quantityU
       recordedAt
     )
 
-    // 7f. Calculate and award points
-    //     points = actualQuantity × pointsPerUnit (0 if no active reward config)
-    const rewardConfig = await collectorReportRepository.findRewardConfig(connection, report.waste_type_id)
-    if (rewardConfig) {
-      pointsAwarded = Number((qty * Number(rewardConfig.points_per_unit)).toFixed(2))
+    // 7f. Process reward (10-step: variance check, fake detection, penalties, etc.)
+    const citizenReportKg = report.weight !== null ? Number(report.weight) : qty
+    rewardResult = await rewardService.processReward(connection, {
+      citizenId: report.citizen_id,
+      userAccountId: report.citizen_user_account_id,
+      wasteReportId: reportId,
+      citizenReportKg,
+      collectorActualKg: qty,
+      currentTime: recordedAt,
+      wasteTypeId: report.waste_type_id
+    })
+    pointsAwarded = rewardResult.finalPoints
 
-      await collectorReportRepository.insertPointTransaction(connection, {
-        pointTransactionId: uuidv4(),
-        citizenId: report.citizen_id,
+    // 7g. Create POINT_REWARDED notification (inside transaction)
+    if (pointsAwarded > 0 && report.citizen_user_account_id) {
+      await notificationService.createNotification({
+        notificationType: NOTIFICATION_TYPES.POINT_REWARDED,
+        recipientUserAccountId: report.citizen_user_account_id,
         wasteReportId: reportId,
         pointsDelta: pointsAwarded,
         transactionReason: 'WASTE_COLLECTION_COMPLETED',
@@ -678,7 +689,16 @@ async function completeReport(collectorId, reportId, { actualQuantity, quantityU
       status: 'COMPLETED',
       actualQuantity: qty,
       pointsAwarded,
-      completedAt: recordedAt
+      completedAt: recordedAt,
+      reward: rewardResult
+        ? {
+          variancePercent: rewardResult.variancePercent,
+          penaltyApplied: rewardResult.penaltyApplied,
+          isFake: rewardResult.isFake,
+          currentLevel: rewardResult.currentLevel,
+          reportBlockedUntil: rewardResult.reportBlockedUntil
+        }
+        : null
     }
   }
 }
