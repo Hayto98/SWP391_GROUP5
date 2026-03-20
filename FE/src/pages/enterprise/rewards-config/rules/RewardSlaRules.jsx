@@ -28,6 +28,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -364,8 +371,153 @@ function EditWasteTypeModal({ open, onClose, onConfirm, adding, wasteItem }) {
   );
 }
 
+// Modal chỉnh sửa thông tin loại rác (wasteType) qua API PUT /enterprise/waste-types/:id
+function EditWasteTypeDirectModal({ open, onClose, wasteTypes }) {
+  const [selectedId, setSelectedId] = useState("");
+  const [wasteTypeName, setWasteTypeName] = useState("");
+  const [unitType, setUnitType] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+  const [success, setSuccess] = useState("");
+
+  // Khi chọn loại rác, tự điền form với thông tin hiện tại
+  const handleSelect = (id) => {
+    setSelectedId(id);
+    setErr("");
+    setSuccess("");
+    const found = wasteTypes.find((w) => String(w.wasteTypeId || w.id) === String(id));
+    if (found) {
+      setWasteTypeName(found.wasteTypeName || found.name || "");
+      setUnitType(found.unitType || "");
+    }
+  };
+
+  // Reset khi đóng
+  useEffect(() => {
+    if (!open) {
+      setSelectedId("");
+      setWasteTypeName("");
+      setUnitType("");
+      setErr("");
+      setSuccess("");
+    }
+  }, [open]);
+
+  const handleSubmit = async () => {
+    if (!selectedId) { setErr("Vui lòng chọn loại rác cần sửa"); return; }
+    if (!wasteTypeName.trim()) { setErr("Vui lòng nhập tên loại rác"); return; }
+    if (!unitType.trim()) { setErr("Vui lòng nhập đơn vị tính"); return; }
+
+    setSaving(true);
+    setErr("");
+    setSuccess("");
+    try {
+      const token = localStorage.getItem("accessToken");
+      const res = await fetch(`http://localhost:3000/enterprise/waste-types/${selectedId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          wasteTypeName: wasteTypeName.trim(),
+          unitType: unitType.trim().toUpperCase(),
+        }),
+      });
+      if (res.ok) {
+        setSuccess("Cập nhật loại rác thành công!");
+        setTimeout(() => { onClose(); }, 1000);
+      } else {
+        const body = await res.json().catch(() => ({}));
+        setErr(body?.message || "Cập nhật thất bại!");
+      }
+    } catch (e) {
+      setErr("Lỗi kết nối API!");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Sửa thông tin loại rác</DialogTitle>
+          <DialogDescription>
+            Chọn loại rác cần sửa, sau đó cập nhật tên và đơn vị.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Dropdown chọn loại rác */}
+          <div className="space-y-2">
+            <Label>Chọn loại rác cần sửa</Label>
+            <Select value={selectedId} onValueChange={handleSelect} disabled={saving}>
+              <SelectTrigger>
+                <SelectValue placeholder="-- Chọn loại rác --" />
+              </SelectTrigger>
+              <SelectContent>
+                {wasteTypes.map((w) => (
+                  <SelectItem key={w.wasteTypeId || w.id} value={String(w.wasteTypeId || w.id)}>
+                    {w.wasteTypeName || w.name} (ID: {w.wasteTypeId || w.id})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Tên loại rác */}
+          <div className="space-y-2">
+            <Label htmlFor="edit-direct-name">Tên loại rác</Label>
+            <Input
+              id="edit-direct-name"
+              placeholder="VD: Nhựa HDPE"
+              value={wasteTypeName}
+              onChange={(e) => { setWasteTypeName(e.target.value); setErr(""); }}
+              disabled={saving || !selectedId}
+            />
+          </div>
+
+          {/* Đơn vị tính */}
+          <div className="space-y-2">
+            <Label htmlFor="edit-direct-unit">Đơn vị tính</Label>
+            <Input
+              id="edit-direct-unit"
+              placeholder="VD: KG hoặc LON"
+              value={unitType}
+              onChange={(e) => { setUnitType(e.target.value); setErr(""); }}
+              disabled={saving || !selectedId}
+            />
+          </div>
+
+          {err && (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {err}
+            </div>
+          )}
+          {success && (
+            <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+              {success}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={saving}>
+            Hủy
+          </Button>
+          <Button onClick={handleSubmit} disabled={saving || !selectedId}>
+            {saving ? "Đang lưu..." : "Cập nhật"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function RewardSlaRules() {
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditWasteDirectModal, setShowEditWasteDirectModal] = useState(false);
   const [wasteToDelete, setWasteToDelete] = useState(null);
   const [wasteToEdit, setWasteToEdit] = useState(null);
   const [editRewardDialog, setEditRewardDialog] = useState(false);
@@ -473,6 +625,14 @@ export default function RewardSlaRules() {
               className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm flex items-center gap-2 px-6"
             >
               <Plus className="size-4" /> Thêm loại rác mới
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowEditWasteDirectModal(true)}
+              disabled={adding || saving}
+              className="flex items-center gap-2 px-6"
+            >
+              <Pencil className="size-4" /> Sửa loại rác
             </Button>
 
           </div>
@@ -892,6 +1052,12 @@ export default function RewardSlaRules() {
         onClose={() => setShowAddModal(false)}
         onConfirm={addWasteType}
         adding={adding}
+      />
+
+      <EditWasteTypeDirectModal
+        open={showEditWasteDirectModal}
+        onClose={() => setShowEditWasteDirectModal(false)}
+        wasteTypes={draft.pointsByWaste}
       />
 
       {/* Chỉ render 1 dialog: nếu đang sửa reward config thì không render EditWasteTypeModal */}
