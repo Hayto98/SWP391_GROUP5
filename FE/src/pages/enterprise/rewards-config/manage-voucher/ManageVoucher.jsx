@@ -386,7 +386,7 @@ export default function ManageVoucher() {
       });
       if (!res.ok) throw new Error("Không lấy được chi tiết voucher");
       const data = await res.json();
-      setDetailVoucher(data.voucher || data);
+      setDetailVoucher(data.data || data.voucher || data);
       setDetailOpen(true);
     } catch (err) {
       toast.error("Không lấy được chi tiết voucher");
@@ -764,10 +764,10 @@ export default function ManageVoucher() {
                 <div><b>Mô tả:</b> {detailVoucher.description || detailVoucher.terms_description}</div>
                 <div><b>Điểm quy đổi:</b> {detailVoucher.pointsRequired || detailVoucher.points_required}</div>
                 <div><b>Số lượng:</b> {detailVoucher.quantityTotal}</div>
-                <div><b>Ngày bắt đầu:</b> {detailVoucher.validFrom ? String(detailVoucher.validFrom).substring(0, 10) : ""}</div>
-                <div><b>Ngày hết hạn:</b> {(detailVoucher.validTo || detailVoucher.expiry_date) ? String(detailVoucher.validTo || detailVoucher.expiry_date).substring(0, 10) : ""}</div>
-                {detailVoucher.imageUrl || detailVoucher.image ? (
-                  <img src={detailVoucher.imageUrl || detailVoucher.image} alt="voucher" className="w-full max-h-40 object-contain rounded mt-4" />
+                <div><b>Ngày bắt đầu:</b> {(detailVoucher.validFrom || detailVoucher.createdAt) ? String(detailVoucher.validFrom || detailVoucher.createdAt).substring(0, 10) : ""}</div>
+                <div><b>Ngày hết hạn:</b> {(detailVoucher.validTo || detailVoucher.expiry_date || detailVoucher.expiryDate) ? String(detailVoucher.validTo || detailVoucher.expiry_date || detailVoucher.expiryDate).substring(0, 10) : ""}</div>
+                {detailVoucher.imageUrl || detailVoucher.image || detailVoucher.fileUri ? (
+                  <img src={detailVoucher.imageUrl || detailVoucher.image || detailVoucher.fileUri} alt="voucher" className="w-full max-h-40 object-contain rounded mt-4" />
                 ) : null}
               </div>
             ) : (
