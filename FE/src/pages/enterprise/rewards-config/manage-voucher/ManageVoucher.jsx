@@ -753,25 +753,89 @@ export default function ManageVoucher() {
         })}
         {/* ── Voucher Detail Dialog ── */}
         <Dialog open={isDetailOpen} onOpenChange={setDetailOpen}>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Chi tiết Voucher</DialogTitle>
-            </DialogHeader>
+          {/* Xóa padding mặc định để hình ảnh tràn viền */}
+          <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-white rounded-2xl shadow-xl">
             {detailVoucher ? (
-              <div className="space-y-2">
-                <div><b>Mã:</b> {detailVoucher.voucherCode || detailVoucher.voucher_code}</div>
-                <div><b>Tiêu đề:</b> {detailVoucher.title || detailVoucher.voucher_name}</div>
-                <div><b>Mô tả:</b> {detailVoucher.description || detailVoucher.terms_description}</div>
-                <div><b>Điểm quy đổi:</b> {detailVoucher.pointsRequired || detailVoucher.points_required}</div>
-                <div><b>Số lượng:</b> {detailVoucher.quantityTotal}</div>
-                <div><b>Ngày bắt đầu:</b> {(detailVoucher.validFrom || detailVoucher.createdAt) ? String(detailVoucher.validFrom || detailVoucher.createdAt).substring(0, 10) : ""}</div>
-                <div><b>Ngày hết hạn:</b> {(detailVoucher.validTo || detailVoucher.expiry_date || detailVoucher.expiryDate) ? String(detailVoucher.validTo || detailVoucher.expiry_date || detailVoucher.expiryDate).substring(0, 10) : ""}</div>
-                {detailVoucher.imageUrl || detailVoucher.image || detailVoucher.fileUri ? (
-                  <img src={detailVoucher.imageUrl || detailVoucher.image || detailVoucher.fileUri} alt="voucher" className="w-full max-h-40 object-contain rounded mt-4" />
-                ) : null}
+              <div>
+                {/* 1. Hình ảnh Voucher (Banner) */}
+                {detailVoucher.fileUri ? (
+                  <div className="w-full h-40 sm:h-48 bg-gray-100 relative">
+                    <img 
+                      src={detailVoucher.fileUri} 
+                      alt="voucher" 
+                      className="w-full h-full object-cover" 
+                    />
+                    {/* Đã bỏ badge trạng thái trên góc ảnh theo yêu cầu */}
+                  </div>
+                ) : (
+                  <div className="pt-6 px-6 flex justify-between items-start">
+                    <DialogTitle className="text-xl font-bold">Chi tiết Voucher</DialogTitle>
+                    <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">
+                      {detailVoucher.status}
+                    </span>
+                  </div>
+                )}
+
+                <div className="p-6">
+                  {/* 2. Tiêu đề & Mô tả */}
+                  {detailVoucher.fileUri && (
+                    <DialogTitle className="text-xl font-bold text-gray-900 mb-2 leading-tight">
+                      {detailVoucher.title}
+                    </DialogTitle>
+                  )}
+                  <p className="text-sm text-gray-600 mb-6 leading-relaxed">
+                    {detailVoucher.description}
+                  </p>
+
+                  {/* 3. Khối Mã Voucher (Nổi bật nhất) */}
+                  <div className="relative bg-blue-50 border-2 border-blue-200 border-dashed rounded-xl p-4 mb-6 text-center">
+                    {/* Hai nửa hình tròn tạo hiệu ứng vết cắt của vé */}
+                    <div className="absolute top-1/2 -left-3 w-6 h-6 bg-white rounded-full -translate-y-1/2"></div>
+                    <div className="absolute top-1/2 -right-3 w-6 h-6 bg-white rounded-full -translate-y-1/2"></div>
+                    
+                    <p className="text-xs text-blue-500 font-semibold mb-1 uppercase tracking-widest">Mã Code</p>
+                    <p className="text-3xl font-mono font-extrabold text-blue-700 tracking-wider">
+                      {detailVoucher.voucherCode}
+                    </p>
+                  </div>
+
+                  {/* 4. Lưới thông số (Grid) */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                      <p className="text-xs text-gray-500 mb-1">Điểm quy đổi</p>
+                      <p className="text-sm font-semibold text-gray-900">
+                        <span className="text-yellow-500 font-bold mr-1">★</span> 
+                        {detailVoucher.pointsRequired} điểm
+                      </p>
+                    </div>
+                    
+                    <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                      <p className="text-xs text-gray-500 mb-1">Đã đổi</p>
+                      <p className="text-sm font-semibold text-gray-900">
+                        {detailVoucher.redeemedCount} lượt
+                      </p>
+                    </div>
+
+                    <div className="bg-gray-50 p-3 rounded-lg border border-gray-100 col-span-2 flex justify-between items-center">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Ngày hết hạn</p>
+                        <p className="text-sm font-semibold text-red-600">
+                          {detailVoucher.expiryDate ? String(detailVoucher.expiryDate).substring(0, 10) : "Vô thời hạn"}
+                        </p>
+                      </div>
+                      {/* Badge trạng thái đặt cạnh nút đóng (nút đóng đã có ở góc dialog) */}
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold shadow ${detailVoucher.status === 'ACTIVE' || detailVoucher.status === 'ĐANG BẬT' ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
+                        {detailVoucher.status}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
             ) : (
-              <div>Đang tải...</div>
+              <div className="p-12 text-center flex flex-col items-center">
+                <div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin mb-4"></div>
+                <p className="text-gray-500 text-sm font-medium">Đang tải dữ liệu...</p>
+              </div>
             )}
           </DialogContent>
         </Dialog>
