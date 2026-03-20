@@ -41,6 +41,11 @@ router.get('/ping', (req, res) => {
 })
 
 /**
+ * GET /enterprise/dashboard/statistics - Thống kê Dashboard
+ */
+router.get('/dashboard/statistics', enterpriseController.getDashboardStatistics)
+
+/**
  * GET /enterprise/notifications - Danh sách thông báo
  */
 router.get('/notifications', notificationController.getNotifications)

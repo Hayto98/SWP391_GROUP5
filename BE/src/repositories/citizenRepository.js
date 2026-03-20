@@ -89,4 +89,45 @@ async function findPointTransactions(citizenId, { fromDate, toDate, type, page =
   return rows
 }
 
-module.exports = { findByUserAccountId, findByUserAccountIdForUpdate, findPointTransactions }
+async function getDashboardStatistics(citizenId, startDate, endDate) {
+  const query = `
+    SELECT 
+      (
+        SELECT COALESCE(SUM(points_delta), 0) 
+        FROM pointtransaction 
+        WHERE citizen_id = ? AND created_at >= ? AND created_at < ?
+      ) AS totalPoints,
+      (
+        SELECT JSON_ARRAYAGG(
+          JSON_OBJECT(
+            'date', dateStr,
+            'reports', dailyReports,
+            'completed', dailyCompleted,
+            'rejected', dailyRejected
+          )
+        )
+        FROM (
+          SELECT 
+            DATE_FORMAT(created_at, '%Y-%m-%d') AS dateStr,
+            COUNT(waste_report_id) AS dailyReports,
+            SUM(CASE WHEN report_status_type_id = 4 THEN 1 ELSE 0 END) AS dailyCompleted,
+            SUM(CASE WHEN report_status_type_id = 5 THEN 1 ELSE 0 END) AS dailyRejected
+          FROM wastereport
+          WHERE citizen_id = ? 
+            AND created_at >= ? 
+            AND created_at < ?
+          GROUP BY DATE_FORMAT(created_at, '%Y-%m-%d')
+          ORDER BY dateStr ASC
+        ) sub
+      ) AS dailyStats
+  `
+
+  const [rows] = await db.query(query, [
+    citizenId, startDate, endDate,
+    citizenId, startDate, endDate
+  ])
+
+  return rows[0] || {}
+}
+
+module.exports = { findByUserAccountId, findByUserAccountIdForUpdate, findPointTransactions, getDashboardStatistics }

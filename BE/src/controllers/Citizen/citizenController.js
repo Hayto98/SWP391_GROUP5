@@ -21,4 +21,21 @@ async function getPointHistory(req, res, next) {
   }
 }
 
-module.exports = { getMyPoints, getPointHistory }
+async function getDashboardStatistics(req, res, next) {
+  try {
+    const userAccountId = req.user.sub
+    const citizenId = req.user.citizenId || null
+    const { month, year } = req.query
+
+    const result = await citizenService.getDashboardStatistics(userAccountId, citizenId, month, year)
+    
+    res.status(200).json({
+      success: true,
+      data: result
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+module.exports = { getMyPoints, getPointHistory, getDashboardStatistics }
