@@ -108,17 +108,30 @@ function AddWasteTypeModal({ open, onClose, onConfirm, adding }) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="add-waste-unit">Đơn vị tính</Label>
-            <Input
-              id="add-waste-unit"
-              placeholder="VD: KG hoặc LON"
-              value={unit}
-              onChange={(e) => {
-                setUnit(e.target.value);
-                setLocalErr("");
-              }}
-              disabled={adding}
-            />
+            <Label>Đơn vị tính</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { value: "KG", label: "Kilogram", sub: "KG" },
+                { value: "CHAI", label: "Chai", sub: "CHAI" },
+                { value: "LON", label: "Lon", sub: "LON" },
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  disabled={adding}
+                  onClick={() => { setUnit(opt.value); setLocalErr(""); }}
+                  className={[
+                    "flex flex-col items-center justify-center gap-1 rounded-lg border-2 px-3 py-3 text-sm font-medium transition-all",
+                    unit === opt.value
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-muted bg-muted/30 text-muted-foreground hover:border-primary/50 hover:bg-primary/5",
+                    adding ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
+                  ].join(" ")}
+                >
+                  <span className="text-sm font-semibold">{opt.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {localErr && (
