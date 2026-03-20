@@ -802,7 +802,19 @@ export default function RewardSlaRules() {
               <div><b>Tên loại rác:</b> {detailWasteType.wasteTypeName}</div>
               <div><b>Đơn vị:</b> {detailWasteType.unitType}</div>
               <div><b>Trạng thái:</b> {detailWasteType.isActive ? "Đang hoạt động" : "Đã tắt"}</div>
-              <div><b>Reward Config:</b> {detailWasteType.rewardConfig ? JSON.stringify(detailWasteType.rewardConfig) : "Chưa cấu hình"}</div>
+              <div><b>Reward Config:</b>
+                {detailWasteType.rewardConfig ? (
+                  <ul style={{ margin: 0, paddingLeft: 16 }}>
+                    <li><b>Điểm mỗi đơn vị:</b> {detailWasteType.rewardConfig.pointsPerUnit}</li>
+                    <li><b>Mô tả:</b> {detailWasteType.rewardConfig.description}</li>
+                    <li><b>Tỷ lệ sai số (%):</b> {detailWasteType.rewardConfig.allowedVariancePercent}</li>
+                    <li><b>Khối lượng tối thiểu:</b> {detailWasteType.rewardConfig.minKgRequired}</li>
+                    <li><b>Khối lượng tối đa:</b> {detailWasteType.rewardConfig.maxKgRequired}</li>
+                    <li><b>Phần trăm phạt (%):</b> {detailWasteType.rewardConfig.penaltyPercent}</li>
+                    <li><b>Trạng thái:</b> {detailWasteType.rewardConfig.isActive ? "Đang hoạt động" : "Đã tắt"}</li>
+                  </ul>
+                ) : "Chưa cấu hình"}
+              </div>
             </div>
           ) : null}
           <DialogFooter>
