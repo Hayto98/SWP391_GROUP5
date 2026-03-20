@@ -615,11 +615,8 @@ async function getDashboardStatistics(fromDate, toDate, groupBy = 'day') {
     throw new ApiError(400, 'Không thể truy vấn dữ liệu trong tương lai')
   }
 
-  const diffTime = Math.abs(endDate - startDate)
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-  if (diffDays > 365) {
-    throw new ApiError(400, 'Khoảng thời gian không được vượt quá 1 năm')
-  }
+
+
 
   const formatDate = (date) => {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`

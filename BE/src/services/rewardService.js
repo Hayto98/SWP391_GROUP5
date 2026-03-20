@@ -123,16 +123,20 @@ async function applyPenaltyIfLevelEscalated(
         )
       }
 
-      return {
-        lastPenaltyLevel: currentLevel,
-        reportBlockedUntil
-      }
+      // Don't return early here, just let it fall through
     }
 
+    // Return the updated penalty level so we don't repeatedly penalize
     return {
-      lastPenaltyLevel,
+      lastPenaltyLevel: currentLevel,
       reportBlockedUntil
     }
+  }
+
+  // If level didn't escalate, return the unchanged values
+  return {
+    lastPenaltyLevel,
+    reportBlockedUntil
   }
 }
 

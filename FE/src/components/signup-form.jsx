@@ -29,6 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import bgImage from "@/assets/img/TaiCheRacDiemThuong.png";
 
 const registerFormSchema = z
   .object({
@@ -294,7 +295,7 @@ export function SignupForm({ className, ...props }) {
           </form>
           <div className="bg-muted relative hidden md:block">
             <img
-              src="https://www.blog.impaac.org/wp-content/uploads/2022/10/Crowdfunding-Benefits-Impaac-Foundation-non-profit-platform-sustainable-afforestation-deforestation-sustainable-planet-sustain-save-protect-donate-Daanutsav-Recycling-1024x1024.jpg"
+              src={bgImage}
               alt="Image"
               className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
             />
@@ -312,8 +313,8 @@ export function SignupForm({ className, ...props }) {
           if (!otpSubmitting) {
             setOtpDialogOpen(open);
             if (!open) {
-                resetOtpState();
-                navigate("/login");
+              resetOtpState();
+              navigate("/login");
             }
           }
         }}
