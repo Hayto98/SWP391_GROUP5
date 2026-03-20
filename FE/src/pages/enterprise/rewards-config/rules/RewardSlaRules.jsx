@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-// ...existing code...
+import { toast } from "sonner";
 
 // Hàm fetch wasteType theo ID
 async function fetchWasteTypeById(wasteTypeId) {
@@ -1102,9 +1102,13 @@ export default function RewardSlaRules() {
                   setRewardErr('Phần trăm phạt phải là số >= 0!'); return;
                 }
                 try {
+                  const token = localStorage.getItem("accessToken");
                   const res = await fetch('http://localhost:3000/enterprise/reward-config', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                      'Content-Type': 'application/json',
+                      ...(token ? { Authorization: `Bearer ${token}` } : {})
+                    },
                     body: JSON.stringify({
                       wasteTypeId: rewardDialogWaste.id,
                       pointsPerUnit: Number(rewardPayload.pointsPerUnit),
@@ -1116,11 +1120,11 @@ export default function RewardSlaRules() {
                     })
                   });
                   if (res.ok) {
-                    alert('Thêm reward config thành công!');
+                    toast.success('Thêm reward config thành công!');
                     setShowRewardDialog(false);
                     setRewardDialogWaste(null);
                   } else {
-                    setRewardErr('Thêm reward config thất bại!');
+                   toast.error('Thêm reward config thất bại!');
                   }
                 } catch (e) {
                   setRewardErr('Lỗi khi gọi API reward-config!');
