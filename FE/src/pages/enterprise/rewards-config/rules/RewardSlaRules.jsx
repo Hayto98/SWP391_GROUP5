@@ -42,7 +42,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Eye, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Eye, Info, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { useRewardSlaRules } from "../../../../hooks/useRewardSlaRules";
 
 function AddWasteTypeModal({ open, onClose, onConfirm, adding }) {
@@ -543,9 +543,12 @@ export default function RewardSlaRules() {
     maxKgRequired: ''
   });
   const [editRewardErr, setEditRewardErr] = useState('');
+  const [editRewardFocused, setEditRewardFocused] = useState('');
+
   // State cho dialog thêm reward-config
   // Dialog thêm reward config cho loại rác chưa có
   const [showRewardDialog, setShowRewardDialog] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
   const [rewardDialogWaste, setRewardDialogWaste] = useState(null);
   const [rewardPayload, setRewardPayload] = useState({
     pointsPerUnit: '',
@@ -556,6 +559,16 @@ export default function RewardSlaRules() {
     penaltyPercent: ''
   });
   const [rewardErr, setRewardErr] = useState('');
+  const [rewardFocused, setRewardFocused] = useState('');
+
+  const REWARD_HINTS = {
+    pointsPerUnit: "VD: 5. Mỗi đơn vị rác (theo kg, chai hoặc lon) sẽ nhận số điểm thưởng tương ứng.",
+    description: "Mô tả ngắn gọn về quy tắc thưởng này (VD: Thu gom giấy, Nhựa loại 1...).",
+    allowedVariancePercent: "Tỷ lệ sai số khối lượng cho phép giữa báo cáo và thực tế (VD: 10%).",
+    minKgRequired: "Khối lượng tối thiểu để được nhận điểm thưởng theo quy tắc này.",
+    maxKgRequired: "Khối lượng tối đa có thể nhận thưởng (bỏ trống nếu không giới hạn).",
+    penaltyPercent: "Tỷ lệ hệ số phạt nếu rác vượt sai số cho phép, sẽ trừ vào tổng điểm."
+  };
 
   // State cho dialog chi tiết wasteType
   const [detailWasteType, setDetailWasteType] = useState(null);
@@ -801,127 +814,161 @@ export default function RewardSlaRules() {
       {/* Dialog sửa reward config */}
       <Dialog open={editRewardDialog && !!wasteToEdit} onOpenChange={v => { setEditRewardDialog(v); if (!v) setWasteToEdit(null); }}>
         <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Sửa Điểm Thưởng</DialogTitle>
-                        <DialogDescription>
-                          Cập nhật điểm thưởng cho loại rác <b>{wasteToEdit?.name}</b> (ID: {wasteToEdit?.id})
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-3">
-                        {editRewardErr && (
-                          <div className="mt-1 text-red-600 font-semibold text-sm">{editRewardErr}</div>
-                        )}
-                        <div className="space-y-1">
-                          <Label htmlFor="edit-reward-points">Điểm mỗi đơn vị</Label>
-                          <Input
-                            id="edit-reward-points"
-                            type="number"
-                            value={editRewardPayload.pointsPerUnit}
-                            onChange={e => setEditRewardPayload(p => ({ ...p, pointsPerUnit: e.target.value }))}
-                            placeholder="VD: 9"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label htmlFor="edit-reward-desc">Mô tả</Label>
-                          <Input
-                            id="edit-reward-desc"
-                            value={editRewardPayload.description}
-                            onChange={e => setEditRewardPayload(p => ({ ...p, description: e.target.value }))}
-                            placeholder="VD: 100 điểm mỗi kg"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label htmlFor="edit-reward-variance">Tỷ lệ sai số (%)</Label>
-                          <Input
-                            id="edit-reward-variance"
-                            type="number"
-                            value={editRewardPayload.allowedVariancePercent}
-                            onChange={e => setEditRewardPayload(p => ({ ...p, allowedVariancePercent: e.target.value }))}
-                            placeholder="VD: 8"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label htmlFor="edit-reward-minkg">Số kg tối thiểu</Label>
-                          <Input
-                            id="edit-reward-minkg"
-                            type="number"
-                            value={editRewardPayload.minKgRequired}
-                            onChange={e => setEditRewardPayload(p => ({ ...p, minKgRequired: e.target.value }))}
-                            placeholder="VD: 1"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label htmlFor="edit-reward-maxkg">Số kg tối đa</Label>
-                          <Input
-                            id="edit-reward-maxkg"
-                            type="number"
-                            value={editRewardPayload.maxKgRequired}
-                            onChange={e => setEditRewardPayload(p => ({ ...p, maxKgRequired: e.target.value }))}
-                            placeholder="VD: 30"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label htmlFor="edit-reward-penalty">Phần trăm phạt (%)</Label>
-                          <Input
-                            id="edit-reward-penalty"
-                            type="number"
-                            value={editRewardPayload.penaltyPercent}
-                            onChange={e => setEditRewardPayload(p => ({ ...p, penaltyPercent: e.target.value }))}
-                            placeholder="VD: 6"
-                          />
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setEditRewardDialog(false)}>
-                          Hủy
-                        </Button>
-                        <Button
-                          onClick={async () => {
-                            setEditRewardErr('');
-                            if (!editRewardPayload.pointsPerUnit || isNaN(Number(editRewardPayload.pointsPerUnit)) || Number(editRewardPayload.pointsPerUnit) <= 0) {
-                              setEditRewardErr('Điểm mỗi đơn vị phải là số > 0!'); return;
-                            }
-                            if (editRewardPayload.allowedVariancePercent && (isNaN(Number(editRewardPayload.allowedVariancePercent)) || Number(editRewardPayload.allowedVariancePercent) < 0)) {
-                              setEditRewardErr('Tỷ lệ sai số phải là số >= 0!'); return;
-                            }
-                            if (editRewardPayload.minKgRequired && (isNaN(Number(editRewardPayload.minKgRequired)) || Number(editRewardPayload.minKgRequired) < 0)) {
-                              setEditRewardErr('Số kg tối thiểu phải là số >= 0!'); return;
-                            }
-                            if (editRewardPayload.maxKgRequired && (isNaN(Number(editRewardPayload.maxKgRequired)) || Number(editRewardPayload.maxKgRequired) < 0)) {
-                              setEditRewardErr('Số kg tối đa phải là số >= 0!'); return;
-                            }
-                            if (editRewardPayload.penaltyPercent && (isNaN(Number(editRewardPayload.penaltyPercent)) || Number(editRewardPayload.penaltyPercent) < 0)) {
-                              setEditRewardErr('Phần trăm phạt phải là số >= 0!'); return;
-                            }
-                            try {
-                              const res = await fetch(`http://localhost:3000/enterprise/reward-config/${wasteToEdit.rewardConfigId || wasteToEdit.id}`,
-                                {
-                                  method: 'PUT',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({
-                                    pointsPerUnit: Number(editRewardPayload.pointsPerUnit),
-                                    description: editRewardPayload.description,
-                                    allowedVariancePercent: editRewardPayload.allowedVariancePercent ? Number(editRewardPayload.allowedVariancePercent) : undefined,
-                                    penaltyPercent: editRewardPayload.penaltyPercent ? Number(editRewardPayload.penaltyPercent) : undefined,
-                                    minKgRequired: editRewardPayload.minKgRequired ? Number(editRewardPayload.minKgRequired) : undefined,
-                                    maxKgRequired: editRewardPayload.maxKgRequired ? Number(editRewardPayload.maxKgRequired) : undefined
-                                  })
-                                });
-                              if (res.ok) {
-                                alert('Cập nhật reward config thành công!');
-                                setEditRewardDialog(false);
-                                setWasteToEdit(null);
-                              } else {
-                                setEditRewardErr('Cập nhật reward config thất bại!');
-                              }
-                            } catch (e) {
-                              setEditRewardErr('Lỗi khi gọi API cập nhật reward config!');
-                            }
-                          }}
-                        >
-                          Cập Nhật
-                        </Button>
-                      </DialogFooter>
+          <DialogHeader>
+            <DialogTitle>Sửa Điểm Thưởng</DialogTitle>
+            <DialogDescription className="flex items-center justify-between border-b pb-2">
+              <span>Cập nhật điểm thưởng cho loại rác <b>{wasteToEdit?.name}</b> (ID: {wasteToEdit?.id})</span>
+              <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => setShowGuide(!showGuide)} title="Hướng dẫn tính điểm">
+                <Info className="size-4" />
+              </Button>
+            </DialogDescription>
+          </DialogHeader>
+
+          {showGuide && (
+            <div className="bg-blue-50/80 text-blue-900 p-3 rounded-lg text-sm space-y-2 mb-2 border border-blue-100">
+              <p className="font-semibold text-blue-700">Hướng dẫn chung về cách tính điểm:</p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li><b>Điểm nhận được</b> = <code>Khối lượng &times; Điểm mỗi đơn vị</code>.</li>
+                <li>Nếu khối lượng nằm ngoài khoảng <b>Tối thiểu / Tối đa</b>, hệ thống sẽ từ chối tự động duyệt.</li>
+                <li><b>Sai số:</b> Nếu khối lượng thu gom thực tế chênh lệch với khai báo trong <b>Tỷ lệ cho phép</b> thì vẫn nhận đủ điểm.</li>
+                <li><b>Phạt:</b> Nếu sai số lớn hơn Tỷ lệ cho phép, công dân sẽ bị trừ bớt điểm theo <b>Tỷ lệ phạt</b>.</li>
+              </ul>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            {editRewardErr && (
+              <div className="mt-1 text-red-600 font-semibold text-sm">{editRewardErr}</div>
+            )}
+            <div className="space-y-1">
+              <Label htmlFor="edit-reward-points">Điểm mỗi đơn vị</Label>
+              <Input
+                id="edit-reward-points"
+                type="number"
+                value={editRewardPayload.pointsPerUnit}
+                onChange={e => setEditRewardPayload(p => ({ ...p, pointsPerUnit: e.target.value }))}
+                onFocus={() => setEditRewardFocused('pointsPerUnit')}
+                onBlur={() => setEditRewardFocused('')}
+                placeholder="VD: 9"
+              />
+              {editRewardFocused === 'pointsPerUnit' && <p className="text-[13px] text-red-500 font-medium leading-tight">{REWARD_HINTS.pointsPerUnit}</p>}
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="edit-reward-desc">Mô tả</Label>
+              <Input
+                id="edit-reward-desc"
+                value={editRewardPayload.description}
+                onChange={e => setEditRewardPayload(p => ({ ...p, description: e.target.value }))}
+                onFocus={() => setEditRewardFocused('description')}
+                onBlur={() => setEditRewardFocused('')}
+                placeholder="VD: 100 điểm mỗi kg"
+              />
+              {editRewardFocused === 'description' && <p className="text-[13px] text-red-500 font-medium leading-tight">{REWARD_HINTS.description}</p>}
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="edit-reward-variance">Tỷ lệ sai số (%)</Label>
+              <Input
+                id="edit-reward-variance"
+                type="number"
+                value={editRewardPayload.allowedVariancePercent}
+                onChange={e => setEditRewardPayload(p => ({ ...p, allowedVariancePercent: e.target.value }))}
+                onFocus={() => setEditRewardFocused('allowedVariancePercent')}
+                onBlur={() => setEditRewardFocused('')}
+                placeholder="VD: 8"
+              />
+              {editRewardFocused === 'allowedVariancePercent' && <p className="text-[13px] text-red-500 font-medium leading-tight">{REWARD_HINTS.allowedVariancePercent}</p>}
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="edit-reward-minkg">Số kg tối thiểu</Label>
+              <Input
+                id="edit-reward-minkg"
+                type="number"
+                value={editRewardPayload.minKgRequired}
+                onChange={e => setEditRewardPayload(p => ({ ...p, minKgRequired: e.target.value }))}
+                onFocus={() => setEditRewardFocused('minKgRequired')}
+                onBlur={() => setEditRewardFocused('')}
+                placeholder="VD: 1"
+              />
+              {editRewardFocused === 'minKgRequired' && <p className="text-[13px] text-red-500 font-medium leading-tight">{REWARD_HINTS.minKgRequired}</p>}
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="edit-reward-maxkg">Số kg tối đa</Label>
+              <Input
+                id="edit-reward-maxkg"
+                type="number"
+                value={editRewardPayload.maxKgRequired}
+                onChange={e => setEditRewardPayload(p => ({ ...p, maxKgRequired: e.target.value }))}
+                onFocus={() => setEditRewardFocused('maxKgRequired')}
+                onBlur={() => setEditRewardFocused('')}
+                placeholder="VD: 30"
+              />
+              {editRewardFocused === 'maxKgRequired' && <p className="text-[13px] text-red-500 font-medium leading-tight">{REWARD_HINTS.maxKgRequired}</p>}
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="edit-reward-penalty">Phần trăm phạt (%)</Label>
+              <Input
+                id="edit-reward-penalty"
+                type="number"
+                value={editRewardPayload.penaltyPercent}
+                onChange={e => setEditRewardPayload(p => ({ ...p, penaltyPercent: e.target.value }))}
+                onFocus={() => setEditRewardFocused('penaltyPercent')}
+                onBlur={() => setEditRewardFocused('')}
+                placeholder="VD: 6"
+              />
+              {editRewardFocused === 'penaltyPercent' && <p className="text-[13px] text-red-500 font-medium leading-tight">{REWARD_HINTS.penaltyPercent}</p>}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditRewardDialog(false)}>
+              Hủy
+            </Button>
+            <Button
+              onClick={async () => {
+                setEditRewardErr('');
+                if (!editRewardPayload.pointsPerUnit || isNaN(Number(editRewardPayload.pointsPerUnit)) || Number(editRewardPayload.pointsPerUnit) <= 0) {
+                  setEditRewardErr('Điểm mỗi đơn vị phải là số > 0!'); return;
+                }
+                if (editRewardPayload.allowedVariancePercent && (isNaN(Number(editRewardPayload.allowedVariancePercent)) || Number(editRewardPayload.allowedVariancePercent) < 0)) {
+                  setEditRewardErr('Tỷ lệ sai số phải là số >= 0!'); return;
+                }
+                if (editRewardPayload.minKgRequired && (isNaN(Number(editRewardPayload.minKgRequired)) || Number(editRewardPayload.minKgRequired) < 0)) {
+                  setEditRewardErr('Số kg tối thiểu phải là số >= 0!'); return;
+                }
+                if (editRewardPayload.maxKgRequired && (isNaN(Number(editRewardPayload.maxKgRequired)) || Number(editRewardPayload.maxKgRequired) < 0)) {
+                  setEditRewardErr('Số kg tối đa phải là số >= 0!'); return;
+                }
+                if (editRewardPayload.penaltyPercent && (isNaN(Number(editRewardPayload.penaltyPercent)) || Number(editRewardPayload.penaltyPercent) < 0)) {
+                  setEditRewardErr('Phần trăm phạt phải là số >= 0!'); return;
+                }
+                try {
+                  const res = await fetch(`http://localhost:3000/enterprise/reward-config/${wasteToEdit.rewardConfigId || wasteToEdit.id}`,
+                    {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        pointsPerUnit: Number(editRewardPayload.pointsPerUnit),
+                        description: editRewardPayload.description,
+                        allowedVariancePercent: editRewardPayload.allowedVariancePercent ? Number(editRewardPayload.allowedVariancePercent) : undefined,
+                        penaltyPercent: editRewardPayload.penaltyPercent ? Number(editRewardPayload.penaltyPercent) : undefined,
+                        minKgRequired: editRewardPayload.minKgRequired ? Number(editRewardPayload.minKgRequired) : undefined,
+                        maxKgRequired: editRewardPayload.maxKgRequired ? Number(editRewardPayload.maxKgRequired) : undefined
+                      })
+                    });
+                  if (res.ok) {
+                    alert('Cập nhật reward config thành công!');
+                    setEditRewardDialog(false);
+                    setWasteToEdit(null);
+                  } else {
+                    setEditRewardErr('Cập nhật reward config thất bại!');
+                  }
+                } catch (e) {
+                  setEditRewardErr('Lỗi khi gọi API cập nhật reward config!');
+                }
+              }}
+            >
+              Cập Nhật
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -930,10 +977,26 @@ export default function RewardSlaRules() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Thêm điểm thưởng cho loại rác</DialogTitle>
-            <DialogDescription>
-              Nhập thông tin điểm thưởng cho loại rác <b>{rewardDialogWaste?.name}</b> (ID: {rewardDialogWaste?.id})
+            <DialogDescription className="flex items-center justify-between border-b pb-2">
+              <span>Nhập thông tin điểm thưởng cho loại rác <b>{rewardDialogWaste?.name}</b> (ID: {rewardDialogWaste?.id})</span>
+              <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => setShowGuide(!showGuide)} title="Hướng dẫn tính điểm">
+                <Info className="size-4" />
+              </Button>
             </DialogDescription>
           </DialogHeader>
+
+          {showGuide && (
+            <div className="bg-blue-50/80 text-blue-900 p-3 rounded-lg text-sm space-y-2 mb-2 border border-blue-100">
+              <p className="font-semibold text-blue-700">Hướng dẫn chung về cách tính điểm:</p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li><b>Điểm nhận được</b> = <code>Khối lượng &times; Điểm mỗi đơn vị</code>.</li>
+                <li>Nếu khối lượng nằm ngoài khoảng <b>Tối thiểu / Tối đa</b>, hệ thống sẽ từ chối tự động duyệt.</li>
+                <li><b>Sai số:</b> Nếu khối lượng thu gom thực tế chênh lệch với khai báo trong <b>Tỷ lệ cho phép</b> thì vẫn nhận đủ điểm.</li>
+                <li><b>Phạt:</b> Nếu sai số lớn hơn Tỷ lệ cho phép, công dân sẽ bị trừ bớt điểm theo <b>Tỷ lệ phạt</b>.</li>
+              </ul>
+            </div>
+          )}
+
           <div className="space-y-3">
             {rewardErr && (
               <div className="mt-1 text-red-600 font-semibold text-sm">{rewardErr}</div>
@@ -945,8 +1008,11 @@ export default function RewardSlaRules() {
                 type="number"
                 value={rewardPayload.pointsPerUnit}
                 onChange={e => setRewardPayload(p => ({ ...p, pointsPerUnit: e.target.value }))}
+                onFocus={() => setRewardFocused('pointsPerUnit')}
+                onBlur={() => setRewardFocused('')}
                 placeholder="VD: 5"
               />
+              {rewardFocused === 'pointsPerUnit' && <p className="text-[13px] text-red-500 font-medium leading-tight">{REWARD_HINTS.pointsPerUnit}</p>}
             </div>
             <div className="space-y-1">
               <Label htmlFor="reward-desc">Mô tả</Label>
@@ -954,8 +1020,11 @@ export default function RewardSlaRules() {
                 id="reward-desc"
                 value={rewardPayload.description}
                 onChange={e => setRewardPayload(p => ({ ...p, description: e.target.value }))}
+                onFocus={() => setRewardFocused('description')}
+                onBlur={() => setRewardFocused('')}
                 placeholder="VD: 5 điểm mỗi kg"
               />
+              {rewardFocused === 'description' && <p className="text-[13px] text-red-500 font-medium leading-tight">{REWARD_HINTS.description}</p>}
             </div>
             <div className="space-y-1">
               <Label htmlFor="reward-variance">Tỷ lệ sai số (%)</Label>
@@ -964,8 +1033,11 @@ export default function RewardSlaRules() {
                 type="number"
                 value={rewardPayload.allowedVariancePercent}
                 onChange={e => setRewardPayload(p => ({ ...p, allowedVariancePercent: e.target.value }))}
+                onFocus={() => setRewardFocused('allowedVariancePercent')}
+                onBlur={() => setRewardFocused('')}
                 placeholder="VD: 10"
               />
+              {rewardFocused === 'allowedVariancePercent' && <p className="text-[13px] text-red-500 font-medium leading-tight">{REWARD_HINTS.allowedVariancePercent}</p>}
             </div>
             <div className="space-y-1">
               <Label htmlFor="reward-minkg">Số kg tối thiểu</Label>
@@ -974,8 +1046,11 @@ export default function RewardSlaRules() {
                 type="number"
                 value={rewardPayload.minKgRequired}
                 onChange={e => setRewardPayload(p => ({ ...p, minKgRequired: e.target.value }))}
+                onFocus={() => setRewardFocused('minKgRequired')}
+                onBlur={() => setRewardFocused('')}
                 placeholder="VD: 1"
               />
+              {rewardFocused === 'minKgRequired' && <p className="text-[13px] text-red-500 font-medium leading-tight">{REWARD_HINTS.minKgRequired}</p>}
             </div>
             <div className="space-y-1">
               <Label htmlFor="reward-maxkg">Số kg tối đa</Label>
@@ -984,8 +1059,11 @@ export default function RewardSlaRules() {
                 type="number"
                 value={rewardPayload.maxKgRequired}
                 onChange={e => setRewardPayload(p => ({ ...p, maxKgRequired: e.target.value }))}
+                onFocus={() => setRewardFocused('maxKgRequired')}
+                onBlur={() => setRewardFocused('')}
                 placeholder="VD: 5"
               />
+              {rewardFocused === 'maxKgRequired' && <p className="text-[13px] text-red-500 font-medium leading-tight">{REWARD_HINTS.maxKgRequired}</p>}
             </div>
             <div className="space-y-1">
               <Label htmlFor="reward-penalty">Phần trăm phạt (%)</Label>
@@ -994,8 +1072,11 @@ export default function RewardSlaRules() {
                 type="number"
                 value={rewardPayload.penaltyPercent}
                 onChange={e => setRewardPayload(p => ({ ...p, penaltyPercent: e.target.value }))}
+                onFocus={() => setRewardFocused('penaltyPercent')}
+                onBlur={() => setRewardFocused('')}
                 placeholder="VD: 5"
               />
+              {rewardFocused === 'penaltyPercent' && <p className="text-[13px] text-red-500 font-medium leading-tight">{REWARD_HINTS.penaltyPercent}</p>}
             </div>
           </div>
           <DialogFooter>
@@ -1046,7 +1127,7 @@ export default function RewardSlaRules() {
                 }
               }}
             >
-              Thêm reward config
+              Thêm
             </Button>
           </DialogFooter>
         </DialogContent>
