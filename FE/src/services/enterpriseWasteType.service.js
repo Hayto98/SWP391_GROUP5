@@ -147,7 +147,7 @@ export async function getWasteTypes(params = {}) {
     };
   }
 
-    return request("/enterprise/waste-types", {
+    return request("/api/v1/enterprise/waste-types", {
     method: "GET",
     headers: getAuthHeaders(),
     params,

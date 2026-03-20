@@ -1,3 +1,19 @@
+import { useEffect, useMemo, useState } from "react";
+// ...existing code...
+
+// Hàm fetch wasteType theo ID
+async function fetchWasteTypeById(wasteTypeId) {
+  const token = localStorage.getItem("accessToken");
+  const res = await fetch(`http://localhost:3000/api/v1/enterprise/waste-types/${wasteTypeId}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    }
+  });
+  if (!res.ok) throw new Error('Không lấy được thông tin loại rác');
+  return (await res.json()).data;
+}
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,7 +36,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
 import { useRewardSlaRules } from "../../../../hooks/useRewardSlaRules";
 
 function AddWasteTypeModal({ open, onClose, onConfirm, adding }) {
@@ -377,6 +392,11 @@ export default function RewardSlaRules() {
   });
   const [rewardErr, setRewardErr] = useState('');
 
+  // State cho dialog chi tiết wasteType
+  const [detailWasteType, setDetailWasteType] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailErr, setDetailErr] = useState("");
+
   const {
     draft,
     loading,
@@ -481,7 +501,49 @@ export default function RewardSlaRules() {
             <TableBody>
               {draft.pointsByWaste.map((w) => (
                 <TableRow key={w.id}>
-                  <TableCell className="font-medium">{w.name}</TableCell>
+                  <TableCell className="font-medium">
+                    <span
+                      style={{ cursor: "pointer", textDecoration: "underline" }}
+                      onClick={async () => {
+                        setDetailLoading(true);
+                        setDetailErr("");
+                        try {
+                          const data = await fetchWasteTypeById(w.wasteTypeId || w.id);
+                          setDetailWasteType(data);
+                        } catch (e) {
+                          setDetailErr(e.message || "Lỗi khi lấy thông tin loại rác");
+                        } finally {
+                          setDetailLoading(false);
+                        }
+                      }}
+                    >
+                      {w.name}
+                    </span>
+                  </TableCell>
+                        {/* Dialog hiển thị chi tiết wasteType - render ngoài map, chỉ 1 lần */}
+                        <Dialog open={!!detailWasteType || detailLoading || !!detailErr} onOpenChange={v => { if (!v) { setDetailWasteType(null); setDetailErr(""); } }}>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Thông tin chi tiết loại rác</DialogTitle>
+                            </DialogHeader>
+                            {detailLoading ? (
+                              <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Đang tải...</div>
+                            ) : detailErr ? (
+                              <div className="text-red-600 font-semibold text-sm">{detailErr}</div>
+                            ) : detailWasteType ? (
+                              <div className="space-y-2">
+                                <div><b>ID:</b> {detailWasteType.wasteTypeId}</div>
+                                <div><b>Tên loại rác:</b> {detailWasteType.wasteTypeName}</div>
+                                <div><b>Đơn vị:</b> {detailWasteType.unitType}</div>
+                                <div><b>Trạng thái:</b> {detailWasteType.isActive ? "Đang hoạt động" : "Đã tắt"}</div>
+                                <div><b>Reward Config:</b> {detailWasteType.rewardConfig ? JSON.stringify(detailWasteType.rewardConfig) : "Chưa cấu hình"}</div>
+                              </div>
+                            ) : null}
+                            <DialogFooter>
+                              <Button variant="outline" onClick={() => { setDetailWasteType(null); setDetailErr(""); }}>Đóng</Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
                   <TableCell>
                     <div className="text-sm text-muted-foreground space-y-1">
                       <p>{w.desc}</p>
