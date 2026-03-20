@@ -357,7 +357,10 @@ export default function ManageVoucher() {
   // Xem chi tiết voucher
   const handleViewDetail = async (voucherId) => {
     try {
-      const res = await fetch(`http://localhost:3000/api/v1/enterprise/vouchers/${voucherId}`);
+      const token = localStorage.getItem("accessToken");
+      const res = await fetch(`http://localhost:3000/api/v1/enterprise/vouchers/${voucherId}`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
       if (!res.ok) throw new Error("Không lấy được chi tiết voucher");
       const data = await res.json();
       setDetailVoucher(data.voucher || data);
@@ -369,6 +372,7 @@ export default function ManageVoucher() {
   const handleSave = async (data) => {
     if (editTarget) {
       try {
+        const token = localStorage.getItem("accessToken");
         const formData = new FormData();
         formData.append("voucherCode", data.voucherCode);
         formData.append("title", data.title);
@@ -381,6 +385,7 @@ export default function ManageVoucher() {
 
         const res = await fetch(`http://localhost:3000/api/v1/enterprise/vouchers/${editTarget.voucher_id || editTarget.id}`, {
           method: "PUT",
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
           body: formData,
         });
         if (!res.ok) throw new Error("Cập nhật voucher thất bại!");
@@ -391,6 +396,7 @@ export default function ManageVoucher() {
       }
     } else {
       try {
+        const token = localStorage.getItem("accessToken");
         // Gửi form-data lên API
         const formData = new FormData();
         formData.append("voucherCode", data.voucherCode);
@@ -404,6 +410,7 @@ export default function ManageVoucher() {
 
         const res = await fetch("http://localhost:3000/api/v1/enterprise/vouchers", {
           method: "POST",
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
           body: formData,
         });
         if (!res.ok) throw new Error("Tạo voucher thất bại!");
@@ -428,13 +435,17 @@ export default function ManageVoucher() {
 
   const handleDelete = async (v) => {
     try {
+      const token = localStorage.getItem("accessToken");
       const res = await fetch(`http://localhost:3000/api/v1/enterprise/vouchers/${v.voucher_id || v.id}`, {
         method: "DELETE",
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       });
       if (!res.ok) throw new Error("Xóa voucher thất bại!");
       toast.success(`Đã xóa voucher "${v.voucher_name}"`);
       // Reload lại danh sách voucher
-      const reload = await fetch("http://localhost:3000/api/v1/enterprise/vouchers");
+      const reload = await fetch("http://localhost:3000/api/v1/enterprise/vouchers", {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
       if (reload.ok) {
         const data = await reload.json();
         setVouchers(data.vouchers || []);
@@ -481,7 +492,10 @@ export default function ManageVoucher() {
   useEffect(() => {
     const fetchVouchers = async () => {
       try {
-        const res = await fetch("http://localhost:3000/api/v1/enterprise/vouchers");
+        const token = localStorage.getItem("accessToken");
+        const res = await fetch("http://localhost:3000/api/v1/enterprise/vouchers", {
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        });
         if (!res.ok) throw new Error("Không lấy được danh sách voucher");
         const data = await res.json();
         setVouchers(data.vouchers || []);
@@ -491,7 +505,10 @@ export default function ManageVoucher() {
     };
     const fetchStatistics = async () => {
       try {
-        const res = await fetch("http://localhost:3000/api/v1/enterprise/vouchers/statistics");
+        const token = localStorage.getItem("accessToken");
+        const res = await fetch("http://localhost:3000/api/v1/enterprise/vouchers/statistics", {
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        });
         if (!res.ok) throw new Error("Không lấy được thống kê");
         const data = await res.json();
         setStatistics({
