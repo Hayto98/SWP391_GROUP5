@@ -525,7 +525,7 @@ export default function ReportDetail() {
                   Gán collector cho báo cáo {reportCodeText}
                 </h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Chọn collector phù hợp dựa trên khoảng cách và tải công việc.
+                  Chọn collector.
                 </p>
               </div>
             </div>
