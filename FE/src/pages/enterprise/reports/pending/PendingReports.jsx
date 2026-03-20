@@ -87,18 +87,23 @@ function formatDateTime(value) {
 }
 
 function getStatusClass(status) {
-  if (
-    status === "ACCEPTED" ||
-    status === "ASSIGNED" ||
-    status === "IN_PROGRESS"
-  ) {
-    return "bg-orange-100 text-orange-700 border-orange-200";
+  if (status === "PENDING") {
+    return "bg-[#2196F3]/10 text-[#2196F3] border-[#2196F3]"; // Xanh dương nhạt
+  }
+  if (status === "ASSIGNED") {
+    return "bg-[#FF9800]/10 text-[#FF9800] border-[#FF9800]"; // Cam
+  }
+  if (status === "IN_PROGRESS") {
+    return "bg-[#FFC107]/10 text-[#FFC107] border-[#FFC107]"; // Vàng
+  }
+  if (status === "COLLECTED" || status === "COMPLETED") {
+    return "bg-[#4CAF50]/10 text-[#4CAF50] border-[#4CAF50]"; // Xanh lá
   }
   if (status === "REJECTED") {
     return "bg-red-100 text-red-700 border-red-200";
   }
-  if (status === "COLLECTED") {
-    return "bg-green-100 text-green-700 border-green-200";
+  if (status === "ACCEPTED") {
+    return "bg-[#2196F3]/10 text-[#2196F3] border-[#2196F3]"; // Có thể dùng màu xanh dương như PENDING nếu cần
   }
   return "bg-slate-100 text-slate-700 border-slate-200";
 }
@@ -542,10 +547,11 @@ export default function PendingReports() {
                     </TableCell>
 
                     <TableCell>
-                      <div className="flex justify-end gap-2">
+                      <div className="flex justify-end gap-2 items-center">
                         <Button
                           variant="outline"
                           size="sm"
+                          className="min-w-[90px] h-10 px-4 text-base flex items-center justify-center"
                           disabled={acting === r?.code}
                           onClick={() =>
                             navigate(
@@ -558,39 +564,20 @@ export default function PendingReports() {
                         >
                           Chi tiết
                         </Button>
-
-                        {r?.actions?.includes("accept") && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-orange-700 border-orange-300 hover:bg-orange-50"
-                            disabled={acting === r?.code || !r?.canAccept}
-                            onClick={() => doAction(r?.code, "accept")}
-                          >
-                            {acting === r?.code ? "..." : "Chấp nhận"}
-                          </Button>
-                        )}
-
                         <Button
                           variant="outline"
                           size="sm"
-                          className="text-emerald-700 border-emerald-300 hover:bg-emerald-50"
-                          disabled={acting === r?.code || !r?.canAssign}
+                          className={
+                            (r?.status === "PENDING"
+                              ? "bg-[#2196F3] text-white border-[#2196F3] shadow font-bold hover:bg-[#1976D2] hover:border-[#1976D2] hover:text-white focus:text-white active:text-white disabled:bg-[#2196F3] disabled:text-white disabled:border-[#2196F3]"
+                              : "bg-white text-[#2196F3] border-[#2196F3] shadow hover:bg-[#e3f2fd] hover:border-[#2196F3] hover:text-[#2196F3] focus:text-[#2196F3] active:text-[#2196F3]")
+                            + " min-w-[90px] h-10 px-4 text-base flex items-center justify-center"
+                          }
+                          disabled={acting === r?.code || r?.status !== "PENDING"}
                           onClick={() => handleAssignPopupOpen(r?.code)}
                         >
-                          {r?.status === "ASSIGNED" ? "Đã gán" : "Gán"}
+                          {r?.status === "PENDING" ? "Gán" : "Đã gán"}
                         </Button>
-
-                        {r?.actions?.includes("reject") && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={acting === r?.code}
-                            onClick={() => doAction(r?.code, "reject")}
-                          >
-                            {acting === r?.code ? "..." : "Từ chối"}
-                          </Button>
-                        )}
                       </div>
                     </TableCell>
                   </TableRow>

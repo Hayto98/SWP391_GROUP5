@@ -422,9 +422,33 @@ export default function ReportDetail() {
           </div>
 
           <div className="flex flex-wrap gap-2">
+            {/* Đã gán */}
             <Button
               variant="outline"
-              className="text-orange-700 border-orange-300 hover:bg-orange-50"
+              className={
+                (rawStatus === "PENDING"
+                  ? "bg-[#2196F3] text-white border-[#2196F3] shadow font-bold hover:bg-[#1976D2] hover:border-[#1976D2] hover:text-white focus:text-white active:text-white disabled:bg-[#2196F3] disabled:text-white disabled:border-[#2196F3]"
+                  : "bg-white text-[#2196F3] border-[#2196F3] shadow hover:bg-[#e3f2fd] hover:border-[#2196F3] hover:text-[#2196F3] focus:text-[#2196F3] active:text-[#2196F3]")
+              }
+              type="button"
+              disabled={actionLoading !== "" || rawStatus !== "PENDING"}
+              title={
+                rawStatus === "PENDING"
+                  ? "Gán collector"
+                  : "Báo cáo đã được gán collector"
+              }
+              onClick={openAssignPopup}
+            >
+              {rawStatus === "PENDING" ? "Gán" : "Đã gán"}
+            </Button>
+            {/* Chấp nhận */}
+            <Button
+              variant="outline"
+              className={
+                (canAccept || rawStatus === "ACCEPTED"
+                  ? "bg-[#4CAF50] text-white border-[#4CAF50] shadow font-bold hover:bg-[#388E3C] hover:border-[#388E3C] hover:text-white focus:text-white active:text-white disabled:bg-[#4CAF50] disabled:text-white disabled:border-[#4CAF50]"
+                  : "text-[#4CAF50] border-[#A5D6A7] hover:bg-[#E8F5E9] hover:text-[#4CAF50] focus:text-[#4CAF50] active:text-[#4CAF50]")
+              }
               type="button"
               disabled={!canAccept || actionLoading !== ""}
               title={
@@ -436,24 +460,14 @@ export default function ReportDetail() {
             >
               {actionLoading === "accept" ? "..." : "Chấp nhận"}
             </Button>
+            {/* Từ chối */}
             <Button
               variant="outline"
-              className="text-emerald-700 border-emerald-300 hover:bg-emerald-50"
-              type="button"
-              disabled={!canAssign || actionLoading !== ""}
-              title={
-                canAssign
-                  ? "Gán collector"
-                  : rawStatus === "ASSIGNED"
-                    ? "Báo cáo đã được gán collector"
-                    : "Cần chấp nhận báo cáo trước khi gán"
+              className={
+                (canReject || rawStatus === "REJECTED"
+                  ? "bg-[#F44336] text-white border-[#F44336] shadow font-bold hover:bg-[#C62828] hover:border-[#C62828] hover:text-white focus:text-white active:text-white"
+                  : "text-[#F44336] border-[#FFCDD2] hover:bg-[#FFEBEE] hover:text-[#F44336] focus:text-[#F44336] active:text-[#F44336]")
               }
-              onClick={openAssignPopup}
-            >
-              {rawStatus === "ASSIGNED" ? "Đã gán" : "Gán"}
-            </Button>
-            <Button
-              variant="outline"
               type="button"
               disabled={!canReject || actionLoading !== ""}
               title={
@@ -465,15 +479,19 @@ export default function ReportDetail() {
             >
               {actionLoading === "reject" ? "..." : "Từ chối"}
             </Button>
+            {/* Xem thu gom */}
             <Button
               variant="outline"
               type="button"
+              className="text-emerald-700 border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 focus:text-emerald-700 active:text-emerald-700"
               onClick={() => setCollectionPopupOpen(true)}
             >
               <PackageOpen className="size-4 mr-1" /> Xem thu gom
             </Button>
+            {/* Quay về */}
             <Button
               type="button"
+              className="bg-[#607D8B] text-white border-[#607D8B] shadow hover:bg-[#455A64] hover:border-[#455A64]"
               onClick={() => navigate("/enterprise/reports")}
             >
               Quay về
