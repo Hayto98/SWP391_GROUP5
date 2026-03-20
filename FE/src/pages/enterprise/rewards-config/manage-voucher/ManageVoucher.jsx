@@ -145,11 +145,31 @@ function StatCard({ icon: Icon, label, value, sub, iconClass }) {
 
 // ─── Voucher Form Dialog ─────────────────────────────────────────────────────
 function VoucherFormDialog({ open, onClose, onSave, initial }) {
-  const [form, setForm] = useState(initial || EMPTY_FORM);
+  const parseForm = (init) => {
+    if (!init) return EMPTY_FORM;
+    return {
+      voucherCode: init.voucherCode || init.voucher_code || "",
+      title: init.title || init.voucher_name || "",
+      description: init.description || init.terms_description || "",
+      pointsRequired: init.pointsRequired || init.points_required || "",
+      quantityTotal: init.quantityTotal || "",
+      validFrom: init.validFrom ? String(init.validFrom).substring(0, 10) : "",
+      validTo: (init.validTo || init.expiry_date) ? String(init.validTo || init.expiry_date).substring(0, 10) : "",
+      file: null,
+    };
+  };
+
+  const [form, setForm] = useState(() => parseForm(initial));
+
+  useEffect(() => {
+    if (open) {
+      setForm(parseForm(initial));
+    }
+  }, [open, initial]);
 
   // Sync when initial changes (edit mode)
   const handleOpen = (isOpen) => {
-    if (isOpen) setForm(initial || EMPTY_FORM);
+    if (isOpen) setForm(parseForm(initial));
     else onClose();
   };
 
@@ -164,11 +184,12 @@ function VoucherFormDialog({ open, onClose, onSave, initial }) {
     if (!form.quantityTotal || Number(form.quantityTotal) <= 0) return toast.error("Số lượng phải lớn hơn 0!");
     if (!form.validFrom.trim()) return toast.error("Nhập ngày bắt đầu!");
     if (!form.validTo.trim()) return toast.error("Nhập ngày hết hạn!");
-    if (!form.file) return toast.error("Chọn ảnh voucher!");
+    const isEditing = !!(initial?.voucherId || initial?.voucher_id || initial?.id);
+    if (!form.file && !isEditing) return toast.error("Chọn ảnh voucher!");
     onSave({ ...form, pointsRequired: Number(form.pointsRequired), quantityTotal: Number(form.quantityTotal) });
   };
 
-  const isEdit = !!initial?.voucher_id;
+  const isEdit = !!(initial?.voucherId || initial?.voucher_id || initial?.id);
 
   return (
     <Dialog open={open} onOpenChange={handleOpen}>
@@ -346,10 +367,12 @@ export default function ManageVoucher() {
   const filtered = vouchers.filter((v) => {
     const matchSource = filterSource === "all" || v.source === filterSource;
     const q = search.toLowerCase();
+    const title = v.title || v.voucher_name || "";
+    const code = v.voucherCode || v.voucher_code || "";
     const matchSearch =
       !q ||
-      v.voucher_name.toLowerCase().includes(q) ||
-      v.voucher_code.toLowerCase().includes(q);
+      title.toLowerCase().includes(q) ||
+      code.toLowerCase().includes(q);
     return matchSource && matchSearch;
   });
 
@@ -383,7 +406,8 @@ export default function ManageVoucher() {
         formData.append("validTo", data.validTo);
         if (data.file) formData.append("file", data.file);
 
-        const res = await fetch(`http://localhost:3000/api/v1/enterprise/vouchers/${editTarget.voucher_id || editTarget.id}`, {
+        const targetId = editTarget.voucherId || editTarget.voucher_id || editTarget.id;
+        const res = await fetch(`http://localhost:3000/api/v1/enterprise/vouchers/${targetId}`, {
           method: "PUT",
           headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
           body: formData,
@@ -436,7 +460,8 @@ export default function ManageVoucher() {
   const handleDelete = async (v) => {
     try {
       const token = localStorage.getItem("accessToken");
-      const res = await fetch(`http://localhost:3000/api/v1/enterprise/vouchers/${v.voucher_id || v.id}`, {
+      const targetId = v.voucherId || v.voucher_id || v.id;
+      const res = await fetch(`http://localhost:3000/api/v1/enterprise/vouchers/${targetId}`, {
         method: "DELETE",
         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       });
@@ -448,16 +473,16 @@ export default function ManageVoucher() {
       });
       if (reload.ok) {
         const data = await reload.json();
-        setVouchers(data.vouchers || []);
+        setVouchers(data.data || data.vouchers || []);
       }
     } catch (err) {
       toast.error("Xóa voucher thất bại!");
     }
     recordVoucherHistory({
       action: "delete",
-      voucherId: v.voucher_id,
-      voucherCode: v.voucher_code,
-      voucherName: v.voucher_name,
+      voucherId: v.voucherId || v.voucher_id,
+      voucherCode: v.voucherCode || v.voucher_code,
+      voucherName: v.title || v.voucher_name,
       detail: "Xóa voucher khỏi kho.",
     });
     refreshVoucherHistory();
@@ -465,25 +490,28 @@ export default function ManageVoucher() {
   };
 
   const handleToggle = (v) => {
-    const nextActive = !v.is_active;
+    const isActive = v.isActive !== undefined ? v.isActive : v.is_active;
+    const nextActive = !isActive;
+    const vId = v.voucherId || v.voucher_id;
 
     setVouchers((prev) =>
-      prev.map((x) =>
-        x.voucher_id === v.voucher_id ? { ...x, is_active: nextActive } : x,
-      ),
+      prev.map((x) => {
+        const xId = x.voucherId || x.voucher_id;
+        return xId === vId ? { ...x, isActive: nextActive, is_active: nextActive } : x;
+      }),
     );
 
     recordVoucherHistory({
       action: nextActive ? "toggle_on" : "toggle_off",
-      voucherId: v.voucher_id,
-      voucherCode: v.voucher_code,
-      voucherName: v.voucher_name,
+      voucherId: vId,
+      voucherCode: v.voucherCode || v.voucher_code,
+      voucherName: v.title || v.voucher_name,
       detail: nextActive ? "Bật hiển thị voucher." : "Tạm tắt voucher.",
     });
 
     refreshVoucherHistory();
     toast.success(
-      `Voucher "${v.voucher_name}" ${v.is_active ? "đã tắt" : "đã bật"}.`,
+      `Voucher "${v.title || v.voucher_name}" ${isActive ? "đã tắt" : "đã bật"}.`,
     );
   };
 
@@ -498,7 +526,8 @@ export default function ManageVoucher() {
         });
         if (!res.ok) throw new Error("Không lấy được danh sách voucher");
         const data = await res.json();
-        setVouchers(data.vouchers || []);
+        // API returns data as { data: [...vouchers], pagination: {...} } or { vouchers: [...] }
+        setVouchers(data.data || data.vouchers || []);
       } catch (err) {
         toast.error("Không lấy được danh sách voucher");
       }
@@ -654,23 +683,23 @@ export default function ManageVoucher() {
         {filtered.map((v) => {
           return (
             <div
-              key={v.voucher_id}
-              className={`relative flex h-32 bg-white border border-gray-200 rounded-md shadow-sm overflow-hidden group ${!v.is_active ? "opacity-60" : ""}`}
-              onClick={() => handleViewDetail(v.voucher_id)}
+              key={v.voucherId || v.voucher_id || v.id}
+              className={`relative flex h-32 bg-white border border-gray-200 rounded-md shadow-sm overflow-hidden group ${!(v.isActive !== undefined ? v.isActive : v.is_active) ? "opacity-60" : ""}`}
+              onClick={() => handleViewDetail(v.voucherId || v.voucher_id || v.id)}
               style={{ cursor: 'pointer' }}
             >
               {/* Left Image / Branding */}
               <div className="w-[118px] flex-shrink-0 bg-primary flex flex-col items-center justify-center relative overflow-hidden border-r border-dashed border-gray-200 box-border p-2">
                 <Gift className="size-8 mb-2 text-white opacity-90 flex-shrink-0" />
                 <div className="text-[10px] text-white font-medium text-center uppercase leading-snug line-clamp-2" style={{ textTransform: "initial" }}>
-                  {v.voucher_name}
+                  {v.title || v.voucher_name}
                 </div>
               </div>
 
               {/* Right Content */}
               <div className="flex-1 p-3 flex flex-col justify-between relative pl-4">
                 {/* Active status indicator */}
-                {v.is_active ? (
+                {(v.isActive !== undefined ? v.isActive : v.is_active) ? (
                   <div className="absolute top-3 right-3 text-[10px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded border border-red-200">
                     ĐANG BẬT
                   </div>
@@ -681,15 +710,15 @@ export default function ManageVoucher() {
                 )}
 
                 <div>
-                  <h3 className="text-sm font-medium text-gray-800 pr-16 line-clamp-1">{v.voucher_name}</h3>
-                  <div className="text-xs text-gray-500 mt-1 line-clamp-1">{v.terms_description || `Áp dụng toàn bộ dịch vụ`}</div>
+                  <h3 className="text-sm font-medium text-gray-800 pr-16 line-clamp-1">{v.title || v.voucher_name}</h3>
+                  <div className="text-xs text-gray-500 mt-1 line-clamp-1">{v.description || v.terms_description || `Áp dụng toàn bộ dịch vụ`}</div>
 
                   <div className="mt-2 flex items-center gap-1.5">
                     <span className="text-[10px] px-1.5 py-0.5 border border-red-500 text-red-500 rounded-sm leading-none whitespace-nowrap">
-                      HSD: {v.expiry_date}
+                      HSD: {(v.validTo || v.expiry_date) ? String(v.validTo || v.expiry_date).substring(0, 10) : ""}
                     </span>
                     <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-sm font-medium whitespace-nowrap flex items-center gap-1">
-                      <Star className="size-3 fill-amber-500 text-amber-500" /> {v.points_required} đ
+                      <Star className="size-3 fill-amber-500 text-amber-500" /> {v.pointsRequired || v.points_required} đ
                     </span>
                   </div>
                 </div>
@@ -697,7 +726,7 @@ export default function ManageVoucher() {
                 {/* Bottom Actions Overlay */}
                 <div className="absolute bottom-3 right-3 flex items-center gap-2" onClick={e => e.stopPropagation()}>
                   <Switch
-                    checked={v.is_active}
+                    checked={v.isActive !== undefined ? v.isActive : v.is_active}
                     onCheckedChange={() => handleToggle(v)}
                     className="scale-75 origin-right"
                     title="Bật / Tắt"
@@ -722,30 +751,30 @@ export default function ManageVoucher() {
             </div>
           );
         })}
-            {/* ── Voucher Detail Dialog ── */}
-            <Dialog open={isDetailOpen} onOpenChange={setDetailOpen}>
-              <DialogContent className="max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>Chi tiết Voucher</DialogTitle>
-                </DialogHeader>
-                {detailVoucher ? (
-                  <div className="space-y-2">
-                    <div><b>Mã:</b> {detailVoucher.voucherCode || detailVoucher.voucher_code}</div>
-                    <div><b>Tiêu đề:</b> {detailVoucher.title || detailVoucher.voucher_name}</div>
-                    <div><b>Mô tả:</b> {detailVoucher.description || detailVoucher.terms_description}</div>
-                    <div><b>Điểm quy đổi:</b> {detailVoucher.pointsRequired || detailVoucher.points_required}</div>
-                    <div><b>Số lượng:</b> {detailVoucher.quantityTotal}</div>
-                    <div><b>Ngày bắt đầu:</b> {detailVoucher.validFrom}</div>
-                    <div><b>Ngày hết hạn:</b> {detailVoucher.validTo || detailVoucher.expiry_date}</div>
-                    {detailVoucher.imageUrl || detailVoucher.image ? (
-                      <img src={detailVoucher.imageUrl || detailVoucher.image} alt="voucher" className="w-full max-h-40 object-contain rounded" />
-                    ) : null}
-                  </div>
-                ) : (
-                  <div>Đang tải...</div>
-                )}
-              </DialogContent>
-            </Dialog>
+        {/* ── Voucher Detail Dialog ── */}
+        <Dialog open={isDetailOpen} onOpenChange={setDetailOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Chi tiết Voucher</DialogTitle>
+            </DialogHeader>
+            {detailVoucher ? (
+              <div className="space-y-2">
+                <div><b>Mã:</b> {detailVoucher.voucherCode || detailVoucher.voucher_code}</div>
+                <div><b>Tiêu đề:</b> {detailVoucher.title || detailVoucher.voucher_name}</div>
+                <div><b>Mô tả:</b> {detailVoucher.description || detailVoucher.terms_description}</div>
+                <div><b>Điểm quy đổi:</b> {detailVoucher.pointsRequired || detailVoucher.points_required}</div>
+                <div><b>Số lượng:</b> {detailVoucher.quantityTotal}</div>
+                <div><b>Ngày bắt đầu:</b> {detailVoucher.validFrom ? String(detailVoucher.validFrom).substring(0, 10) : ""}</div>
+                <div><b>Ngày hết hạn:</b> {(detailVoucher.validTo || detailVoucher.expiry_date) ? String(detailVoucher.validTo || detailVoucher.expiry_date).substring(0, 10) : ""}</div>
+                {detailVoucher.imageUrl || detailVoucher.image ? (
+                  <img src={detailVoucher.imageUrl || detailVoucher.image} alt="voucher" className="w-full max-h-40 object-contain rounded mt-4" />
+                ) : null}
+              </div>
+            ) : (
+              <div>Đang tải...</div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
 
       <Dialog open={isHistoryDialogOpen} onOpenChange={setHistoryDialogOpen}>
