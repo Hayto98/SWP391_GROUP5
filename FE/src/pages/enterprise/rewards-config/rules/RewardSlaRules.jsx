@@ -249,15 +249,29 @@ function EditWasteTypeModal({ open, onClose, onConfirm, adding, wasteItem }) {
 
           <div className="space-y-2">
             <Label htmlFor="edit-waste-unit">Đơn vị tính</Label>
-            <Input
-              id="edit-waste-unit"
-              value={unitType}
-              onChange={(e) => {
-                setUnitType(e.target.value);
-                setLocalErr("");
-              }}
-              disabled={adding}
-            />
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { value: "KG", label: "Kilogram", sub: "KG" },
+                { value: "CHAI", label: "Chai", sub: "CHAI" },
+                { value: "LON", label: "Lon", sub: "LON" },
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  disabled={adding}
+                  onClick={() => { setUnitType(opt.value); setLocalErr(""); }}
+                  className={[
+                    "flex flex-col items-center justify-center gap-1 rounded-lg border-2 px-3 py-3 text-sm font-medium transition-all",
+                    unitType === opt.value
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-muted bg-muted/30 text-muted-foreground hover:border-primary/50 hover:bg-primary/5",
+                    adding ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
+                  ].join(" ")}
+                >
+                  <span className="text-sm font-semibold">{opt.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -494,13 +508,29 @@ function EditWasteTypeDirectModal({ open, onClose, wasteTypes }) {
           {/* Đơn vị tính */}
           <div className="space-y-2">
             <Label htmlFor="edit-direct-unit">Đơn vị tính</Label>
-            <Input
-              id="edit-direct-unit"
-              placeholder="VD: KG hoặc LON"
-              value={unitType}
-              onChange={(e) => { setUnitType(e.target.value); setErr(""); }}
-              disabled={saving || !selectedId}
-            />
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { value: "KG", label: "Kilogram", sub: "KG" },
+                { value: "CHAI", label: "Chai", sub: "CHAI" },
+                { value: "LON", label: "Lon", sub: "LON" },
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  disabled={saving || !selectedId}
+                  onClick={() => { setUnitType(opt.value); setErr(""); }}
+                  className={[
+                    "flex flex-col items-center justify-center gap-1 rounded-lg border-2 px-3 py-3 text-sm font-medium transition-all",
+                    unitType === opt.value
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-muted bg-muted/30 text-muted-foreground hover:border-primary/50 hover:bg-primary/5",
+                    (saving || !selectedId) ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
+                  ].join(" ")}
+                >
+                  <span className="text-sm font-semibold">{opt.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {err && (
