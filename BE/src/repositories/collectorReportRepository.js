@@ -135,6 +135,7 @@ module.exports = {
   insertCollectedRecord,
   insertCompletionAttachment,
   findCollectionResult,
+  getCollectionStatistics,
   findReportForComplete,
   findRewardConfig,
   insertPointTransaction,
@@ -208,6 +209,61 @@ async function findReportForCollector(reportId) {
   const [rows] = await db.execute(sql, [reportId])
 
   return rows[0] || null
+}
+
+/**
+ * Get total collected quantity and optional grouped totals for a collector.
+ *
+ * @param {string} collectorId
+ * @param {Date|string|null} fromDate
+ * @param {Date|string|null} toDate
+ * @param {string} groupBy - one of 'day', 'month', 'year'
+ * @returns {{ totalCollectedQuantity: number, grouped: Array<{ period: string, total: number }> }}
+ */
+async function getCollectionStatistics(collectorId, fromDate, toDate, groupBy = 'day') {
+  const allowed = new Set(['day', 'month', 'year'])
+  if (!allowed.has(groupBy)) groupBy = 'day'
+
+  let periodFormat
+  switch (groupBy) {
+    case 'month':
+      periodFormat = "%Y-%m"
+      break
+    case 'year':
+      periodFormat = "%Y"
+      break
+    default:
+      periodFormat = "%Y-%m-%d"
+  }
+
+  const params = [collectorId]
+  let whereClause = ` WHERE collector_user_account_id = ? `
+
+  if (fromDate && toDate) {
+    whereClause += ` AND recorded_at BETWEEN ? AND ? `
+    params.push(fromDate, toDate)
+  } else if (fromDate) {
+    whereClause += ` AND recorded_at >= ? `
+    params.push(fromDate)
+  } else if (toDate) {
+    whereClause += ` AND recorded_at <= ? `
+    params.push(toDate)
+  }
+
+  // Total
+  const totalSql = `SELECT COALESCE(SUM(actual_quantity_value),0) AS totalCollectedQuantity FROM collectedrecord` + whereClause
+  const [totalRows] = await db.execute(totalSql, params)
+  const totalCollectedQuantity = Number(totalRows[0].totalCollectedQuantity || 0)
+
+  // Grouped
+  const groupSql = `SELECT DATE_FORMAT(recorded_at, '${periodFormat}') AS period, COALESCE(SUM(actual_quantity_value),0) AS total
+    FROM collectedrecord` + whereClause + ` GROUP BY period ORDER BY period ASC`
+
+  const [groupRows] = await db.execute(groupSql, params)
+
+  const grouped = groupRows.map((r) => ({ period: r.period, total: Number(r.total) }))
+
+  return { totalCollectedQuantity, grouped }
 }
 
 /**
