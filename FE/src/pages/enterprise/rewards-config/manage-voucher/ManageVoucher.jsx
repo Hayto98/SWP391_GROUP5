@@ -75,45 +75,17 @@ const CATEGORIES = [
   },
 ];
 
-// TODO: API 
-const INITIAL_VOUCHERS = [
-  {
-    voucher_id: "1",
-    voucher_name: "Phúc Long - Giảm 30K",
-    voucher_code: "PHUCLONG30K",
-    points_required: 500,
-    terms_description: "Áp dụng cho đơn hàng từ 100.000đ tại tất cả chi nhánh Phúc Long.",
-    expiry_date: "31/03/2026",
-    category: "discount",
-    source: "partner",
-    image: "https://cdn.haitrieu.com/wp-content/uploads/2022/01/Logo-Phuc-Long-PL.png",
-    is_active: true,
-    total_redeemed: 128,
-  },
-  {
-    voucher_id: "2",
-    voucher_name: "Tặng cây xanh cho môi trường",
-    voucher_code: "GREENTREE",
-    points_required: 1500,
-    terms_description: "Chúng tôi sẽ trồng 1 cây xanh nhân danh bạn.",
-    expiry_date: "31/12/2026",
-    category: "environment",
-    source: "partner",
-    is_active: false,
-    total_redeemed: 45,
-  }
-];
+// Lấy danh sách voucher từ API khi load trang
 
 const EMPTY_FORM = {
-  voucher_name: "",
-  voucher_code: "",
-  points_required: "",
-  terms_description: "",
-  expiry_date: "",
-  image: "",
-  category: "discount",
-  source: "enterprise",
-  is_active: true,
+  voucherCode: "",
+  title: "",
+  description: "",
+  pointsRequired: "",
+  quantityTotal: "",
+  validFrom: "",
+  validTo: "",
+  file: null,
 };
 
 const SOURCES = [
@@ -173,26 +145,51 @@ function StatCard({ icon: Icon, label, value, sub, iconClass }) {
 
 // ─── Voucher Form Dialog ─────────────────────────────────────────────────────
 function VoucherFormDialog({ open, onClose, onSave, initial }) {
-  const [form, setForm] = useState(initial || EMPTY_FORM);
+  const parseForm = (init) => {
+    if (!init) return EMPTY_FORM;
+    return {
+      voucherCode: init.voucherCode || init.voucher_code || "",
+      title: init.title || init.voucher_name || "",
+      description: init.description || init.terms_description || "",
+      pointsRequired: init.pointsRequired || init.points_required || "",
+      quantityTotal: init.quantityTotal || "",
+      validFrom: init.validFrom ? String(init.validFrom).substring(0, 10) : "",
+      validTo: (init.validTo || init.expiry_date) ? String(init.validTo || init.expiry_date).substring(0, 10) : "",
+      file: null,
+    };
+  };
+
+  const [form, setForm] = useState(() => parseForm(initial));
+
+  useEffect(() => {
+    if (open) {
+      setForm(parseForm(initial));
+    }
+  }, [open, initial]);
 
   // Sync when initial changes (edit mode)
   const handleOpen = (isOpen) => {
-    if (isOpen) setForm(initial || EMPTY_FORM);
+    if (isOpen) setForm(parseForm(initial));
     else onClose();
   };
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
+  const handleFileChange = (e) => set("file", e.target.files[0] || null);
 
   const handleSave = () => {
-    if (!form.voucher_name.trim()) return toast.error("Nhập tên voucher!");
-    if (!form.voucher_code.trim()) return toast.error("Nhập mã voucher!");
-    if (!form.points_required || Number(form.points_required) <= 0)
-      return toast.error("Điểm quy đổi phải lớn hơn 0!");
-    if (!form.expiry_date.trim()) return toast.error("Nhập ngày hết hạn!");
-    onSave({ ...form, points_required: Number(form.points_required) });
+    if (!form.voucherCode.trim()) return toast.error("Nhập mã voucher!");
+    if (!form.title.trim()) return toast.error("Nhập tiêu đề!");
+    if (!form.description.trim()) return toast.error("Nhập mô tả!");
+    if (!form.pointsRequired || Number(form.pointsRequired) <= 0) return toast.error("Điểm quy đổi phải lớn hơn 0!");
+    if (!form.quantityTotal || Number(form.quantityTotal) <= 0) return toast.error("Số lượng phải lớn hơn 0!");
+    if (!form.validFrom.trim()) return toast.error("Nhập ngày bắt đầu!");
+    if (!form.validTo.trim()) return toast.error("Nhập ngày hết hạn!");
+    const isEditing = !!(initial?.voucherId || initial?.voucher_id || initial?.id);
+    if (!form.file && !isEditing) return toast.error("Chọn ảnh voucher!");
+    onSave({ ...form, pointsRequired: Number(form.pointsRequired), quantityTotal: Number(form.quantityTotal) });
   };
 
-  const isEdit = !!initial?.voucher_id;
+  const isEdit = !!(initial?.voucherId || initial?.voucher_id || initial?.id);
 
   return (
     <Dialog open={open} onOpenChange={handleOpen}>
@@ -209,31 +206,40 @@ function VoucherFormDialog({ open, onClose, onSave, initial }) {
         </DialogHeader>
 
         <div className="grid gap-4 py-2">
-          {/* Tên */}
+          {/* Mã voucher */}
           <div className="space-y-1.5">
-            <Label htmlFor="vf-name">Tên voucher *</Label>
+            <Label htmlFor="vf-code">Mã voucher *</Label>
             <Input
-              id="vf-name"
-              placeholder="VD: Giảm 50k đơn từ 200k"
-              value={form.voucher_name}
-              onChange={(e) => set("voucher_name", e.target.value)}
+              id="vf-code"
+              placeholder="VD: SAVE50K"
+              value={form.voucherCode}
+              onChange={(e) => set("voucherCode", e.target.value.toUpperCase())}
+              className="font-mono"
             />
           </div>
-
-          {/* Mã & Điểm */}
+          {/* Tiêu đề */}
+          <div className="space-y-1.5">
+            <Label htmlFor="vf-title">Tiêu đề *</Label>
+            <Input
+              id="vf-title"
+              placeholder="VD: Giảm 50k đơn từ 200k"
+              value={form.title}
+              onChange={(e) => set("title", e.target.value)}
+            />
+          </div>
+          {/* Mô tả */}
+          <div className="space-y-1.5">
+            <Label htmlFor="vf-desc">Mô tả *</Label>
+            <Textarea
+              id="vf-desc"
+              placeholder="Nhập mô tả voucher..."
+              value={form.description}
+              onChange={(e) => set("description", e.target.value)}
+              rows={3}
+            />
+          </div>
+          {/* Điểm quy đổi & Số lượng */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="vf-code">Mã voucher *</Label>
-              <Input
-                id="vf-code"
-                placeholder="VD: SAVE50K"
-                value={form.voucher_code}
-                onChange={(e) =>
-                  set("voucher_code", e.target.value.toUpperCase())
-                }
-                className="font-mono"
-              />
-            </div>
             <div className="space-y-1.5">
               <Label htmlFor="vf-pts">Điểm quy đổi *</Label>
               <Input
@@ -241,98 +247,51 @@ function VoucherFormDialog({ open, onClose, onSave, initial }) {
                 type="number"
                 min={1}
                 placeholder="VD: 500"
-                value={form.points_required}
-                onChange={(e) => set("points_required", e.target.value)}
+                value={form.pointsRequired}
+                onChange={(e) => set("pointsRequired", e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="vf-qty">Số lượng *</Label>
+              <Input
+                id="vf-qty"
+                type="number"
+                min={1}
+                placeholder="VD: 10"
+                value={form.quantityTotal}
+                onChange={(e) => set("quantityTotal", e.target.value)}
               />
             </div>
           </div>
-
-          {/* Danh mục & Nguồn */}
+          {/* Ngày bắt đầu & Ngày hết hạn */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Danh mục</Label>
-              <Select
-                value={form.category}
-                onValueChange={(v) => set("category", v)}
-              >
-                <SelectTrigger id="vf-cat">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>
-                      {c.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="vf-from">Ngày bắt đầu *</Label>
+              <Input
+                id="vf-from"
+                type="date"
+                value={form.validFrom}
+                onChange={(e) => set("validFrom", e.target.value)}
+              />
             </div>
             <div className="space-y-1.5">
-              <Label>Nguồn Voucher</Label>
-              <Select
-                value={form.source}
-                onValueChange={(v) => set("source", v)}
-              >
-                <SelectTrigger id="vf-src">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SOURCES.map((s) => (
-                    <SelectItem key={s.value} value={s.value}>
-                      {s.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="vf-to">Ngày hết hạn *</Label>
+              <Input
+                id="vf-to"
+                type="date"
+                value={form.validTo}
+                onChange={(e) => set("validTo", e.target.value)}
+              />
             </div>
           </div>
-
-          {/* Ngày hết hạn */}
-          <div className="space-y-1.5">
-            <Label htmlFor="vf-exp">Ngày hết hạn *</Label>
-            <Input
-              id="vf-exp"
-              placeholder="VD: 31/12/2026"
-              value={form.expiry_date}
-              onChange={(e) => set("expiry_date", e.target.value)}
-            />
-          </div>
-
-          {/* Mô tả */}
-          <div className="space-y-1.5">
-            <Label htmlFor="vf-desc">Điều kiện / Mô tả</Label>
-            <Textarea
-              id="vf-desc"
-              placeholder="Nhập điều kiện sử dụng voucher..."
-              value={form.terms_description}
-              onChange={(e) => set("terms_description", e.target.value)}
-              rows={3}
-            />
-          </div>
-
           {/* Ảnh */}
           <div className="space-y-1.5">
-            <Label htmlFor="vf-img">URL ảnh (tùy chọn)</Label>
+            <Label htmlFor="vf-img">Ảnh voucher *</Label>
             <Input
               id="vf-img"
-              placeholder="https://..."
-              value={form.image}
-              onChange={(e) => set("image", e.target.value)}
-            />
-          </div>
-
-          {/* Trạng thái */}
-          <div className="flex items-center justify-between rounded-lg border p-3">
-            <div>
-              <p className="text-sm font-medium">Kích hoạt ngay</p>
-              <p className="text-xs text-muted-foreground">
-                Citizen sẽ thấy voucher này khi được bật
-              </p>
-            </div>
-            <Switch
-              id="vf-active"
-              checked={form.is_active}
-              onCheckedChange={(v) => set("is_active", v)}
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
             />
           </div>
         </div>
@@ -379,7 +338,15 @@ function DeleteDialog({ voucher, onClose, onConfirm }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ManageVoucher() {
-  const [vouchers, setVouchers] = useState(INITIAL_VOUCHERS);
+  const [vouchers, setVouchers] = useState([]);
+  const [statistics, setStatistics] = useState({
+    totalVoucher: 0,
+    totalActive: 0,
+    totalRedeemed: 0,
+    avgPoints: 0,
+  });
+  const [detailVoucher, setDetailVoucher] = useState(null);
+  const [isDetailOpen, setDetailOpen] = useState(false);
   const [filterSource, setFilterSource] = useState("all");
   const [search, setSearch] = useState("");
 
@@ -393,59 +360,91 @@ export default function ManageVoucher() {
     setVoucherHistoryRows(getAllVoucherHistory());
   }, []);
 
-  // ── Derived stats ──
-  const totalActive = vouchers.filter((v) => v.is_active).length;
-  const totalRedeemed = vouchers.reduce((s, v) => s + (v.total_redeemed || 0), 0);
-  const avgPoints = vouchers.length
-    ? Math.round(
-      vouchers.reduce((s, v) => s + v.points_required, 0) / vouchers.length,
-    )
-    : 0;
+  // ── Derived stats (from API statistics) ──
+  const { totalVoucher, totalActive, totalRedeemed, avgPoints } = statistics;
 
   // ── Filtered list ──
   const filtered = vouchers.filter((v) => {
     const matchSource = filterSource === "all" || v.source === filterSource;
     const q = search.toLowerCase();
+    const title = v.title || v.voucher_name || "";
+    const code = v.voucherCode || v.voucher_code || "";
     const matchSearch =
       !q ||
-      v.voucher_name.toLowerCase().includes(q) ||
-      v.voucher_code.toLowerCase().includes(q);
+      title.toLowerCase().includes(q) ||
+      code.toLowerCase().includes(q);
     return matchSource && matchSearch;
   });
 
   // ── Handlers ──
-  const handleSave = (data) => {
+  // Xem chi tiết voucher
+  const handleViewDetail = async (voucherId) => {
+    try {
+      const token = localStorage.getItem("accessToken");
+      const res = await fetch(`http://localhost:3000/api/v1/enterprise/vouchers/${voucherId}`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      if (!res.ok) throw new Error("Không lấy được chi tiết voucher");
+      const data = await res.json();
+      setDetailVoucher(data.data || data.voucher || data);
+      setDetailOpen(true);
+    } catch (err) {
+      toast.error("Không lấy được chi tiết voucher");
+    }
+  };
+  const handleSave = async (data) => {
     if (editTarget) {
-      setVouchers((prev) =>
-        prev.map((v) =>
-          v.voucher_id === editTarget.voucher_id ? { ...v, ...data } : v,
-        ),
-      );
+      try {
+        const token = localStorage.getItem("accessToken");
+        const formData = new FormData();
+        formData.append("voucherCode", data.voucherCode);
+        formData.append("title", data.title);
+        formData.append("description", data.description);
+        formData.append("pointsRequired", data.pointsRequired);
+        formData.append("quantityTotal", data.quantityTotal);
+        formData.append("validFrom", data.validFrom);
+        formData.append("validTo", data.validTo);
+        if (data.file) formData.append("file", data.file);
 
-      recordVoucherHistory({
-        action: "update",
-        voucherId: editTarget.voucher_id,
-        voucherCode: data.voucher_code,
-        voucherName: data.voucher_name,
-        detail: `Cập nhật voucher (${data.points_required} điểm).`,
-      });
-      toast.success("Đã cập nhật voucher thành công!");
+        const targetId = editTarget.voucherId || editTarget.voucher_id || editTarget.id;
+        const res = await fetch(`http://localhost:3000/api/v1/enterprise/vouchers/${targetId}`, {
+          method: "PUT",
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: formData,
+        });
+        if (!res.ok) throw new Error("Cập nhật voucher thất bại!");
+        toast.success("Đã cập nhật voucher thành công!");
+      } catch (err) {
+        toast.error("Cập nhật voucher thất bại!");
+        return;
+      }
     } else {
-      const newV = {
-        ...data,
-        voucher_id: String(Date.now()),
-        total_redeemed: 0,
-      };
-      setVouchers((prev) => [newV, ...prev]);
+      try {
+        const token = localStorage.getItem("accessToken");
+        // Gửi form-data lên API
+        const formData = new FormData();
+        formData.append("voucherCode", data.voucherCode);
+        formData.append("title", data.title);
+        formData.append("description", data.description);
+        formData.append("pointsRequired", data.pointsRequired);
+        formData.append("quantityTotal", data.quantityTotal);
+        formData.append("validFrom", data.validFrom);
+        formData.append("validTo", data.validTo);
+        formData.append("file", data.file);
 
-      recordVoucherHistory({
-        action: "create",
-        voucherId: newV.voucher_id,
-        voucherCode: newV.voucher_code,
-        voucherName: newV.voucher_name,
-        detail: `Tạo voucher mới (${newV.points_required} điểm).`,
-      });
-      toast.success("Đã tạo voucher mới thành công!");
+        const res = await fetch("http://localhost:3000/api/v1/enterprise/vouchers", {
+          method: "POST",
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: formData,
+        });
+        if (!res.ok) throw new Error("Tạo voucher thất bại!");
+        const result = await res.json();
+        toast.success("Đã tạo voucher mới thành công!");
+        // Optionally: setVouchers((prev) => [result.voucher, ...prev]);
+      } catch (err) {
+        toast.error("Tạo voucher thất bại!");
+        return;
+      }
     }
 
     refreshVoucherHistory();
@@ -458,44 +457,102 @@ export default function ManageVoucher() {
     setFormOpen(true);
   };
 
-  const handleDelete = (v) => {
-    setVouchers((prev) => prev.filter((x) => x.voucher_id !== v.voucher_id));
-
+  const handleDelete = async (v) => {
+    try {
+      const token = localStorage.getItem("accessToken");
+      const targetId = v.voucherId || v.voucher_id || v.id;
+      const res = await fetch(`http://localhost:3000/api/v1/enterprise/vouchers/${targetId}`, {
+        method: "DELETE",
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      if (!res.ok) throw new Error("Xóa voucher thất bại!");
+      toast.success(`Đã xóa voucher "${v.voucher_name}"`);
+      // Reload lại danh sách voucher
+      const reload = await fetch("http://localhost:3000/api/v1/enterprise/vouchers", {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      if (reload.ok) {
+        const data = await reload.json();
+        setVouchers(data.data || data.vouchers || []);
+      }
+    } catch (err) {
+      toast.error("Xóa voucher thất bại!");
+    }
     recordVoucherHistory({
       action: "delete",
-      voucherId: v.voucher_id,
-      voucherCode: v.voucher_code,
-      voucherName: v.voucher_name,
+      voucherId: v.voucherId || v.voucher_id,
+      voucherCode: v.voucherCode || v.voucher_code,
+      voucherName: v.title || v.voucher_name,
       detail: "Xóa voucher khỏi kho.",
     });
-
     refreshVoucherHistory();
     setDeleteTarget(null);
-    toast.success(`Đã xóa voucher "${v.voucher_name}"`);
   };
 
   const handleToggle = (v) => {
-    const nextActive = !v.is_active;
+    const isActive = v.isActive !== undefined ? v.isActive : v.is_active;
+    const nextActive = !isActive;
+    const vId = v.voucherId || v.voucher_id;
 
     setVouchers((prev) =>
-      prev.map((x) =>
-        x.voucher_id === v.voucher_id ? { ...x, is_active: nextActive } : x,
-      ),
+      prev.map((x) => {
+        const xId = x.voucherId || x.voucher_id;
+        return xId === vId ? { ...x, isActive: nextActive, is_active: nextActive } : x;
+      }),
     );
 
     recordVoucherHistory({
       action: nextActive ? "toggle_on" : "toggle_off",
-      voucherId: v.voucher_id,
-      voucherCode: v.voucher_code,
-      voucherName: v.voucher_name,
+      voucherId: vId,
+      voucherCode: v.voucherCode || v.voucher_code,
+      voucherName: v.title || v.voucher_name,
       detail: nextActive ? "Bật hiển thị voucher." : "Tạm tắt voucher.",
     });
 
     refreshVoucherHistory();
     toast.success(
-      `Voucher "${v.voucher_name}" ${v.is_active ? "đã tắt" : "đã bật"}.`,
+      `Voucher "${v.title || v.voucher_name}" ${isActive ? "đã tắt" : "đã bật"}.`,
     );
   };
+
+
+  // Lấy danh sách voucher và statistics từ API khi mount
+  useEffect(() => {
+    const fetchVouchers = async () => {
+      try {
+        const token = localStorage.getItem("accessToken");
+        const res = await fetch("http://localhost:3000/api/v1/enterprise/vouchers", {
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        });
+        if (!res.ok) throw new Error("Không lấy được danh sách voucher");
+        const data = await res.json();
+        // API returns data as { data: [...vouchers], pagination: {...} } or { vouchers: [...] }
+        setVouchers(data.data || data.vouchers || []);
+      } catch (err) {
+        toast.error("Không lấy được danh sách voucher");
+      }
+    };
+    const fetchStatistics = async () => {
+      try {
+        const token = localStorage.getItem("accessToken");
+        const res = await fetch("http://localhost:3000/api/v1/enterprise/vouchers/statistics", {
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        });
+        if (!res.ok) throw new Error("Không lấy được thống kê");
+        const data = await res.json();
+        setStatistics({
+          totalVoucher: data.totalVoucher || 0,
+          totalActive: data.totalActive || 0,
+          totalRedeemed: data.totalRedeemed || 0,
+          avgPoints: data.avgPoints || 0,
+        });
+      } catch (err) {
+        toast.error("Không lấy được thống kê");
+      }
+    };
+    fetchVouchers();
+    fetchStatistics();
+  }, []);
 
   useEffect(() => {
     if (!isHistoryDialogOpen) return;
@@ -507,6 +564,53 @@ export default function ManageVoucher() {
     setFormOpen(true);
   }; return (
     <div className="space-y-6">
+      {/* ── Voucher Statistics ── */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="flex items-center gap-4 pt-6">
+            <div className="rounded-full p-3 bg-blue-100 text-blue-700">
+              <Ticket className="size-5" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Tổng số voucher</p>
+              <p className="text-2xl font-bold">{totalVoucher}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-4 pt-6">
+            <div className="rounded-full p-3 bg-green-100 text-green-700">
+              <Star className="size-5" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Voucher đang bật</p>
+              <p className="text-2xl font-bold">{totalActive}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-4 pt-6">
+            <div className="rounded-full p-3 bg-amber-100 text-amber-700">
+              <Gift className="size-5" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Tổng lượt đổi thưởng</p>
+              <p className="text-2xl font-bold">{totalRedeemed}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-4 pt-6">
+            <div className="rounded-full p-3 bg-purple-100 text-purple-700">
+              <Tag className="size-5" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Điểm quy đổi TB</p>
+              <p className="text-2xl font-bold">{avgPoints}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
       {/* ── Header ── */}
       <Card className="mb-6">
         <CardHeader className="flex flex-row items-center justify-between gap-4 py-4">
@@ -579,21 +683,23 @@ export default function ManageVoucher() {
         {filtered.map((v) => {
           return (
             <div
-              key={v.voucher_id}
-              className={`relative flex h-32 bg-white border border-gray-200 rounded-md shadow-sm overflow-hidden group ${!v.is_active ? "opacity-60" : ""}`}
+              key={v.voucherId || v.voucher_id || v.id}
+              className={`relative flex h-32 bg-white border border-gray-200 rounded-md shadow-sm overflow-hidden group ${!(v.isActive !== undefined ? v.isActive : v.is_active) ? "opacity-60" : ""}`}
+              onClick={() => handleViewDetail(v.voucherId || v.voucher_id || v.id)}
+              style={{ cursor: 'pointer' }}
             >
               {/* Left Image / Branding */}
               <div className="w-[118px] flex-shrink-0 bg-primary flex flex-col items-center justify-center relative overflow-hidden border-r border-dashed border-gray-200 box-border p-2">
                 <Gift className="size-8 mb-2 text-white opacity-90 flex-shrink-0" />
                 <div className="text-[10px] text-white font-medium text-center uppercase leading-snug line-clamp-2" style={{ textTransform: "initial" }}>
-                  {v.voucher_name}
+                  {v.title || v.voucher_name}
                 </div>
               </div>
 
               {/* Right Content */}
               <div className="flex-1 p-3 flex flex-col justify-between relative pl-4">
                 {/* Active status indicator */}
-                {v.is_active ? (
+                {(v.isActive !== undefined ? v.isActive : v.is_active) ? (
                   <div className="absolute top-3 right-3 text-[10px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded border border-red-200">
                     ĐANG BẬT
                   </div>
@@ -604,23 +710,23 @@ export default function ManageVoucher() {
                 )}
 
                 <div>
-                  <h3 className="text-sm font-medium text-gray-800 pr-16 line-clamp-1">{v.voucher_name}</h3>
-                  <div className="text-xs text-gray-500 mt-1 line-clamp-1">{v.terms_description || `Áp dụng toàn bộ dịch vụ`}</div>
+                  <h3 className="text-sm font-medium text-gray-800 pr-16 line-clamp-1">{v.title || v.voucher_name}</h3>
+                  <div className="text-xs text-gray-500 mt-1 line-clamp-1">{v.description || v.terms_description || `Áp dụng toàn bộ dịch vụ`}</div>
 
                   <div className="mt-2 flex items-center gap-1.5">
                     <span className="text-[10px] px-1.5 py-0.5 border border-red-500 text-red-500 rounded-sm leading-none whitespace-nowrap">
-                      HSD: {v.expiry_date}
+                      HSD: {(v.validTo || v.expiry_date) ? String(v.validTo || v.expiry_date).substring(0, 10) : ""}
                     </span>
                     <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-sm font-medium whitespace-nowrap flex items-center gap-1">
-                      <Star className="size-3 fill-amber-500 text-amber-500" /> {v.points_required} đ
+                      <Star className="size-3 fill-amber-500 text-amber-500" /> {v.pointsRequired || v.points_required} đ
                     </span>
                   </div>
                 </div>
 
                 {/* Bottom Actions Overlay */}
-                <div className="absolute bottom-3 right-3 flex items-center gap-2">
+                <div className="absolute bottom-3 right-3 flex items-center gap-2" onClick={e => e.stopPropagation()}>
                   <Switch
-                    checked={v.is_active}
+                    checked={v.isActive !== undefined ? v.isActive : v.is_active}
                     onCheckedChange={() => handleToggle(v)}
                     className="scale-75 origin-right"
                     title="Bật / Tắt"
@@ -645,6 +751,94 @@ export default function ManageVoucher() {
             </div>
           );
         })}
+        {/* ── Voucher Detail Dialog ── */}
+        <Dialog open={isDetailOpen} onOpenChange={setDetailOpen}>
+          {/* Xóa padding mặc định để hình ảnh tràn viền */}
+          <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-white rounded-2xl shadow-xl">
+            {detailVoucher ? (
+              <div>
+                {/* 1. Hình ảnh Voucher (Banner) */}
+                {detailVoucher.fileUri ? (
+                  <div className="w-full h-40 sm:h-48 bg-gray-100 relative">
+                    <img 
+                      src={detailVoucher.fileUri} 
+                      alt="voucher" 
+                      className="w-full h-full object-cover" 
+                    />
+                    {/* Đã bỏ badge trạng thái trên góc ảnh theo yêu cầu */}
+                  </div>
+                ) : (
+                  <div className="pt-6 px-6 flex justify-between items-start">
+                    <DialogTitle className="text-xl font-bold">Chi tiết Voucher</DialogTitle>
+                    <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">
+                      {detailVoucher.status}
+                    </span>
+                  </div>
+                )}
+
+                <div className="p-6">
+                  {/* 2. Tiêu đề & Mô tả */}
+                  {detailVoucher.fileUri && (
+                    <DialogTitle className="text-xl font-bold text-gray-900 mb-2 leading-tight">
+                      {detailVoucher.title}
+                    </DialogTitle>
+                  )}
+                  <p className="text-sm text-gray-600 mb-6 leading-relaxed">
+                    {detailVoucher.description}
+                  </p>
+
+                  {/* 3. Khối Mã Voucher (Nổi bật nhất) */}
+                  <div className="relative bg-blue-50 border-2 border-blue-200 border-dashed rounded-xl p-4 mb-6 text-center">
+                    {/* Hai nửa hình tròn tạo hiệu ứng vết cắt của vé */}
+                    <div className="absolute top-1/2 -left-3 w-6 h-6 bg-white rounded-full -translate-y-1/2"></div>
+                    <div className="absolute top-1/2 -right-3 w-6 h-6 bg-white rounded-full -translate-y-1/2"></div>
+                    
+                    <p className="text-xs text-blue-500 font-semibold mb-1 uppercase tracking-widest">Mã Code</p>
+                    <p className="text-3xl font-mono font-extrabold text-blue-700 tracking-wider">
+                      {detailVoucher.voucherCode}
+                    </p>
+                  </div>
+
+                  {/* 4. Lưới thông số (Grid) */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                      <p className="text-xs text-gray-500 mb-1">Điểm quy đổi</p>
+                      <p className="text-sm font-semibold text-gray-900">
+                        <span className="text-yellow-500 font-bold mr-1">★</span> 
+                        {detailVoucher.pointsRequired} điểm
+                      </p>
+                    </div>
+                    
+                    <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                      <p className="text-xs text-gray-500 mb-1">Đã đổi</p>
+                      <p className="text-sm font-semibold text-gray-900">
+                        {detailVoucher.redeemedCount} lượt
+                      </p>
+                    </div>
+
+                    <div className="bg-gray-50 p-3 rounded-lg border border-gray-100 col-span-2 flex justify-between items-center">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Ngày hết hạn</p>
+                        <p className="text-sm font-semibold text-red-600">
+                          {detailVoucher.expiryDate ? String(detailVoucher.expiryDate).substring(0, 10) : "Vô thời hạn"}
+                        </p>
+                      </div>
+                      {/* Badge trạng thái đặt cạnh nút đóng (nút đóng đã có ở góc dialog) */}
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold shadow ${detailVoucher.status === 'ACTIVE' || detailVoucher.status === 'ĐANG BẬT' ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
+                        {detailVoucher.status}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-12 text-center flex flex-col items-center">
+                <div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin mb-4"></div>
+                <p className="text-gray-500 text-sm font-medium">Đang tải dữ liệu...</p>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
 
       <Dialog open={isHistoryDialogOpen} onOpenChange={setHistoryDialogOpen}>
