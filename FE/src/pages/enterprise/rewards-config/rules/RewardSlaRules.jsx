@@ -35,7 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Eye, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { useRewardSlaRules } from "../../../../hooks/useRewardSlaRules";
 
 function AddWasteTypeModal({ open, onClose, onConfirm, adding }) {
@@ -502,48 +502,8 @@ export default function RewardSlaRules() {
               {draft.pointsByWaste.map((w) => (
                 <TableRow key={w.id}>
                   <TableCell className="font-medium">
-                    <span
-                      style={{ cursor: "pointer", textDecoration: "underline" }}
-                      onClick={async () => {
-                        setDetailLoading(true);
-                        setDetailErr("");
-                        try {
-                          const data = await fetchWasteTypeById(w.wasteTypeId || w.id);
-                          setDetailWasteType(data);
-                        } catch (e) {
-                          setDetailErr(e.message || "Lỗi khi lấy thông tin loại rác");
-                        } finally {
-                          setDetailLoading(false);
-                        }
-                      }}
-                    >
-                      {w.name}
-                    </span>
+                    {w.name}
                   </TableCell>
-                        {/* Dialog hiển thị chi tiết wasteType - render ngoài map, chỉ 1 lần */}
-                        <Dialog open={!!detailWasteType || detailLoading || !!detailErr} onOpenChange={v => { if (!v) { setDetailWasteType(null); setDetailErr(""); } }}>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>Thông tin chi tiết loại rác</DialogTitle>
-                            </DialogHeader>
-                            {detailLoading ? (
-                              <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Đang tải...</div>
-                            ) : detailErr ? (
-                              <div className="text-red-600 font-semibold text-sm">{detailErr}</div>
-                            ) : detailWasteType ? (
-                              <div className="space-y-2">
-                                <div><b>ID:</b> {detailWasteType.wasteTypeId}</div>
-                                <div><b>Tên loại rác:</b> {detailWasteType.wasteTypeName}</div>
-                                <div><b>Đơn vị:</b> {detailWasteType.unitType}</div>
-                                <div><b>Trạng thái:</b> {detailWasteType.isActive ? "Đang hoạt động" : "Đã tắt"}</div>
-                                <div><b>Reward Config:</b> {detailWasteType.rewardConfig ? JSON.stringify(detailWasteType.rewardConfig) : "Chưa cấu hình"}</div>
-                              </div>
-                            ) : null}
-                            <DialogFooter>
-                              <Button variant="outline" onClick={() => { setDetailWasteType(null); setDetailErr(""); }}>Đóng</Button>
-                            </DialogFooter>
-                          </DialogContent>
-                        </Dialog>
                   <TableCell>
                     <div className="text-sm text-muted-foreground space-y-1">
                       <p>{w.desc}</p>
@@ -562,6 +522,27 @@ export default function RewardSlaRules() {
                         readOnly
                         disabled={!w.rewardConfigId}
                       />
+                      {/* Button xem chi tiết loại rác */}
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        title="Xem chi tiết loại rác"
+                        onClick={async () => {
+                          setDetailLoading(true);
+                          setDetailErr("");
+                          setDetailWasteType(null);
+                          try {
+                            const data = await fetchWasteTypeById(w.wasteTypeId || w.id);
+                            setDetailWasteType(data);
+                          } catch (e) {
+                            setDetailErr(e.message || "Lỗi khi lấy thông tin loại rác");
+                          } finally {
+                            setDetailLoading(false);
+                          }
+                        }}
+                      >
+                        <Eye className="size-4 text-blue-600" />
+                      </Button>
                       {/* Button sửa reward config */}
                       <Button
                         size="icon"
@@ -614,9 +595,39 @@ export default function RewardSlaRules() {
                   </TableCell>
                 </TableRow>
               ))}
-                  {/* Dialog sửa reward config - render ngoài bảng, chỉ hiện khi editRewardDialog và wasteToEdit có giá trị */}
-                  <Dialog open={editRewardDialog && !!wasteToEdit} onOpenChange={v => { setEditRewardDialog(v); if (!v) setWasteToEdit(null); }}>
-                    <DialogContent>
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Dialog xem chi tiết loại rác */}
+      <Dialog open={!!detailWasteType || detailLoading || !!detailErr} onOpenChange={v => { if (!v) { setDetailWasteType(null); setDetailErr(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Thông tin chi tiết loại rác</DialogTitle>
+          </DialogHeader>
+          {detailLoading ? (
+            <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Đang tải...</div>
+          ) : detailErr ? (
+            <div className="text-red-600 font-semibold text-sm">{detailErr}</div>
+          ) : detailWasteType ? (
+            <div className="space-y-2">
+              <div><b>ID:</b> {detailWasteType.wasteTypeId}</div>
+              <div><b>Tên loại rác:</b> {detailWasteType.wasteTypeName}</div>
+              <div><b>Đơn vị:</b> {detailWasteType.unitType}</div>
+              <div><b>Trạng thái:</b> {detailWasteType.isActive ? "Đang hoạt động" : "Đã tắt"}</div>
+              <div><b>Reward Config:</b> {detailWasteType.rewardConfig ? JSON.stringify(detailWasteType.rewardConfig) : "Chưa cấu hình"}</div>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDetailWasteType(null); setDetailErr(""); }}>Đóng</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog sửa reward config */}
+      <Dialog open={editRewardDialog && !!wasteToEdit} onOpenChange={v => { setEditRewardDialog(v); if (!v) setWasteToEdit(null); }}>
+        <DialogContent>
                       <DialogHeader>
                         <DialogTitle>Sửa Điểm Thưởng</DialogTitle>
                         <DialogDescription>
@@ -738,14 +749,10 @@ export default function RewardSlaRules() {
                           Cập Nhật
                         </Button>
                       </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+        </DialogContent>
+      </Dialog>
 
-      {/* Dialog thêm reward config - render ngoài bảng, chỉ hiện khi showRewardDialog và rewardDialogWaste có giá trị */}
+      {/* Dialog thêm reward config */}
       <Dialog open={showRewardDialog && !!rewardDialogWaste} onOpenChange={v => { setShowRewardDialog(v); if (!v) setRewardDialogWaste(null); }}>
         <DialogContent>
           <DialogHeader>
