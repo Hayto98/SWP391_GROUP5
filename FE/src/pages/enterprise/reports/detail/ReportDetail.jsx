@@ -422,25 +422,19 @@ export default function ReportDetail() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {/* Đã gán */}
-            <Button
-              variant="outline"
-              className={
-                (rawStatus === "PENDING"
-                  ? "bg-[#2196F3] text-white border-[#2196F3] shadow font-bold hover:bg-[#1976D2] hover:border-[#1976D2] hover:text-white focus:text-white active:text-white disabled:bg-[#2196F3] disabled:text-white disabled:border-[#2196F3]"
-                  : "bg-white text-[#2196F3] border-[#2196F3] shadow hover:bg-[#e3f2fd] hover:border-[#2196F3] hover:text-[#2196F3] focus:text-[#2196F3] active:text-[#2196F3]")
-              }
-              type="button"
-              disabled={actionLoading !== "" || rawStatus !== "PENDING"}
-              title={
-                rawStatus === "PENDING"
-                  ? "Gán collector"
-                  : "Báo cáo đã được gán collector"
-              }
-              onClick={openAssignPopup}
-            >
-              {rawStatus === "PENDING" ? "Gán" : "Đã gán"}
-            </Button>
+            {/* Gán collector: chỉ cho phép khi đã ACCEPTED */}
+            {rawStatus === "ACCEPTED" && (
+              <Button
+                variant="outline"
+                className="bg-[#2196F3] text-white border-[#2196F3] shadow font-bold hover:bg-[#1976D2] hover:border-[#1976D2] hover:text-white focus:text-white active:text-white disabled:bg-[#2196F3] disabled:text-white disabled:border-[#2196F3]"
+                type="button"
+                disabled={actionLoading !== ""}
+                title="Gán collector cho báo cáo đã được chấp nhận"
+                onClick={openAssignPopup}
+              >
+                Gán collector
+              </Button>
+            )}
             {/* Chấp nhận */}
             <Button
               variant="outline"
@@ -531,7 +525,7 @@ export default function ReportDetail() {
                   Gán collector cho báo cáo {reportCodeText}
                 </h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Chọn collector phù hợp dựa trên khoảng cách và tải công việc.
+                  Chọn collector.
                 </p>
               </div>
             </div>

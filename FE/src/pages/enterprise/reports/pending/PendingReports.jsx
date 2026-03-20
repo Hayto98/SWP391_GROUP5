@@ -647,7 +647,7 @@ export default function PendingReports() {
                   {selectedReport?.reportCode || assigningReportCodeText}
                 </h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Chọn collector phù hợp dựa trên khoảng cách và tải công việc.
+                  Chọn collector.
                 </p>
               </div>
               <Button
@@ -675,9 +675,7 @@ export default function PendingReports() {
               <>
                 <div className="mx-6 mt-6 rounded-lg border p-4 space-y-2">
                   <div className="font-medium">
-                    Báo cáo{" "}
-                    {selectedReport?.reportCode || assigningReportCodeText} •{" "}
-                    {selectedReport?.status || "-"}
+                    Báo cáo {selectedReport?.reportCode || assigningReportCodeText} • {selectedReport?.status || "-"}
                   </div>
                   <div className="text-sm text-muted-foreground flex items-center gap-2">
                     <MapPin className="size-4" />
@@ -686,8 +684,12 @@ export default function PendingReports() {
                     </span>
                   </div>
                   <div className="text-sm text-muted-foreground flex items-center gap-2">
+                    <span className="font-medium">Loại rác:</span>
+                    <span>{selectedReport?.wasteType || selectedReport?.waste || "-"}</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground flex items-center gap-2">
                     <Clock3 className="size-4" />
-                    <span>{selectedReport?.weightEstimate || "-"}</span>
+                    <span>{selectedReport?.weightEstimate || (Number.isFinite(selectedReport?.weightKg) && selectedReport.weightKg > 0 ? `${selectedReport.weightKg.toFixed(1)} kg` : "-")}</span>
                   </div>
                 </div>
 
@@ -701,8 +703,6 @@ export default function PendingReports() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Collector</TableHead>
-                          <TableHead>Khoảng cách</TableHead>
-                          <TableHead>Tải công việc</TableHead>
                           <TableHead className="text-right">Thao tác</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -717,25 +717,10 @@ export default function PendingReports() {
                                     {collector.name}
                                   </div>
                                   <div className="text-xs text-muted-foreground">
-                                    {collector.id} • {collector.status}
+                                    {collector.status}
                                   </div>
                                 </div>
                               </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="font-medium">
-                                {collector.distanceKm.toFixed(1)} km
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {collector.etaText}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="text-xs text-muted-foreground mb-1">
-                                {collector.tasks}/{collector.maxTasks} tasks •{" "}
-                                {collector.loadPercent}%
-                              </div>
-                              <ProgressBar percent={collector.loadPercent} />
                             </TableCell>
                             <TableCell className="text-right">
                               <Button

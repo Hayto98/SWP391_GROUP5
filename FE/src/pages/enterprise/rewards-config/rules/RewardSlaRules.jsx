@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-// ...existing code...
+import { toast } from "sonner";
 
 // Hàm fetch wasteType theo ID
 async function fetchWasteTypeById(wasteTypeId) {
@@ -249,15 +249,29 @@ function EditWasteTypeModal({ open, onClose, onConfirm, adding, wasteItem }) {
 
           <div className="space-y-2">
             <Label htmlFor="edit-waste-unit">Đơn vị tính</Label>
-            <Input
-              id="edit-waste-unit"
-              value={unitType}
-              onChange={(e) => {
-                setUnitType(e.target.value);
-                setLocalErr("");
-              }}
-              disabled={adding}
-            />
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { value: "KG", label: "Kilogram", sub: "KG" },
+                { value: "CHAI", label: "Chai", sub: "CHAI" },
+                { value: "LON", label: "Lon", sub: "LON" },
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  disabled={adding}
+                  onClick={() => { setUnitType(opt.value); setLocalErr(""); }}
+                  className={[
+                    "flex flex-col items-center justify-center gap-1 rounded-lg border-2 px-3 py-3 text-sm font-medium transition-all",
+                    unitType === opt.value
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-muted bg-muted/30 text-muted-foreground hover:border-primary/50 hover:bg-primary/5",
+                    adding ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
+                  ].join(" ")}
+                >
+                  <span className="text-sm font-semibold">{opt.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -494,13 +508,29 @@ function EditWasteTypeDirectModal({ open, onClose, wasteTypes }) {
           {/* Đơn vị tính */}
           <div className="space-y-2">
             <Label htmlFor="edit-direct-unit">Đơn vị tính</Label>
-            <Input
-              id="edit-direct-unit"
-              placeholder="VD: KG hoặc LON"
-              value={unitType}
-              onChange={(e) => { setUnitType(e.target.value); setErr(""); }}
-              disabled={saving || !selectedId}
-            />
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { value: "KG", label: "Kilogram", sub: "KG" },
+                { value: "CHAI", label: "Chai", sub: "CHAI" },
+                { value: "LON", label: "Lon", sub: "LON" },
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  disabled={saving || !selectedId}
+                  onClick={() => { setUnitType(opt.value); setErr(""); }}
+                  className={[
+                    "flex flex-col items-center justify-center gap-1 rounded-lg border-2 px-3 py-3 text-sm font-medium transition-all",
+                    unitType === opt.value
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-muted bg-muted/30 text-muted-foreground hover:border-primary/50 hover:bg-primary/5",
+                    (saving || !selectedId) ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
+                  ].join(" ")}
+                >
+                  <span className="text-sm font-semibold">{opt.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {err && (
@@ -802,7 +832,19 @@ export default function RewardSlaRules() {
               <div><b>Tên loại rác:</b> {detailWasteType.wasteTypeName}</div>
               <div><b>Đơn vị:</b> {detailWasteType.unitType}</div>
               <div><b>Trạng thái:</b> {detailWasteType.isActive ? "Đang hoạt động" : "Đã tắt"}</div>
-              <div><b>Reward Config:</b> {detailWasteType.rewardConfig ? JSON.stringify(detailWasteType.rewardConfig) : "Chưa cấu hình"}</div>
+              <div><b>Reward Config:</b>
+                {detailWasteType.rewardConfig ? (
+                  <ul style={{ margin: 0, paddingLeft: 16 }}>
+                    <li><b>Điểm mỗi đơn vị:</b> {detailWasteType.rewardConfig.pointsPerUnit}</li>
+                    <li><b>Mô tả:</b> {detailWasteType.rewardConfig.description}</li>
+                    <li><b>Tỷ lệ sai số (%):</b> {detailWasteType.rewardConfig.allowedVariancePercent}</li>
+                    <li><b>Khối lượng tối thiểu:</b> {detailWasteType.rewardConfig.minKgRequired}</li>
+                    <li><b>Khối lượng tối đa:</b> {detailWasteType.rewardConfig.maxKgRequired}</li>
+                    <li><b>Phần trăm phạt (%):</b> {detailWasteType.rewardConfig.penaltyPercent}</li>
+                    <li><b>Trạng thái:</b> {detailWasteType.rewardConfig.isActive ? "Đang hoạt động" : "Đã tắt"}</li>
+                  </ul>
+                ) : "Chưa cấu hình"}
+              </div>
             </div>
           ) : null}
           <DialogFooter>
@@ -1102,9 +1144,13 @@ export default function RewardSlaRules() {
                   setRewardErr('Phần trăm phạt phải là số >= 0!'); return;
                 }
                 try {
+                  const token = localStorage.getItem("accessToken");
                   const res = await fetch('http://localhost:3000/enterprise/reward-config', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                      'Content-Type': 'application/json',
+                      ...(token ? { Authorization: `Bearer ${token}` } : {})
+                    },
                     body: JSON.stringify({
                       wasteTypeId: rewardDialogWaste.id,
                       pointsPerUnit: Number(rewardPayload.pointsPerUnit),
@@ -1116,11 +1162,11 @@ export default function RewardSlaRules() {
                     })
                   });
                   if (res.ok) {
-                    alert('Thêm reward config thành công!');
+                    toast.success('Thêm reward config thành công!');
                     setShowRewardDialog(false);
                     setRewardDialogWaste(null);
                   } else {
-                    setRewardErr('Thêm reward config thất bại!');
+                   toast.error('Thêm reward config thất bại!');
                   }
                 } catch (e) {
                   setRewardErr('Lỗi khi gọi API reward-config!');
