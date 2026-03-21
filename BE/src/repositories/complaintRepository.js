@@ -202,11 +202,40 @@ async function softDeleteComplaint(complaintId) {
   return true
 }
 
+async function findComplaintById(complaintId) {
+  const [rows] = await db.execute(
+    `SELECT report_complaint_id AS reportComplaintId,
+            waste_report_id AS wasteReportId,
+            citizen_id AS citizenId,
+            complaint_status AS complaintStatus,
+            is_deleted AS isDeleted
+     FROM reportcomplaint 
+     WHERE report_complaint_id = ? LIMIT 1`,
+    [complaintId]
+  )
+  return rows[0] || null
+}
+
+async function resolveComplaint(connection, { complaintId, adminResponse, refundPoints, adminId }) {
+  const query = `
+    UPDATE reportcomplaint 
+    SET complaint_status = 'RESOLVED',
+        admin_response = ?,
+        refund_points = ?,
+        resolved_at = NOW(),
+        resolved_by_admin_id = ?
+    WHERE report_complaint_id = ?
+  `
+  await connection.execute(query, [adminResponse, refundPoints, adminId, complaintId])
+}
+
 module.exports = {
   createComplaint,
   findComplaintByCitizenAndReport,
   findMyComplaints,
   findComplaintDetail,
   updateComplaint,
-  softDeleteComplaint
+  softDeleteComplaint,
+  findComplaintById,
+  resolveComplaint
 }

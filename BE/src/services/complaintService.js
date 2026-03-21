@@ -1,8 +1,11 @@
 const complaintRepository = require('../repositories/complaintRepository')
 const wasteReportRepository = require('../repositories/wasteReportRepository')
+const rewardRepository = require('../repositories/rewardRepository')
+const db = require('../config/database')
 const ApiError = require('../errors/ApiError')
 const cloudinary = require('../config/cloudinary')
 const sharp = require('sharp')
+const { v4: uuidv4 } = require('uuid')
 
 async function compressImage(buffer, mimetype) {
   if (!mimetype || !mimetype.startsWith('image/')) return buffer
@@ -198,10 +201,67 @@ async function softDeleteComplaint({ userAccountId, complaintId }) {
   return true
 }
 
+async function resolveComplaint({ adminId, complaintId, adminResponse, refundPoints }) {
+  if (!complaintId) {
+    throw new ApiError(400, 'Thiếu complaintId.')
+  }
+
+  const complaint = await complaintRepository.findComplaintById(complaintId)
+  if (!complaint) {
+    throw new ApiError(404, 'Không tìm thấy khiếu nại.')
+  }
+
+  if (complaint.complaintStatus !== 'OPEN') {
+    throw new ApiError(400, 'Chỉ có thể xử lý khiếu nại đang ở trạng thái OPEN.')
+  }
+
+  const connection = await db.getConnection()
+  try {
+    await connection.beginTransaction()
+
+    // 1. Resolve the complaint
+    await complaintRepository.resolveComplaint(connection, {
+      complaintId,
+      adminResponse,
+      refundPoints: refundPoints || 0,
+      adminId
+    })
+
+    // 2. Process refund if points > 0
+    if (refundPoints > 0) {
+      // Update citizen total points
+      await rewardRepository.updateCitizenPoints(connection, complaint.citizenId, refundPoints)
+
+      // Create point transaction record
+      await rewardRepository.insertPointTransaction(connection, {
+        pointTransactionId: uuidv4(),
+        citizenId: complaint.citizenId,
+        wasteReportId: complaint.wasteReportId,
+        pointsDelta: refundPoints,
+        transactionReason: `Hoàn điểm từ khiếu nại: ${complaintId}`,
+        createdAt: new Date()
+      })
+    }
+
+    await connection.commit()
+    return {
+      success: true,
+      message: 'Complaint resolved and points refunded',
+      refundPoints: refundPoints || 0
+    }
+  } catch (error) {
+    await connection.rollback()
+    throw error
+  } finally {
+    connection.release()
+  }
+}
+
 module.exports = {
   createComplaint,
   getMyComplaints,
   getComplaintDetail,
   updateComplaint,
-  softDeleteComplaint
+  softDeleteComplaint,
+  resolveComplaint
 }
