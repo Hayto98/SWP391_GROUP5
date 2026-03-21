@@ -49,7 +49,7 @@ function getViolationLevel(total) {
  */
 async function applyPenaltyIfLevelEscalated(
   connection,
-  { citizenId, userAccountId, wasteReportId, currentLevel, lastPenaltyLevel, currentTime }
+  { citizenId, userAccountId, wasteReportId, currentLevel, lastPenaltyLevel, currentTime, penaltyPercent = 5 }
 ) {
   let reportBlockedUntil = null
 
@@ -68,26 +68,39 @@ async function applyPenaltyIfLevelEscalated(
     }
 
     if (currentLevel === 2) {
-      // Deduct 5 points
-      await rewardRepository.insertPointTransaction(connection, {
-        pointTransactionId: uuidv4(),
-        citizenId,
-        wasteReportId: wasteReportId || null,
-        pointsDelta: -5,
-        transactionReason: 'Phạt do vi phạm quy định',
-        createdAt: currentTime
-      })
-      await rewardRepository.updateCitizenPoints(connection, citizenId, -5)
-
-      await notificationService.createNotification(
-        {
-          notificationType: NOTIFICATION_TYPES.POINT_DEDUCTED,
-          recipientUserAccountId: userAccountId,
-          wasteReportId: wasteReportId || null,
-          message: 'Bạn đã bị trừ điểm do vi phạm'
-        },
-        connection
+      // Lấy số điểm hiện tại của citizen
+      const [rows] = await connection.execute(
+        'SELECT total_points FROM citizen WHERE citizen_id = ?',
+        [citizenId]
       )
+      const currentPoints = rows.length > 0 && rows[0].total_points ? Number(rows[0].total_points) : 0
+      // Trừ % số điểm hiện tại
+      const PENALTY_PERCENT = penaltyPercent 
+      let deduction = Math.floor(currentPoints * (PENALTY_PERCENT / 100))
+      if (deduction < 1 && currentPoints > 0) deduction = 1 // Phạt tối thiểu 1 điểm nếu có điểm
+      if (currentPoints === 0) deduction = 0
+
+      if (deduction > 0) {
+        await rewardRepository.insertPointTransaction(connection, {
+          pointTransactionId: uuidv4(),
+          citizenId,
+          wasteReportId: wasteReportId || null,
+          pointsDelta: -deduction,
+          transactionReason: `Phạt do vi phạm quy định (${PENALTY_PERCENT}%)`,
+          createdAt: currentTime
+        })
+        await rewardRepository.updateCitizenPoints(connection, citizenId, -deduction)
+
+        await notificationService.createNotification(
+          {
+            notificationType: NOTIFICATION_TYPES.POINT_DEDUCTED,
+            recipientUserAccountId: userAccountId,
+            wasteReportId: wasteReportId || null,
+            message: `Bạn đã bị trừ ${deduction} điểm do vi phạm`
+          },
+          connection
+        )
+      }
     }
 
     if (currentLevel === 3) {
@@ -475,7 +488,8 @@ async function processReward(
   // ════════════════════════════════════════════════════════════════════
   // STEP 3: Calculate base points
   // ════════════════════════════════════════════════════════════════════
-  const pointsRaw = actualKg * Number(pointsPerUnit)
+  const baseKgForPoints = Math.min(citizenReportKg, actualKg)
+  const pointsRaw = baseKgForPoints * Number(pointsPerUnit)
   const points = Math.floor(pointsRaw)
 
   // ════════════════════════════════════════════════════════════════════
@@ -581,7 +595,8 @@ async function processReward(
     wasteReportId,
     currentLevel,
     lastPenaltyLevel,
-    currentTime
+    currentTime,
+    penaltyPercent: Number(penaltyPercent)
   })
 
   lastPenaltyLevel = penaltyResult.lastPenaltyLevel
