@@ -621,20 +621,29 @@ export default function RewardSlaRules() {
   // Xóa loại rác qua API
   async function removeWasteType(wasteTypeId) {
     try {
-      const res = await fetch(`http://localhost:3000/api/enterprise/waste-types/${wasteTypeId}`, {
+      // Lấy access token từ localStorage (hoặc nơi bạn lưu trữ token)
+      const accessToken = localStorage.getItem('accessToken');
+      if (!accessToken) {
+        alert('Không tìm thấy access token. Vui lòng đăng nhập lại.');
+        return { ok: false };
+      }
+      const res = await fetch(`http://localhost:3000/api/v1/enterprise/waste-types/${wasteTypeId}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
       });
       if (res.ok) {
-        alert('Xóa loại rác thành công!');
+        toast.success('Xóa loại rác thành công!');
         setWasteToDelete(null);
         // Có thể cần reload lại danh sách loại rác ở đây nếu cần
         return { ok: true };
       } else {
-        alert('Xóa loại rác thất bại!');
+        toast.error('Xóa loại rác thất bại!');
         return { ok: false };
       }
     } catch (e) {
-      alert('Lỗi khi gọi API xóa loại rác!');
+      toast.error('Lỗi khi gọi API xóa loại rác!');
       return { ok: false };
     }
   }

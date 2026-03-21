@@ -149,7 +149,7 @@ async function findAllWithRewardConfig({ isActive, unitType, includeInactiveRewa
     ? `ON wt.waste_type_id = rc.waste_type_id`
     : `ON wt.waste_type_id = rc.waste_type_id AND rc.is_active = 1`
 
-  let whereClause = `WHERE 1=1`
+  let whereClause = `WHERE 1=1 AND IFNULL(wt.is_deleted,0) = 0`
   const params = []
 
   if (isActive !== undefined) {
