@@ -364,7 +364,9 @@ export default function ManageVoucher() {
   const { totalVoucher, totalActive, totalRedeemed, avgPoints } = statistics;
 
   // ── Filtered list ──
-  const filtered = vouchers.filter((v) => {
+  // Tạm thời luôn set trạng thái voucher là bật (active) khi hiển thị
+  const mappedVouchers = vouchers.map(v => ({ ...v, isActive: true }));
+  const filtered = mappedVouchers.filter((v) => {
     const matchSource = filterSource === "all" || v.source === filterSource;
     const q = search.toLowerCase();
     const title = v.title || v.voucher_name || "";
@@ -725,13 +727,6 @@ export default function ManageVoucher() {
 
                 {/* Bottom Actions Overlay */}
                 <div className="absolute bottom-3 right-3 flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                  <Switch
-                    checked={v.isActive !== undefined ? v.isActive : v.is_active}
-                    onCheckedChange={() => handleToggle(v)}
-                    className="scale-75 origin-right"
-                    title="Bật / Tắt"
-                  />
-                  <div className="w-px h-5 bg-gray-200 mx-1"></div>
                   <button
                     onClick={() => handleEdit(v)}
                     className="text-gray-400 hover:text-blue-600 transition-colors"

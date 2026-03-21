@@ -473,15 +473,7 @@ export default function ReportDetail() {
             >
               {actionLoading === "reject" ? "..." : "Từ chối"}
             </Button>
-            {/* Xem thu gom */}
-            <Button
-              variant="outline"
-              type="button"
-              className="text-emerald-700 border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 focus:text-emerald-700 active:text-emerald-700"
-              onClick={() => setCollectionPopupOpen(true)}
-            >
-              <PackageOpen className="size-4 mr-1" /> Xem thu gom
-            </Button>
+
             {/* Quay về */}
             <Button
               type="button"

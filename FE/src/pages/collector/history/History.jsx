@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Calendar,
   Download,
@@ -100,6 +101,8 @@ function formatAreaFromLocation(location) {
 }
 
 function History() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [allJobs, setAllJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -269,7 +272,7 @@ function History() {
     URL.revokeObjectURL(url);
   };
 
-  const handleViewDetail = async (reportId) => {
+  const handleViewDetail = useCallback(async (reportId) => {
     if (!reportId) return;
 
     setDetailOpen(true);
@@ -287,7 +290,15 @@ function History() {
     } finally {
       setDetailLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const reportIdFromState = location.state?.openReportId;
+    if (!reportIdFromState) return;
+
+    handleViewDetail(reportIdFromState);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, handleViewDetail, navigate]);
 
   const detailUnit =
     detailData?.collectedRecord?.quantityUnit || detailData?.unitType || "KG";
