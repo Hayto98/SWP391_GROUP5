@@ -1,6 +1,7 @@
 const ApiError = require('../errors/ApiError')
 const wasteTypeRepository = require('../repositories/wasteTypeRepository')
 const rewardConfigRepository = require('../repositories/rewardConfigRepository')
+const enterpriseRepository = require('../repositories/enterpriseRepository')
 
 // ==================== WASTE TYPE SERVICES ====================
 
@@ -192,15 +193,15 @@ async function getAllWasteTypes({ isActive, unitType, includeInactiveReward } = 
     // createdAt intentionally omitted per API spec
     rewardConfig: wt.rewardConfig
       ? {
-          rewardConfigId: wt.rewardConfig.rewardConfigId,
-          pointsPerUnit: wt.rewardConfig.pointsPerUnit,
-          description: wt.rewardConfig.description,
-          allowedVariancePercent: wt.rewardConfig.allowedVariancePercent,
-          minKgRequired: wt.rewardConfig.minKgRequired,
-          maxKgRequired: wt.rewardConfig.maxKgRequired,
-          penaltyPercent: wt.rewardConfig.penaltyPercent,
-          isActive: wt.rewardConfig.isActive
-        }
+        rewardConfigId: wt.rewardConfig.rewardConfigId,
+        pointsPerUnit: wt.rewardConfig.pointsPerUnit,
+        description: wt.rewardConfig.description,
+        allowedVariancePercent: wt.rewardConfig.allowedVariancePercent,
+        minKgRequired: wt.rewardConfig.minKgRequired,
+        maxKgRequired: wt.rewardConfig.maxKgRequired,
+        penaltyPercent: wt.rewardConfig.penaltyPercent,
+        isActive: wt.rewardConfig.isActive
+      }
       : null
   }))
 
@@ -234,15 +235,15 @@ async function getWasteTypeById(wasteTypeId) {
       isActive: wasteType.isActive,
       rewardConfig: wasteType.rewardConfig
         ? {
-            rewardConfigId: wasteType.rewardConfig.rewardConfigId,
-            pointsPerUnit: wasteType.rewardConfig.pointsPerUnit,
-            description: wasteType.rewardConfig.description,
-            allowedVariancePercent: wasteType.rewardConfig.allowedVariancePercent,
-            minKgRequired: wasteType.rewardConfig.minKgRequired,
-            maxKgRequired: wasteType.rewardConfig.maxKgRequired,
-            penaltyPercent: wasteType.rewardConfig.penaltyPercent,
-            isActive: wasteType.rewardConfig.isActive
-          }
+          rewardConfigId: wasteType.rewardConfig.rewardConfigId,
+          pointsPerUnit: wasteType.rewardConfig.pointsPerUnit,
+          description: wasteType.rewardConfig.description,
+          allowedVariancePercent: wasteType.rewardConfig.allowedVariancePercent,
+          minKgRequired: wasteType.rewardConfig.minKgRequired,
+          maxKgRequired: wasteType.rewardConfig.maxKgRequired,
+          penaltyPercent: wasteType.rewardConfig.penaltyPercent,
+          isActive: wasteType.rewardConfig.isActive
+        }
         : null
     }
   }
@@ -583,6 +584,109 @@ async function getRewardConfigByWasteTypeId(wasteTypeId) {
   }
 }
 
+/**
+ * GET Dashboard Statistics Enterprise
+ */
+async function getDashboardStatistics(fromDate, toDate, groupBy = 'day') {
+  const now = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+
+  let finalGroupBy = groupBy
+  if (finalGroupBy !== 'day' && finalGroupBy !== 'month') {
+    finalGroupBy = 'day'
+  }
+
+  let startDate = fromDate ? new Date(fromDate) : new Date(now.getFullYear(), now.getMonth(), 1)
+  if (isNaN(startDate.getTime())) {
+    throw new ApiError(400, 'fromDate không hợp lệ')
+  }
+
+  let endDate = toDate ? new Date(toDate) : new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+  if (isNaN(endDate.getTime())) {
+    throw new ApiError(400, 'toDate không hợp lệ')
+  }
+
+  if (startDate >= endDate) {
+    throw new ApiError(400, 'fromDate phải nhỏ hơn toDate')
+  }
+
+  const maxAllowedDate = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+  if (startDate > now || endDate > maxAllowedDate) {
+    throw new ApiError(400, 'Không thể truy vấn dữ liệu trong tương lai')
+  }
+
+
+
+
+  const formatDate = (date) => {
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+  }
+
+  const startDateStr = formatDate(startDate)
+  const endDateStr = formatDate(endDate)
+
+  const timeFormat = finalGroupBy === 'month' ? '%Y-%m' : '%Y-%m-%d'
+
+  const startOfCurrentMonth = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01 00:00:00`
+  let nextMo = now.getMonth() + 2
+  let nextMoYr = now.getFullYear()
+  if (nextMo > 12) {
+    nextMo = 1
+    nextMoYr += 1
+  }
+  const startOfNextMonth = `${nextMoYr}-${pad(nextMo)}-01 00:00:00`
+
+  const data = await enterpriseRepository.getDashboardStatistics(
+    startDateStr,
+    endDateStr,
+    timeFormat,
+    startOfCurrentMonth,
+    startOfNextMonth
+  )
+
+  const parseJson = (val) => {
+    if (!val) return null
+    try {
+      if (typeof val === 'string') return JSON.parse(val)
+      return val
+    } catch (e) {
+      return null
+    }
+  }
+
+  const statusStats = parseJson(data.statusStats) || {}
+  let wasteByType = parseJson(data.wasteByType) || []
+  let reportsByTime = parseJson(data.reportsByTime) || []
+  const collectorStats = parseJson(data.collectorStats) || {}
+  const staffStats = parseJson(data.staffStats) || {}
+
+  if (!Array.isArray(wasteByType)) wasteByType = []
+  if (!Array.isArray(reportsByTime)) reportsByTime = []
+
+  return {
+    totalReports: Number(statusStats?.totalReports) || 0,
+    pendingReports: Number(statusStats?.pendingReports) || 0,
+    inProgressReports: Number(statusStats?.inProgressReports) || 0,
+    wasteByType: wasteByType.map(w => ({
+      wasteType: w?.wasteType || '',
+      quantity: Number(w?.quantity) || 0
+    })),
+    reportsByTime: reportsByTime.map(r => ({
+      time: r?.time || '',
+      reports: Number(r?.reports) || 0
+    })),
+    collectorStats: {
+      weeklyTasks: Number(collectorStats?.weeklyTasks) || 0,
+      monthlyTasks: Number(collectorStats?.monthlyTasks) || 0
+    },
+    staffStats: {
+      totalCollectors: Number(staffStats?.totalCollectors) || 0,
+      activeCollectors: Number(staffStats?.activeCollectors) || 0,
+      idleCollectors: Number(staffStats?.idleCollectors) || 0
+    }
+  }
+}
+
 module.exports = {
   // WasteType
   createWasteType,
@@ -597,5 +701,6 @@ module.exports = {
   updateRewardConfig,
   getAllRewardConfigs,
   getRewardConfigById,
-  getRewardConfigByWasteTypeId
+  getRewardConfigByWasteTypeId,
+  getDashboardStatistics
 }

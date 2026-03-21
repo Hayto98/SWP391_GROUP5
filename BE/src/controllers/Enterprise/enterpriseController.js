@@ -159,6 +159,22 @@ async function updateRewardConfig(req, res, next) {
   }
 }
 
+/**
+ * GET /enterprise/dashboard/statistics
+ */
+async function getDashboardStatistics(req, res, next) {
+  try {
+    const { fromDate, toDate, groupBy } = req.query
+    const result = await enterpriseService.getDashboardStatistics(fromDate, toDate, groupBy)
+    res.status(200).json({
+      success: true,
+      data: result
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
 module.exports = {
   // WasteType
   createWasteType,
@@ -173,5 +189,8 @@ module.exports = {
   getAllRewardConfigs,
   getRewardConfigById,
   getRewardConfigByWasteTypeId,
-  updateRewardConfig
+  updateRewardConfig,
+
+  // Dashboard
+  getDashboardStatistics
 }

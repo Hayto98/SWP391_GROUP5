@@ -39,6 +39,9 @@ router.get('/notifications', notificationController.getNotifications)
 router.patch('/notifications/:notificationId/read', notificationController.markAsRead)
 
 // --- CITIZEN INFO ---
+// GET /citizen/dashboard/statistics
+router.get('/dashboard/statistics', citizenController.getDashboardStatistics)
+
 // GET /citizen/me/points
 router.get('/me/points', citizenController.getMyPoints)
 
