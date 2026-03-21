@@ -559,8 +559,6 @@ export default function ReportDetail() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>COLLECTOR</TableHead>
-                          <TableHead>KHOẢNG CÁCH</TableHead>
-                          <TableHead>TẢI CÔNG VIỆC</TableHead>
                           <TableHead className="text-right">THAO TÁC</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -573,23 +571,9 @@ export default function ReportDetail() {
                                   {collector.name}
                                 </div>
                                 <div className="text-xs text-muted-foreground">
-                                  {collector.id} • {collector.status}
+                                  {collector.status}
                                 </div>
                               </div>
-                            </TableCell>
-
-                            <TableCell>
-                              <div className="font-medium">
-                                {collector.distanceKm.toFixed(1)} km
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {collector.etaText}
-                              </div>
-                            </TableCell>
-
-                            <TableCell className="text-sm text-muted-foreground">
-                              {collector.tasks}/{collector.maxTasks} tasks •{" "}
-                              {collector.loadPercent}%
                             </TableCell>
 
                             <TableCell className="text-right">

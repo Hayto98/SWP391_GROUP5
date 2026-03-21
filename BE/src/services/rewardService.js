@@ -75,7 +75,7 @@ async function applyPenaltyIfLevelEscalated(
       )
       const currentPoints = rows.length > 0 && rows[0].total_points ? Number(rows[0].total_points) : 0
       // Trừ % số điểm hiện tại
-      const PENALTY_PERCENT = penaltyPercent 
+      const PENALTY_PERCENT = penaltyPercent
       let deduction = Math.floor(currentPoints * (PENALTY_PERCENT / 100))
       if (deduction < 1 && currentPoints > 0) deduction = 1 // Phạt tối thiểu 1 điểm nếu có điểm
       if (currentPoints === 0) deduction = 0
@@ -343,21 +343,21 @@ async function checkSpam(connection, { citizenId, currentTime }) {
   let lastViolationAt = citizen.lastViolationAt
 
   // ── Rule 1: Rate limit (10 minutes per report) ───────────────────
-  const lastReportTime = await rewardRepository.findLastReportTime(connection, citizenId)
-  if (lastReportTime) {
-    const diffMs = currentTime.getTime() - new Date(lastReportTime).getTime()
-    const diffMinutes = diffMs / (1000 * 60)
-    if (diffMinutes < 10) {
-      return {
-        allowed: false,
-        isSpam: false,
-        message: 'Bạn chỉ có thể tạo báo cáo mỗi 10 phút',
-        spamViolationCount,
-        totalViolationCount,
-        lastViolationAt
-      }
-    }
-  }
+  // const lastReportTime = await rewardRepository.findLastReportTime(connection, citizenId)
+  // if (lastReportTime) {
+  //   const diffMs = currentTime.getTime() - new Date(lastReportTime).getTime()
+  //   const diffMinutes = diffMs / (1000 * 60)
+  //   if (diffMinutes < 10) {
+  //     return {
+  //       allowed: false,
+  //       isSpam: false,
+  //       message: 'Bạn chỉ có thể tạo báo cáo mỗi 10 phút',
+  //       spamViolationCount,
+  //       totalViolationCount,
+  //       lastViolationAt
+  //     }
+  //   }
+  // }
 
   // ── Rule 2: Daily limit (max 5 reports per day) ──────────────────
   const totalReportsToday = await rewardRepository.countReportsToday(connection, citizenId, currentTime)
