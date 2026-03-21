@@ -398,7 +398,7 @@ function ReportDetailPage() {
           <CardTitle>Tiến độ thu gom</CardTitle>
         </CardHeader>
         <CardContent>
-          {report.scheduledCollectAtText && (
+          {report.scheduledCollectAtText && report.status !== "COLLECTED" && (
             <div className="mb-4 rounded-lg border border-orange-300 bg-orange-50 p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">
                 Lịch thu gom dự kiến
