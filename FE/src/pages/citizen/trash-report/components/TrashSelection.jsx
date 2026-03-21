@@ -131,7 +131,7 @@ function TrashSelection({
             <CircleAlert size="16" />
             <span>
               {selectedWasteType
-                ? `Đơn vị: ${selectedWasteType.unitType} • Ước tính: ${estimatedPoints.toFixed(2)} điểm`
+                ? `Đơn vị: ${selectedWasteType.unitType} • Tối thiểu: ${minKgRequired} ${selectedWasteType.unitType} • Tối đa: ${hasMaxKgLimit ? `${maxKgRequired} ${selectedWasteType.unitType}` : "Không giới hạn"}`
                 : "Chọn loại rác"}
             </span>
           </FieldDescription>
@@ -156,24 +156,14 @@ function TrashSelection({
               {selectedWasteType.pointsPerUnit} điểm/
               {selectedWasteType.unitType}
             </li>
-            <li>
-              Khối lượng tối thiểu để được tính điểm: {minKgRequired}{" "}
-              {selectedWasteType.unitType}
-            </li>
-            <li>
-              Khối lượng tối đa được tính điểm:{" "}
-              {hasMaxKgLimit
-                ? `${maxKgRequired} ${selectedWasteType.unitType}`
-                : "Không giới hạn"}
-            </li>
+
             <li>
               Sai lệch cho phép giữa báo cáo và thực tế: ±
               {selectedWasteType.allowedVariancePercent ?? "-"}%
             </li>
             <li className="text-emerald-700/90 text-xs pl-4">
               Ví dụ: Nếu báo cáo 10 {selectedWasteType.unitType}, thì thực tế từ
-              9 đến 11 {selectedWasteType.unitType} vẫn được xem là trong
-              ngưỡng.
+              9 {selectedWasteType.unitType} vẫn được xem là trong ngưỡng.
             </li>
             <li>
               Mức phạt nếu báo cáo không chính xác:{" "}
