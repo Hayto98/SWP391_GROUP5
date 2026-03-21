@@ -18,8 +18,15 @@ export function NotificationBell() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const user = useAuthStore((s) => s.user);
-  const { notifications, unreadCount, loading, error, fetchNotifications, markAsRead, markAllAsRead } =
-    useNotificationStore();
+  const {
+    notifications,
+    unreadCount,
+    loading,
+    error,
+    fetchNotifications,
+    markAsRead,
+    markAllAsRead,
+  } = useNotificationStore();
 
   const role = user?.roleId || user?.role;
 
@@ -31,14 +38,33 @@ export function NotificationBell() {
 
   useEffect(() => {
     if (role) {
-      const interval = setInterval(() => fetchNotifications(role), 60000);
-      return () => clearInterval(interval);
+      fetchNotifications(role);
+
+      const interval = setInterval(() => fetchNotifications(role), 15000);
+
+      const handleVisibilityOrFocus = () => {
+        if (!document.hidden) {
+          fetchNotifications(role);
+        }
+      };
+
+      document.addEventListener("visibilitychange", handleVisibilityOrFocus);
+      window.addEventListener("focus", handleVisibilityOrFocus);
+
+      return () => {
+        clearInterval(interval);
+        document.removeEventListener(
+          "visibilitychange",
+          handleVisibilityOrFocus,
+        );
+        window.removeEventListener("focus", handleVisibilityOrFocus);
+      };
     }
   }, [role, fetchNotifications]);
 
   const handleNotifClick = async (notif) => {
     setOpen(false); // Close popover immediately for better UX
-    
+
     if (!notif.isRead) {
       await markAsRead(role, notif.notificationId);
     }
@@ -60,7 +86,11 @@ export function NotificationBell() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative h-9 w-9 rounded-full">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative h-9 w-9 rounded-full"
+        >
           <Bell className="size-5" />
           {unreadCount > 0 && (
             <Badge
@@ -85,9 +115,9 @@ export function NotificationBell() {
             </div>
             <div className="flex gap-2 items-center">
               {unreadCount > 0 && (
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
                   className="h-8 text-[11px] flex gap-1.5 text-primary hover:text-primary hover:bg-primary/5 px-2"
                   onClick={() => markAllAsRead(role)}
                 >
@@ -95,55 +125,63 @@ export function NotificationBell() {
                   Đọc tất cả
                 </Button>
               )}
-              {loading && <span className="text-[10px] animate-pulse">...</span>}
+              {loading && (
+                <span className="text-[10px] animate-pulse">...</span>
+              )}
             </div>
           </div>
           <Separator />
-          <div className="max-h-[400px] overflow-y-auto overflow-x-hidden scrollbar-thin">
-          {error && (
-            <div className="p-4 bg-destructive/10 text-destructive text-[11px] border-b">
-              Lỗi: {error}
-            </div>
-          )}
-          {notifications.length === 0 ? (
-            <div className="p-10 text-center flex flex-col items-center gap-2">
-              <Bell className="size-8 text-muted-foreground/30" />
-              <p className="text-sm text-muted-foreground font-medium">Bạn chưa có thông báo nào</p>
-            </div>
-          ) : (
-            notifications.map((notif) => (
-              <div
-                key={notif.notificationId}
-                className={`p-4 border-b last:border-0 hover:bg-muted/50 transition-all cursor-pointer group relative ${
-                  !notif.isRead ? "bg-blue-50/50 hover:bg-blue-50" : "bg-background"
-                }`}
-                onClick={() => handleNotifClick(notif)}
-              >
-                {!notif.isRead && (
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary" />
-                )}
-                <div className="flex flex-col gap-1 pr-2">
-                  <p className={`text-sm leading-snug ${!notif.isRead ? "font-bold text-foreground" : "text-muted-foreground"}`}>
-                    {notif.message}
-                  </p>
-                  <div className="flex items-center justify-between">
-                    <p className="text-[11px] text-muted-foreground/80 flex items-center gap-1">
-                      {formatDistanceToNow(new Date(notif.createdAt), {
-                        addSuffix: true,
-                        locale: vi,
-                      })}
+          <div className="max-h-100 overflow-y-auto overflow-x-hidden scrollbar-thin">
+            {error && (
+              <div className="p-4 bg-destructive/10 text-destructive text-[11px] border-b">
+                Lỗi: {error}
+              </div>
+            )}
+            {notifications.length === 0 ? (
+              <div className="p-10 text-center flex flex-col items-center gap-2">
+                <Bell className="size-8 text-muted-foreground/30" />
+                <p className="text-sm text-muted-foreground font-medium">
+                  Bạn chưa có thông báo nào
+                </p>
+              </div>
+            ) : (
+              notifications.map((notif) => (
+                <div
+                  key={notif.notificationId}
+                  className={`p-4 border-b last:border-0 hover:bg-muted/50 transition-all cursor-pointer group relative ${
+                    !notif.isRead
+                      ? "bg-blue-50/50 hover:bg-blue-50"
+                      : "bg-background"
+                  }`}
+                  onClick={() => handleNotifClick(notif)}
+                >
+                  {!notif.isRead && (
+                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary" />
+                  )}
+                  <div className="flex flex-col gap-1 pr-2">
+                    <p
+                      className={`text-sm leading-snug ${!notif.isRead ? "font-bold text-foreground" : "text-muted-foreground"}`}
+                    >
+                      {notif.message}
                     </p>
-                    {!notif.isRead && (
-                       <div className="size-2 bg-primary rounded-full animate-pulse" />
-                    )}
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] text-muted-foreground/80 flex items-center gap-1">
+                        {formatDistanceToNow(new Date(notif.createdAt), {
+                          addSuffix: true,
+                          locale: vi,
+                        })}
+                      </p>
+                      {!notif.isRead && (
+                        <div className="size-2 bg-primary rounded-full animate-pulse" />
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
-          )}
+              ))
+            )}
+          </div>
         </div>
-      </div>
-    </PopoverContent>
+      </PopoverContent>
     </Popover>
   );
 }

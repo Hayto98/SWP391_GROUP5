@@ -570,6 +570,7 @@ async function completeReport(collectorId, reportId, { actualQuantity, quantityU
 
   let processReward = 0
   let rewardResult = null
+  let pointsAwarded = 0
 
   try {
     await connection.beginTransaction()
@@ -625,21 +626,12 @@ async function completeReport(collectorId, reportId, { actualQuantity, quantityU
     })
     pointsAwarded = rewardResult.finalPoints
 
-    // 7g. Create POINT_REWARDED notification (inside transaction)
-    if (pointsAwarded > 0 && report.citizen_user_account_id) {
-      await notificationService.createNotification({
-        notificationType: NOTIFICATION_TYPES.POINT_REWARDED,
-        recipientUserAccountId: report.citizen_user_account_id,
-        wasteReportId: reportId,
-        message: `Bạn đã được thưởng ${pointsAwarded} điểm cho báo cáo rác thải`
-      }, connection)
+    // 7g. Create notifications for citizen (inside transaction)
+    const citizenUserAccountId =
+      report.citizen_user_account_id || (await notificationRepository.findCitizenUserAccountIdByReportId(reportId))
 
-      await collectorReportRepository.updateCitizenPoints(connection, report.citizen_id, pointsAwarded)
-
-      // 7g. Create notifications (inside transaction)
-      const citizenUserAccountId = await notificationRepository.findCitizenUserAccountIdByReportId(reportId)
-      if (citizenUserAccountId) {
-        // Point Reward Notification
+    if (citizenUserAccountId) {
+      if (pointsAwarded > 0) {
         await notificationService.createNotification(
           {
             notificationType: NOTIFICATION_TYPES.POINT_REWARDED,
@@ -649,32 +641,31 @@ async function completeReport(collectorId, reportId, { actualQuantity, quantityU
           },
           connection
         )
-
-        // Collection Completed Notification
-        await notificationService.createNotification(
-          {
-            notificationType: NOTIFICATION_TYPES.COLLECTION_COMPLETED,
-            recipientUserAccountId: citizenUserAccountId,
-            wasteReportId: reportId,
-            message: 'Đơn thu gom của bạn đã hoàn thành thành công.'
-          },
-          connection
-        )
       }
 
-      // 7h. Notify all Enterprises that the report is completed
-      const enterprises = await userRepository.findAll({ roleId: ROLES.ENTERPRISE })
-      for (const ent of enterprises) {
-        await notificationService.createNotification(
-          {
-            notificationType: NOTIFICATION_TYPES.REPORT_COMPLETED,
-            recipientUserAccountId: ent.userAccountId,
-            wasteReportId: reportId,
-            message: `Báo cáo rác thải (${report.report_code || reportId}) đã được hoàn thành bởi người thu gom.`
-          },
-          connection
-        )
-      }
+      await notificationService.createNotification(
+        {
+          notificationType: NOTIFICATION_TYPES.COLLECTION_COMPLETED,
+          recipientUserAccountId: citizenUserAccountId,
+          wasteReportId: reportId,
+          message: 'Đơn thu gom của bạn đã hoàn thành thành công.'
+        },
+        connection
+      )
+    }
+
+    // 7h. Notify all Enterprises that the report is completed
+    const enterprises = await userRepository.findAll({ roleId: ROLES.ENTERPRISE })
+    for (const ent of enterprises) {
+      await notificationService.createNotification(
+        {
+          notificationType: NOTIFICATION_TYPES.REPORT_COMPLETED,
+          recipientUserAccountId: ent.userAccountId,
+          wasteReportId: reportId,
+          message: `Báo cáo rác thải (${report.report_code || reportId}) đã được hoàn thành bởi người thu gom.`
+        },
+        connection
+      )
     }
 
     await connection.commit()

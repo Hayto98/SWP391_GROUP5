@@ -135,7 +135,6 @@ function TaskDetail() {
   const [fakeFile, setFakeFile] = useState(null);
   const [fakeFilePreview, setFakeFilePreview] = useState("");
   const [actualQuantity, setActualQuantity] = useState("");
-  const [quantityUnit, setQuantityUnit] = useState("KG");
   const [note, setNote] = useState("");
   const [resultFile, setResultFile] = useState(null);
   const [resultFilePreview, setResultFilePreview] = useState("");
@@ -201,7 +200,6 @@ function TaskDetail() {
 
     if (task.status === "IN_PROGRESS") {
       setActualQuantity(task.actualQuantity ?? "");
-      setQuantityUnit(task.unitType || "KG");
       setNote("");
       setResultFile(null);
       setSubmitDialogOpen(true);
@@ -241,14 +239,16 @@ function TaskDetail() {
 
     setSubmitSaving(true);
     try {
+      const submitUnit = task.unitType || "KG";
       const response = await submitCollectorReportResult(task.reportId, {
         actualQuantity: quantity,
-        quantityUnit,
+        quantityUnit: submitUnit,
         note,
         file: resultFile,
       });
 
       const submittedQuantity = response?.data?.actualQuantity ?? quantity;
+      const completedReportId = response?.data?.reportId || task.reportId;
 
       setTask((prev) => ({
         ...prev,
@@ -256,6 +256,9 @@ function TaskDetail() {
       }));
       setSubmitDialogOpen(false);
       toast.success("Cập nhật kết quả thu gom thành công");
+      navigate("/collector/history", {
+        state: { openReportId: completedReportId },
+      });
     } catch (error) {
       toast.error(error.message || "Cập nhật kết quả thu gom thất bại");
     } finally {
@@ -653,7 +656,7 @@ function TaskDetail() {
       </Dialog>
 
       <Dialog open={submitDialogOpen} onOpenChange={setSubmitDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Cập nhật kết quả thu gom</DialogTitle>
             <DialogDescription>Nhập thông tin thực tế.</DialogDescription>
@@ -680,15 +683,6 @@ function TaskDetail() {
                   setActualQuantity(value);
                 }}
                 placeholder="Ví dụ: 4"
-              />
-            </div>
-
-            <div>
-              <p className="text-sm font-medium mb-1">Đơn vị</p>
-              <Input
-                value={quantityUnit}
-                onChange={(e) => setQuantityUnit(e.target.value.toUpperCase())}
-                placeholder="KG"
               />
             </div>
 
