@@ -178,6 +178,10 @@ export default function ReportDetail() {
   };
 
   const routeReportId = String(data?.id || reportId).replace(/^#/, "");
+  const reportCodeText =
+    typeof data?.reportCode === "string" && data.reportCode.trim()
+      ? data.reportCode.trim()
+      : `#${routeReportId}`;
   const rawStatus = String(data?.rawStatus || data?.status || "").toUpperCase();
   const canAccept = rawStatus === "PENDING";
   const canReject = rawStatus === "PENDING";
@@ -262,12 +266,13 @@ export default function ReportDetail() {
 
       recordReportAssignment({
         reportId: routeReportId,
+        reportCode: reportCodeText,
         collectorId: collector.id,
         collectorName: assignedCollectorName,
       });
 
       toast.success(
-        `Nhân viên ${assignedCollectorName} vừa được gán cho báo cáo #${routeReportId}.`,
+        `Nhân viên ${assignedCollectorName} vừa được gán cho báo cáo ${reportCodeText}.`,
       );
 
       setAssignPopupOpen(false);
@@ -385,14 +390,16 @@ export default function ReportDetail() {
           Chờ xử lý
         </Button>
         <span> / </span>
-        <span className="font-medium text-foreground">Chi tiết #{data.id}</span>
+        <span className="font-medium text-foreground">
+          Chi tiết {reportCodeText}
+        </span>
       </div>
 
       <Card>
         <CardContent className="p-6 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold">Report #{data.id}</h1>
+              <h1 className="text-2xl font-bold">Báo cáo {reportCodeText}</h1>
               <Badge variant="outline">{data.status}</Badge>
             </div>
             <p className="text-sm text-muted-foreground">
@@ -415,9 +422,27 @@ export default function ReportDetail() {
           </div>
 
           <div className="flex flex-wrap gap-2">
+            {/* Gán collector: chỉ cho phép khi đã ACCEPTED */}
+            {rawStatus === "ACCEPTED" && (
+              <Button
+                variant="outline"
+                className="bg-[#2196F3] text-white border-[#2196F3] shadow font-bold hover:bg-[#1976D2] hover:border-[#1976D2] hover:text-white focus:text-white active:text-white disabled:bg-[#2196F3] disabled:text-white disabled:border-[#2196F3]"
+                type="button"
+                disabled={actionLoading !== ""}
+                title="Gán collector cho báo cáo đã được chấp nhận"
+                onClick={openAssignPopup}
+              >
+                Gán collector
+              </Button>
+            )}
+            {/* Chấp nhận */}
             <Button
               variant="outline"
-              className="text-orange-700 border-orange-300 hover:bg-orange-50"
+              className={
+                (canAccept || rawStatus === "ACCEPTED"
+                  ? "bg-[#4CAF50] text-white border-[#4CAF50] shadow font-bold hover:bg-[#388E3C] hover:border-[#388E3C] hover:text-white focus:text-white active:text-white disabled:bg-[#4CAF50] disabled:text-white disabled:border-[#4CAF50]"
+                  : "text-[#4CAF50] border-[#A5D6A7] hover:bg-[#E8F5E9] hover:text-[#4CAF50] focus:text-[#4CAF50] active:text-[#4CAF50]")
+              }
               type="button"
               disabled={!canAccept || actionLoading !== ""}
               title={
@@ -429,24 +454,14 @@ export default function ReportDetail() {
             >
               {actionLoading === "accept" ? "..." : "Chấp nhận"}
             </Button>
+            {/* Từ chối */}
             <Button
               variant="outline"
-              className="text-emerald-700 border-emerald-300 hover:bg-emerald-50"
-              type="button"
-              disabled={!canAssign || actionLoading !== ""}
-              title={
-                canAssign
-                  ? "Gán collector"
-                  : rawStatus === "ASSIGNED"
-                    ? "Báo cáo đã được gán collector"
-                    : "Cần chấp nhận báo cáo trước khi gán"
+              className={
+                (canReject || rawStatus === "REJECTED"
+                  ? "bg-[#F44336] text-white border-[#F44336] shadow font-bold hover:bg-[#C62828] hover:border-[#C62828] hover:text-white focus:text-white active:text-white"
+                  : "text-[#F44336] border-[#FFCDD2] hover:bg-[#FFEBEE] hover:text-[#F44336] focus:text-[#F44336] active:text-[#F44336]")
               }
-              onClick={openAssignPopup}
-            >
-              {rawStatus === "ASSIGNED" ? "Đã gán" : "Gán"}
-            </Button>
-            <Button
-              variant="outline"
               type="button"
               disabled={!canReject || actionLoading !== ""}
               title={
@@ -458,15 +473,11 @@ export default function ReportDetail() {
             >
               {actionLoading === "reject" ? "..." : "Từ chối"}
             </Button>
-            <Button
-              variant="outline"
-              type="button"
-              onClick={() => setCollectionPopupOpen(true)}
-            >
-              <PackageOpen className="size-4 mr-1" /> Xem thu gom
-            </Button>
+
+            {/* Quay về */}
             <Button
               type="button"
+              className="bg-[#607D8B] text-white border-[#607D8B] shadow hover:bg-[#455A64] hover:border-[#455A64]"
               onClick={() => navigate("/enterprise/reports")}
             >
               Quay về
@@ -503,10 +514,10 @@ export default function ReportDetail() {
             <div className="p-6 border-b">
               <div>
                 <h2 className="text-xl font-semibold">
-                  Gán collector cho báo cáo #{routeReportId}
+                  Gán collector cho báo cáo {reportCodeText}
                 </h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Chọn collector phù hợp dựa trên khoảng cách và tải công việc.
+                  Chọn collector.
                 </p>
               </div>
             </div>
@@ -525,7 +536,7 @@ export default function ReportDetail() {
                 <Card className="mx-6 mt-6">
                   <CardContent className="p-4 space-y-2">
                     <div className="font-medium">
-                      Báo cáo #{selectedReport.id} • {selectedReport.status}
+                      Báo cáo {reportCodeText} • {selectedReport.status}
                     </div>
                     <div className="text-sm text-muted-foreground flex items-center gap-2">
                       <MapPin className="size-4" />
@@ -548,8 +559,6 @@ export default function ReportDetail() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>COLLECTOR</TableHead>
-                          <TableHead>KHOẢNG CÁCH</TableHead>
-                          <TableHead>TẢI CÔNG VIỆC</TableHead>
                           <TableHead className="text-right">THAO TÁC</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -562,23 +571,9 @@ export default function ReportDetail() {
                                   {collector.name}
                                 </div>
                                 <div className="text-xs text-muted-foreground">
-                                  {collector.id} • {collector.status}
+                                  {collector.status}
                                 </div>
                               </div>
-                            </TableCell>
-
-                            <TableCell>
-                              <div className="font-medium">
-                                {collector.distanceKm.toFixed(1)} km
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {collector.etaText}
-                              </div>
-                            </TableCell>
-
-                            <TableCell className="text-sm text-muted-foreground">
-                              {collector.tasks}/{collector.maxTasks} tasks •{" "}
-                              {collector.loadPercent}%
                             </TableCell>
 
                             <TableCell className="text-right">
@@ -612,7 +607,7 @@ export default function ReportDetail() {
         <DialogContent className="max-w-lg p-0 z-500">
           <div className="p-6 space-y-3">
             <h3 className="text-lg font-semibold">
-              Lý do từ chối báo cáo #{routeReportId}
+              Lý do từ chối báo cáo {reportCodeText}
             </h3>
             <p className="text-sm text-muted-foreground">
               Nhập lý do để gửi kèm khi từ chối báo cáo.
@@ -682,9 +677,10 @@ export default function ReportDetail() {
 
             <div className="flex items-center justify-between gap-2">
               <div>
-                <p className="text-xs text-muted-foreground">TỌA ĐỘ GPS</p>
+                <p className="text-xs text-muted-foreground">VỊ TRÍ</p>
                 <p className="text-sm font-medium">
-                  {data.location.lat.toFixed(6)}, {data.location.lng.toFixed(6)}
+                  {resolvedAddress ||
+                    `${data.location.lat.toFixed(6)}, ${data.location.lng.toFixed(6)}`}
                 </p>
               </div>
 

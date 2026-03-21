@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Calendar, Eye, Loader2, MapPin } from "lucide-react";
+import { Calendar, Eye, Loader2 } from "lucide-react";
 import { ITEMS_PER_PAGE } from "./taskData";
 import { getCollectorReports } from "@/services/collectorReport.service";
-import { reverseGeocode } from "@/services/geocodingService";
 import { toast } from "sonner";
 import {
   Card,
@@ -62,7 +61,6 @@ function Tasks() {
   const [allTasks, setAllTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [areaFilter, setAreaFilter] = useState("Tất cả");
   const [wasteFilter, setWasteFilter] = useState("Tất cả");
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -75,38 +73,22 @@ function Tasks() {
 
         const allowedStatuses = new Set(["ASSIGNED", "IN_PROGRESS"]);
 
-        const mapped = await Promise.all(
-          items
-            .filter((item) => allowedStatuses.has(item.status))
-            .map(async (item) => {
-              const lat = Number(item?.location?.lat);
-              const lng = Number(item?.location?.lng);
-              const hasLocation = Number.isFinite(lat) && Number.isFinite(lng);
-
-              const area = hasLocation
-                ? await reverseGeocode(lat, lng)
-                : "Không rõ vị trí";
-
-              const reportedAt = item?.reportedAt
-                ? new Date(item.reportedAt)
-                : null;
-
-              return {
-                id: item.reportId,
-                reportId: item.reportId,
-                district: area,
-                area,
-                wasteType: item?.wasteType?.name || "Không xác định",
-                status: item.status,
-                description: item.description || "",
-                location: item.location || null,
-                images: item.images || [],
-                weight: item.weight,
-                unitType: item.unitType,
-                reportedAt: item.reportedAt,
-              };
-            }),
-        );
+        const mapped = items
+          .filter((item) => allowedStatuses.has(item.status))
+          .map((item) => ({
+            id: item.reportId,
+            reportId: item.reportId,
+            wasteCode:
+              item?.wasteCode || item?.reportCode || item?.reportId || "-",
+            wasteType: item?.wasteType?.name || "Không xác định",
+            status: item.status,
+            description: item.description || "",
+            location: item.location || null,
+            images: item.images || [],
+            weight: item.weight,
+            unitType: item.unitType,
+            reportedAt: item.reportedAt,
+          }));
 
         setAllTasks(mapped);
       } catch (error) {
@@ -119,13 +101,6 @@ function Tasks() {
 
     fetchTasks();
   }, []);
-
-  const areaOptions = useMemo(() => {
-    const values = [
-      ...new Set(allTasks.map((task) => task.district).filter(Boolean)),
-    ];
-    return ["Tất cả", ...values];
-  }, [allTasks]);
 
   const wasteOptions = useMemo(() => {
     const values = [
@@ -141,13 +116,10 @@ function Tasks() {
       const q = search.toLowerCase();
       tasks = tasks.filter(
         (t) =>
-          t.id.toLowerCase().includes(q) ||
-          t.area.toLowerCase().includes(q) ||
-          t.wasteType.toLowerCase().includes(q),
+          String(t.wasteCode || "")
+            .toLowerCase()
+            .includes(q) || t.wasteType.toLowerCase().includes(q),
       );
-    }
-    if (areaFilter !== "Tất cả") {
-      tasks = tasks.filter((t) => t.district === areaFilter);
     }
     if (wasteFilter !== "Tất cả") {
       tasks = tasks.filter((t) =>
@@ -162,7 +134,7 @@ function Tasks() {
     });
 
     return tasks;
-  }, [allTasks, search, areaFilter, wasteFilter]);
+  }, [allTasks, search, wasteFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const safePage = Math.min(currentPage, totalPages);
@@ -238,30 +210,9 @@ function Tasks() {
                   setSearch(e.target.value);
                   setCurrentPage(1);
                 }}
-                placeholder="Tìm kiếm mã báo cáo hoặc khu vực..."
+                placeholder="Tìm kiếm mã báo cáo hoặc loại rác..."
                 className="w-full bg-white border border-gray-100 rounded-xl px-3 py-2.5 text-gray-700 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 shadow-sm transition"
               />
-            </Field>
-
-            <Field>
-              <FieldLabel>Khu vực</FieldLabel>
-              <Select
-                value={areaFilter}
-                onValueChange={handleFilterChange(setAreaFilter)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Tất cả khu vực" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {areaOptions.map((opt) => (
-                      <SelectItem key={opt} value={opt}>
-                        {opt}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
             </Field>
 
             <Field>
@@ -293,7 +244,6 @@ function Tasks() {
               <TableRow>
                 <TableHead>Mã báo cáo</TableHead>
                 <TableHead>Loại rác</TableHead>
-                <TableHead>Khu vực</TableHead>
                 <TableHead>Khối lượng</TableHead>
                 <TableHead>Thời gian tạo</TableHead>
                 <TableHead>Trạng thái</TableHead>
@@ -303,7 +253,7 @@ function Tasks() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-32 text-center">
+                  <TableCell colSpan={6} className="h-32 text-center">
                     <div className="inline-flex items-center gap-2 text-muted-foreground">
                       <Loader2 className="size-4 animate-spin" />
                       Đang tải danh sách nhiệm vụ...
@@ -313,7 +263,7 @@ function Tasks() {
               ) : paginated.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={6}
                     className="h-32 text-center text-muted-foreground"
                   >
                     Không tìm thấy nhiệm vụ phù hợp
@@ -323,20 +273,11 @@ function Tasks() {
                 paginated.map((task) => {
                   const statusMeta = getStatusMeta(task.status);
                   return (
-                    <TableRow key={task.id}>
+                    <TableRow key={task.reportId}>
                       <TableCell className="font-medium text-cyan-600">
-                        {task.id}
+                        {task.wasteCode}
                       </TableCell>
                       <TableCell>{task.wasteType}</TableCell>
-                      <TableCell>
-                        <div
-                          className="flex items-center gap-1 text-sm max-w-90"
-                          title={task.area}
-                        >
-                          <MapPin className="size-3 text-muted-foreground" />
-                          <span className="truncate">{task.area}</span>
-                        </div>
-                      </TableCell>
                       <TableCell>
                         {task.weight ?? "-"} {task.unitType || ""}
                       </TableCell>
@@ -360,7 +301,7 @@ function Tasks() {
                           className="gap-1"
                           onClick={() =>
                             navigate(
-                              `/collector/tasks/${toRouteTaskId(task.id)}`,
+                              `/collector/tasks/${toRouteTaskId(task.reportId)}`,
                             )
                           }
                         >

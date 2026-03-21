@@ -38,6 +38,7 @@ async function findAssignedReports(collectorId, { wasteTypeId, limit, offset }) 
   let sql = `
       SELECT SQL_CALC_FOUND_ROWS
         wr.waste_report_id,
+        wr.report_code    AS reportCode,
         wr.description,
         wr.gps_lat      AS lat,
         wr.gps_lng      AS lng,
@@ -99,6 +100,8 @@ async function findAssignedReports(collectorId, { wasteTypeId, limit, offset }) 
   // ── Map to clean DTO ────────────────────────────────────────────────
   const reports = rows.map((row) => ({
     reportId: row.waste_report_id,
+    reportCode: row.reportCode || null,
+    wasteCode: row.reportCode || row.waste_report_id || null,
     description: row.description || '',
     location: {
       lat: row.lat !== null ? Number(row.lat) : null,
@@ -152,6 +155,7 @@ async function findReportForCollector(reportId) {
   const sql = `
     SELECT
       wr.waste_report_id,
+      wr.report_code    AS reportCode,
       wr.assigned_collector_id,
       wr.gps_lat      AS lat,
       wr.gps_lng      AS lng,
@@ -444,12 +448,16 @@ async function findReportForComplete(reportId, collectorId) {
        wr.assigned_collector_id,
        wr.waste_type_id,
        wr.citizen_id,
+       wr.weight,
+       c.user_account_id      AS citizen_user_account_id,
        rst.status_name        AS status,
        cr.collected_record_id,
        cr.actual_quantity_value
      FROM wastereport wr
      INNER JOIN reportstatustype rst
        ON wr.report_status_type_id = rst.report_status_type_id
+     INNER JOIN citizen c
+       ON wr.citizen_id = c.citizen_id
      LEFT JOIN collectedrecord cr
        ON cr.waste_report_id = wr.waste_report_id
       AND cr.collector_user_account_id = ?
@@ -459,6 +467,7 @@ async function findReportForComplete(reportId, collectorId) {
   )
   return rows[0] || null
 }
+
 
 /**
  * Fetch active reward config for a waste type.

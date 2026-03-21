@@ -27,6 +27,16 @@ export function acceptCollectorReport(reportId) {
   });
 }
 
+export function scheduleCollectorReport(reportId, scheduledCollectAt) {
+  return request(`/api/v1/collector/reports/${reportId}/schedule`, {
+    method: "PATCH",
+    data: {
+      scheduledCollectAt,
+    },
+    headers: getAuthHeaders(),
+  });
+}
+
 export function submitCollectorReportResult(reportId, payload) {
   const formData = new FormData();
   formData.append("actualQuantity", String(payload.actualQuantity));
@@ -41,6 +51,30 @@ export function submitCollectorReportResult(reportId, payload) {
   return request(`/api/v1/collector/reports/${reportId}/complete`, {
     method: "POST",
     data: formData,
+    headers: getAuthHeaders(),
+  });
+}
+
+export function markCollectorReportAsFake(reportId, payload = {}) {
+  if (payload.file) {
+    const formData = new FormData();
+    formData.append("quantityUnit", payload.quantityUnit || "KG");
+    formData.append("note", payload.note || "");
+    formData.append("files", payload.file);
+
+    return request(`/api/v1/collector/reports/${reportId}/mark-fake`, {
+      method: "PATCH",
+      data: formData,
+      headers: getAuthHeaders(),
+    });
+  }
+
+  return request(`/api/v1/collector/reports/${reportId}/mark-fake`, {
+    method: "PATCH",
+    data: {
+      quantityUnit: payload.quantityUnit || "KG",
+      note: payload.note || "",
+    },
     headers: getAuthHeaders(),
   });
 }

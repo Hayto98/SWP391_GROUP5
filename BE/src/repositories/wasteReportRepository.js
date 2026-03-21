@@ -22,17 +22,21 @@ const { ROLES } = require('../utils/constants')
  * @param {any} [connection]                       - optional transaction connection
  * @returns {{ wasteReportId: string, status: 'PENDING' }}
  */
-async function createReport({
-  citizenId,
-  citizenUserAccountId,
-  wasteTypeId,
-  reportCode,
-  gpsLat,
-  gpsLng,
-  description,
-  weight,
-  fileUri
-}, existingConnection = null) {
+async function createReport(
+  {
+    citizenId,
+    citizenUserAccountId,
+    wasteTypeId,
+    reportCode,
+    gpsLat,
+    gpsLng,
+    description,
+    weight,
+    fileUri,
+    isDuplicate = false
+  },
+  existingConnection = null
+) {
   const PENDING_STATUS_ID = 1
 
   // ── 1. Validate wasteType (outside transaction — read-only) ────────
@@ -53,7 +57,7 @@ async function createReport({
   const createdAt = new Date()
 
   // ── 3. Transaction: insert report + history ────────────────────────
-  const connection = existingConnection || await db.getConnection()
+  const connection = existingConnection || (await db.getConnection())
 
   try {
     if (!existingConnection) await connection.beginTransaction()
@@ -61,8 +65,8 @@ async function createReport({
     await connection.execute(
       `INSERT INTO wastereport
         (waste_report_id, report_code, citizen_id, waste_type_id, report_status_type_id,
-         assigned_collector_id, gps_lat, gps_lng, description, weight, file_uri, created_at)
-       VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)`,
+         assigned_collector_id, gps_lat, gps_lng, description, weight, file_uri, created_at, is_duplicate)
+       VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)`,
       [
         wasteReportId,
         reportCode,
@@ -74,7 +78,8 @@ async function createReport({
         description,
         weight ?? 0,
         fileUri || null,
-        createdAt
+        createdAt,
+        isDuplicate ? 1 : 0
       ]
     )
 
@@ -336,6 +341,7 @@ async function findReportById(reportId) {
       wr.assigned_collector_id AS collector_user_account_id,
       ua_collector.fullname AS collector_fullname,
       ua_collector.phone AS collector_phone,
+      wr.scheduled_collect_at AS scheduled_collect_at,
       
       (
         SELECT fb.feedback_text
@@ -378,16 +384,16 @@ async function findReportById(reportId) {
   const attachments =
     attachmentRows.length > 0
       ? attachmentRows
-        .map((item) => ({
-          fileUri: normalizeAttachmentUri(item.file_uri),
-          uploadedAt: item.uploaded_at
-        }))
-        .filter((item) => Boolean(item.fileUri))
-        .map((item) => ({
-          fileUri: item.fileUri,
-          file_uri: item.fileUri,
-          uploadedAt: item.uploadedAt
-        }))
+          .map((item) => ({
+            fileUri: normalizeAttachmentUri(item.file_uri),
+            uploadedAt: item.uploaded_at
+          }))
+          .filter((item) => Boolean(item.fileUri))
+          .map((item) => ({
+            fileUri: item.fileUri,
+            file_uri: item.fileUri,
+            uploadedAt: item.uploadedAt
+          }))
       : normalizeAttachmentUri(row.file_uri)
         ? [{ fileUri: normalizeAttachmentUri(row.file_uri), file_uri: normalizeAttachmentUri(row.file_uri) }]
         : []
@@ -429,16 +435,16 @@ async function findReportById(reportId) {
 
   const collectedRecord = collectedRow
     ? {
-      collectedRecordId: collectedRow.collected_record_id,
-      wasteReportId: collectedRow.waste_report_id,
-      collectorUserAccountId: collectedRow.collector_user_account_id,
-      actualQuantityValue: Number(collectedRow.actual_quantity_value),
-      quantityUnit: collectedRow.quantity_unit,
-      recordedAt: collectedRow.recorded_at,
-      fileUri: collectedRow.file_uri,
-      note: collectedRow.note,
-      completionImages: (collectedRow.completion_image_uris || '').split('|||').filter(Boolean)
-    }
+        collectedRecordId: collectedRow.collected_record_id,
+        wasteReportId: collectedRow.waste_report_id,
+        collectorUserAccountId: collectedRow.collector_user_account_id,
+        actualQuantityValue: Number(collectedRow.actual_quantity_value),
+        quantityUnit: collectedRow.quantity_unit,
+        recordedAt: collectedRow.recorded_at,
+        fileUri: collectedRow.file_uri,
+        note: collectedRow.note,
+        completionImages: (collectedRow.completion_image_uris || '').split('|||').filter(Boolean)
+      }
     : null
 
   const statusVal = row.current_status || 'PENDING'
@@ -480,6 +486,7 @@ async function findReportById(reportId) {
     unitType: collectedRecord?.quantityUnit || row.unit_type || null,
     status: statusVal,
     createdAt: row.created_at,
+    scheduledCollectAt: row.scheduled_collect_at || null,
     attachments: attachments,
     images: attachments.map((item) => ({ file_uri: item.fileUri })),
     assignedCollector: assignedCollector,
@@ -534,22 +541,48 @@ async function updateReportById(reportId, updateData) {
 }
 
 /**
- * Xóa một báo cáo rác thải
- * Yêu cầu xóa các bảng phụ có khóa ngoại trỏ tới WasteReport trước
+ * "Xóa" một báo cáo rác thải bằng cách chuyển trạng thái sang REJECTED (ID 5)
+ * Ghi lại lịch sử trạng thái và lý do vào bảng Feedback.
  */
-async function deleteReportById(reportId) {
+async function deleteReportById(reportId, userAccountId) {
+  const REJECTED_STATUS_ID = 5
   const connection = await db.getConnection()
   try {
     await connection.beginTransaction()
 
-    // 1. Xóa CollectedRecord (nếu có - do seed script lúc nãy có gắn)
-    await connection.execute('DELETE FROM collectedrecord WHERE waste_report_id = ?', [reportId])
+    // 1. Cập nhật trạng thái WasteReport thành REJECTED
+    const [result] = await connection.execute(
+      'UPDATE wastereport SET report_status_type_id = ? WHERE waste_report_id = ?',
+      [REJECTED_STATUS_ID, reportId]
+    )
 
-    // 2. Xóa ReportStatusHistory
-    await connection.execute('DELETE FROM reportstatushistory WHERE waste_report_id = ?', [reportId])
+    if (result.affectedRows > 0) {
+      const historyId = uuidv4()
+      const feedbackId = uuidv4()
+      const now = new Date()
 
-    // 4. Xóa bảng cha WasteReport
-    const [result] = await connection.execute('DELETE FROM wastereport WHERE waste_report_id = ?', [reportId])
+      // 2. Ghi vào ReportStatusHistory
+      await connection.execute(
+        `INSERT INTO reportstatushistory
+          (report_status_history_id, waste_report_id, report_status_type_id,
+           changed_by_user_account_id, changed_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        [historyId, reportId, REJECTED_STATUS_ID, userAccountId, now]
+      )
+
+      // 3. Ghi lý do vào Feedback (theo yêu cầu soft-delete/cancellation)
+      // Lấy citizen_id từ report để điền vào feedback
+      const [reportRows] = await connection.execute('SELECT citizen_id FROM wastereport WHERE waste_report_id = ?', [
+        reportId
+      ])
+      const citizenId = reportRows[0]?.citizen_id
+
+      await connection.execute(
+        `INSERT INTO feedback (feedback_id, waste_report_id, citizen_id, feedback_text, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        [feedbackId, reportId, citizenId, 'Báo cáo bị hủy bởi người dùng ', now]
+      )
+    }
 
     await connection.commit()
     return result.affectedRows > 0
@@ -722,6 +755,26 @@ async function findAllReports({ status, fromDate, toDate, limit, offset }) {
   return { data, total }
 }
 
+/**
+ * Update the scheduled collection time for a waste report.
+ * Only updates if the report is assigned to the given collector.
+ *
+ * @param {string} reportId - waste_report_id
+ * @param {string} collectorId - assigned_collector_id (user_account_id)
+ * @param {string} scheduledCollectAt - ISO datetime string
+ * @returns {Promise<boolean>} true if a row was updated
+ */
+async function updateScheduledCollectAt(reportId, collectorId, scheduledCollectAt) {
+  const query = `
+    UPDATE wastereport
+    SET scheduled_collect_at = ?
+    WHERE waste_report_id = ?
+      AND assigned_collector_id = ?
+  `
+  const [result] = await db.execute(query, [scheduledCollectAt, reportId, collectorId])
+  return result.affectedRows > 0
+}
+
 module.exports = {
   createReport,
   createReportAttachment,
@@ -733,5 +786,6 @@ module.exports = {
   findCitizenIdByUserAccountId,
   ensureCitizenIdByUserAccountId,
   getNextSequence,
-  findByReportCode
+  findByReportCode,
+  updateScheduledCollectAt
 }

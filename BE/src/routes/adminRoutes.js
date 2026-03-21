@@ -26,4 +26,7 @@ router.delete('/users/:id', adminController.deleteUser)
 router.patch('/users/:id/role', adminController.changeUserRole)
 router.patch('/users/:id/status', adminController.changeUserStatus)
 
+// ==================== COMPLAINT OPERATIONS ====================
+router.put('/report-complaints/:complaintId/resolve', adminController.resolveComplaint)
+
 module.exports = router

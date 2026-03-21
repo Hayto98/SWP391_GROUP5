@@ -34,11 +34,7 @@ export const navByRole = {
       url: "/citizen/rewards",
       icon: Gift,
     },
-    {
-      title: "Bảng xếp hạng",
-      url: "/citizen/leaderboard",
-      icon: Trophy,
-    },
+
     {
       title: "Khiếu nại",
       url: "/citizen/complaints",
@@ -48,44 +44,48 @@ export const navByRole = {
 
   enterprise: [
     {
-      title: "Điều hành",
+      title: "Điều Hành",
       url: "/enterprise",
       icon: PieChart,
     },
     {
-      title: "Báo cáo",
+      title: "Báo Cáo",
       url: "/enterprise/reports",
       icon: FileText,
     },
     {
-      title: "Nhân sự",
+      title: "Nhân Sự",
       url: "/enterprise/employees",
       icon: Users,
     },
     {
-      title: "Cấu hình",
+      title: "Cấu Hình",
       icon: Settings2,
       items: [
         {
-          title: "Hoạt động điểm thưởng",
+          title: "Rác Tiếp Nhận",
           url: "/enterprise/rewards-config",
         },
         {
-          title: "Cấu hình điểm thưởng",
+          title: "Quy Tắc Điểm Thưởng",
           url: "/enterprise/rewards-config/rules",
+        },
+        {
+          title: "Kho Voucher",
+          url: "/enterprise/rewards-config/manage-voucher",
         },
       ],
     },
     {
-      title: "Hỗ trợ",
+      title: "Hỗ Trợ",
       icon: AlertTriangle,
       items: [
         {
-          title: "Khiếu nại Escalation",
+          title: "Khiếu Nại Escalation",
           url: "/enterprise/complaints/escalation",
         },
         {
-          title: "Hồ sơ doanh nghiệp",
+          title: "Hồ Sơ Doanh Nghiệp",
           url: "/enterprise/profile/overview",
         },
       ],

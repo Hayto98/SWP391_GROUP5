@@ -41,6 +41,7 @@ import {
   getAllReportAssignmentHistory,
   recordReportAssignment,
 } from "@/services/reportAssignmentHistory.service";
+import { reverseGeocode } from "@/services/geocodingService";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import {
@@ -86,18 +87,23 @@ function formatDateTime(value) {
 }
 
 function getStatusClass(status) {
-  if (
-    status === "ACCEPTED" ||
-    status === "ASSIGNED" ||
-    status === "IN_PROGRESS"
-  ) {
-    return "bg-orange-100 text-orange-700 border-orange-200";
+  if (status === "PENDING") {
+    return "bg-[#2196F3]/10 text-[#2196F3] border-[#2196F3]"; // Xanh dương nhạt
+  }
+  if (status === "ASSIGNED") {
+    return "bg-[#FF9800]/10 text-[#FF9800] border-[#FF9800]"; // Cam
+  }
+  if (status === "IN_PROGRESS") {
+    return "bg-[#FFC107]/10 text-[#FFC107] border-[#FFC107]"; // Vàng
+  }
+  if (status === "COLLECTED" || status === "COMPLETED") {
+    return "bg-[#4CAF50]/10 text-[#4CAF50] border-[#4CAF50]"; // Xanh lá
   }
   if (status === "REJECTED") {
     return "bg-red-100 text-red-700 border-red-200";
   }
-  if (status === "COLLECTED") {
-    return "bg-green-100 text-green-700 border-green-200";
+  if (status === "ACCEPTED") {
+    return "bg-[#2196F3]/10 text-[#2196F3] border-[#2196F3]"; // Có thể dùng màu xanh dương như PENDING nếu cần
   }
   return "bg-slate-100 text-slate-700 border-slate-200";
 }
@@ -175,6 +181,7 @@ export default function PendingReports() {
   const [assignLoading, setAssignLoading] = useState(false);
   const [assignError, setAssignError] = useState("");
   const [assigningCollectorId, setAssigningCollectorId] = useState("");
+  const [selectedReportAddress, setSelectedReportAddress] = useState("");
   const [isHistoryPopupOpen, setHistoryPopupOpen] = useState(false);
   const [assignmentHistoryRows, setAssignmentHistoryRows] = useState([]);
 
@@ -217,6 +224,8 @@ export default function PendingReports() {
     [assigningReportCode],
   );
   const selectedReport = assignData?.selectedReport;
+  const assigningReportCodeText =
+    assigningReportCode || `#${assigningReportId || "-"}`;
   const collectors = assignData?.collectors || [];
 
   const refreshAssignmentHistory = useCallback(() => {
@@ -228,6 +237,7 @@ export default function PendingReports() {
     setAssignLoading(false);
     setAssignError("");
     setAssigningCollectorId("");
+    setSelectedReportAddress("");
     setAssigningReportCode("");
   }, []);
 
@@ -280,6 +290,37 @@ export default function PendingReports() {
     refreshAssignmentHistory();
   }, [isHistoryPopupOpen, refreshAssignmentHistory]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const resolveAddress = async () => {
+      const lat = Number(selectedReport?.location?.lat);
+      const lng = Number(selectedReport?.location?.lng);
+
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        if (!cancelled)
+          setSelectedReportAddress(selectedReport?.address || "-");
+        return;
+      }
+
+      const address = await reverseGeocode(lat, lng);
+      if (!cancelled) {
+        setSelectedReportAddress(address || selectedReport?.address || "-");
+      }
+    };
+
+    if (!selectedReport) {
+      setSelectedReportAddress("");
+      return;
+    }
+
+    resolveAddress();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedReport]);
+
   const handleAssignCollector = useCallback(
     async (collector) => {
       if (!assigningReportId || !collector?.id) return;
@@ -297,6 +338,7 @@ export default function PendingReports() {
 
         recordReportAssignment({
           reportId: assigningReportId,
+          reportCode: assigningReportCode,
           collectorId: collector.id,
           collectorName: assignedCollectorName,
         });
@@ -364,7 +406,7 @@ export default function PendingReports() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
               <Input
                 className="pl-9"
-                placeholder="Tìm mã báo cáo, tên công dân..."
+                placeholder="Tìm wasteCode, tên công dân..."
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
               />
@@ -471,8 +513,8 @@ export default function PendingReports() {
                   </TableCell>
                 </TableRow>
               ) : (
-                rows.map((r) => (
-                  <TableRow key={r.code}>
+                rows.filter(Boolean).map((r, idx) => (
+                  <TableRow key={r?.code || r?.reportCode || `row-${idx}`}>
                     <TableCell>
                       <Button
                         type="button"
@@ -480,39 +522,40 @@ export default function PendingReports() {
                         className="px-0"
                         onClick={() =>
                           navigate(
-                            `/enterprise/reports/detail/${toReportId(r.code)}`,
+                            `/enterprise/reports/detail/${toReportId(r?.code)}`,
                             {
                               state: { selectedFrom: "pending-list" },
                             },
                           )
                         }
                       >
-                        {r.code}
+                        {r?.reportCode || r?.code || "#N/A"}
                       </Button>
                     </TableCell>
                     <TableCell>
-                      <div className="font-medium">{r.ward}</div>
+                      <div className="font-medium">{r?.ward || "-"}</div>
                       <div className="text-xs text-muted-foreground">
-                        {r.district}
+                        {r?.district || "-"}
                       </div>
                     </TableCell>
-                    <TableCell>{r.waste}</TableCell>
-                    <TableCell>{formatDateTime(r.createdAt)}</TableCell>
+                    <TableCell>{r?.waste || "-"}</TableCell>
+                    <TableCell>{formatDateTime(r?.createdAt)}</TableCell>
                     <TableCell>
-                      <Badge className={cn("border", getStatusClass(r.status))}>
-                        {r.status || "-"}
+                      <Badge className={cn("border", getStatusClass(r?.status))}>
+                        {r?.status || "-"}
                       </Badge>
                     </TableCell>
 
                     <TableCell>
-                      <div className="flex justify-end gap-2">
+                      <div className="flex justify-end gap-2 items-center">
                         <Button
                           variant="outline"
                           size="sm"
-                          disabled={acting === r.code}
+                          className="min-w-[90px] h-10 px-4 text-base flex items-center justify-center"
+                          disabled={acting === r?.code}
                           onClick={() =>
                             navigate(
-                              `/enterprise/reports/detail/${toReportId(r.code)}`,
+                              `/enterprise/reports/detail/${toReportId(r?.code)}`,
                               {
                                 state: { selectedFrom: "pending-list" },
                               },
@@ -521,39 +564,20 @@ export default function PendingReports() {
                         >
                           Chi tiết
                         </Button>
-
-                        {r.actions.includes("accept") && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-orange-700 border-orange-300 hover:bg-orange-50"
-                            disabled={acting === r.code || !r.canAccept}
-                            onClick={() => doAction(r.code, "accept")}
-                          >
-                            {acting === r.code ? "..." : "Chấp nhận"}
-                          </Button>
-                        )}
-
                         <Button
                           variant="outline"
                           size="sm"
-                          className="text-emerald-700 border-emerald-300 hover:bg-emerald-50"
-                          disabled={acting === r.code || !r.canAssign}
-                          onClick={() => handleAssignPopupOpen(r.code)}
+                          className={
+                            (r?.status === "PENDING"
+                              ? "bg-[#2196F3] text-white border-[#2196F3] shadow font-bold hover:bg-[#1976D2] hover:border-[#1976D2] hover:text-white focus:text-white active:text-white disabled:bg-[#2196F3] disabled:text-white disabled:border-[#2196F3]"
+                              : "bg-white text-[#2196F3] border-[#2196F3] shadow hover:bg-[#e3f2fd] hover:border-[#2196F3] hover:text-[#2196F3] focus:text-[#2196F3] active:text-[#2196F3]")
+                            + " min-w-[90px] h-10 px-4 text-base flex items-center justify-center"
+                          }
+                          disabled={acting === r?.code || r?.status !== "PENDING"}
+                          onClick={() => handleAssignPopupOpen(r?.code)}
                         >
-                          {r.status === "ASSIGNED" ? "Đã gán" : "Gán"}
+                          {r?.status === "PENDING" ? "Gán" : "Đã gán"}
                         </Button>
-
-                        {r.actions.includes("reject") && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={acting === r.code}
-                            onClick={() => doAction(r.code, "reject")}
-                          >
-                            {acting === r.code ? "..." : "Từ chối"}
-                          </Button>
-                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -619,10 +643,11 @@ export default function PendingReports() {
             <div className="flex items-start justify-between gap-4 p-6 border-b">
               <div>
                 <h2 className="text-xl font-semibold">
-                  Gán collector cho báo cáo #{assigningReportId || "-"}
+                  Gán collector cho báo cáo{" "}
+                  {selectedReport?.reportCode || assigningReportCodeText}
                 </h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Chọn collector phù hợp dựa trên khoảng cách và tải công việc.
+                  Chọn collector.
                 </p>
               </div>
               <Button
@@ -650,15 +675,21 @@ export default function PendingReports() {
               <>
                 <div className="mx-6 mt-6 rounded-lg border p-4 space-y-2">
                   <div className="font-medium">
-                    Báo cáo #{selectedReport.id} • {selectedReport.status}
+                    Báo cáo {selectedReport?.reportCode || assigningReportCodeText} • {selectedReport?.status || "-"}
                   </div>
                   <div className="text-sm text-muted-foreground flex items-center gap-2">
                     <MapPin className="size-4" />
-                    <span>{selectedReport.address}</span>
+                    <span>
+                      {selectedReportAddress || selectedReport?.address || "-"}
+                    </span>
+                  </div>
+                  <div className="text-sm text-muted-foreground flex items-center gap-2">
+                    <span className="font-medium">Loại rác:</span>
+                    <span>{selectedReport?.wasteType || selectedReport?.waste || "-"}</span>
                   </div>
                   <div className="text-sm text-muted-foreground flex items-center gap-2">
                     <Clock3 className="size-4" />
-                    <span>{selectedReport.weightEstimate}</span>
+                    <span>{selectedReport?.weightEstimate || (Number.isFinite(selectedReport?.weightKg) && selectedReport.weightKg > 0 ? `${selectedReport.weightKg.toFixed(1)} kg` : "-")}</span>
                   </div>
                 </div>
 
@@ -672,8 +703,6 @@ export default function PendingReports() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Collector</TableHead>
-                          <TableHead>Khoảng cách</TableHead>
-                          <TableHead>Tải công việc</TableHead>
                           <TableHead className="text-right">Thao tác</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -688,25 +717,10 @@ export default function PendingReports() {
                                     {collector.name}
                                   </div>
                                   <div className="text-xs text-muted-foreground">
-                                    {collector.id} • {collector.status}
+                                    {collector.status}
                                   </div>
                                 </div>
                               </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="font-medium">
-                                {collector.distanceKm.toFixed(1)} km
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {collector.etaText}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="text-xs text-muted-foreground mb-1">
-                                {collector.tasks}/{collector.maxTasks} tasks •{" "}
-                                {collector.loadPercent}%
-                              </div>
-                              <ProgressBar percent={collector.loadPercent} />
                             </TableCell>
                             <TableCell className="text-right">
                               <Button
@@ -768,16 +782,16 @@ export default function PendingReports() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {assignmentHistoryRows.map((item) => (
-                    <TableRow key={item.id}>
+                  {assignmentHistoryRows.filter(Boolean).map((item, idx) => (
+                    <TableRow key={item?.id || `history-${idx}`}>
                       <TableCell>
-                        {item.assignedAtText || item.assignedAt || "-"}
+                        {item?.assignedAtText || item?.assignedAt || "-"}
                       </TableCell>
                       <TableCell className="font-medium">
-                        #{item.reportId}
+                        {item?.reportCode || `#${item?.reportId || "-"}`}
                       </TableCell>
-                      <TableCell>{item.collectorName || "-"}</TableCell>
-                      <TableCell>{item.collectorId || "-"}</TableCell>
+                      <TableCell>{item?.collectorName || "-"}</TableCell>
+                      <TableCell>{item?.collectorId || "-"}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -789,3 +803,4 @@ export default function PendingReports() {
     </div>
   );
 }
+

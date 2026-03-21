@@ -13,9 +13,7 @@ const fileFilter = (req, file, cb) => {
   if (ALLOWED_TYPES.includes(file.mimetype)) {
     cb(null, true)
   } else {
-    // Pass null (not an Error) to avoid aborting body parsing —
-    // the file is silently rejected; service can check req.files.length if needed.
-    cb(null, false)
+    cb(new ApiError(400, 'Chỉ chấp nhận file ảnh (jpeg, png, webp, gif)'))
   }
 }
 

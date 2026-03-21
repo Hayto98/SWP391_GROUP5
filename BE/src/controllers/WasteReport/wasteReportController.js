@@ -33,7 +33,11 @@ async function createReport(req, res, next) {
       message: 'Report created successfully',
       data: {
         reportId: report.wasteReportId,
-        reportCode: report.reportCode
+        reportCode: report.reportCode,
+        isSpam: report.isSpam,
+        spamMessage: report.spamMessage,
+        isDuplicate: report.isDuplicate,
+        duplicateMessage: report.duplicateMessage
       }
     })
   } catch (error) {

@@ -1,8 +1,14 @@
 const collectorReportRepository = require('../repositories/collectorReportRepository')
+const wasteReportRepository = require('../repositories/wasteReportRepository')
 const userRepository = require('../repositories/userRepository')
 const ApiError = require('../errors/ApiError')
 const cloudinary = require('../config/cloudinary')
-
+const notificationService = require('./notificationService')
+const notificationRepository = require('../repositories/notificationRepository')
+const { ROLES, NOTIFICATION_TYPES } = require('../utils/constants')
+const db = require('../config/database')
+const { v4: uuidv4 } = require('uuid')
+const rewardService = require('./rewardService')
 /**
  * Upload a Buffer to Cloudinary and return secure_url.
  * @private
@@ -62,7 +68,10 @@ async function getAssignedReports(userId, queryParams) {
 
   // ── 4. Repository already returns fully-mapped DTOs, use directly ───
   // (Do NOT remap — fields like waste_report_id, gps_lat no longer exist on these objects)
-  const items = reports
+  const items = reports.map((report) => ({
+    ...report,
+    wasteCode: report?.wasteCode || report?.reportCode || report?.reportId || null
+  }))
 
   // ── 5. Return standardized response ─────────────────────────────────
   return {
@@ -84,7 +93,85 @@ module.exports = {
   acceptAssignedReport,
   submitResult,
   completeReport,
-  getCollectionResult
+  markReportAsFake,
+  getCollectionResult,
+  scheduleCollection
+}
+
+// ==================== SCHEDULE COLLECTION ====================
+
+/**
+ * PATCH /collector/reports/:reportId/schedule
+ * Collector sets the scheduled collection time for a waste report.
+ *
+ * Business rules:
+ *   - User must not be locked
+ *   - Report must exist (404)
+ *   - Report must be assigned to this collector (403)
+ *   - scheduledCollectAt is required and must be a valid future datetime
+ *
+ * @param {string} collectorId - user_account_id of the collector
+ * @param {string} reportId    - waste_report_id
+ * @param {string} scheduledCollectAt - ISO datetime string
+ * @returns {object} Success response
+ */
+async function scheduleCollection(collectorId, reportId, scheduledCollectAt) {
+  // 1. Check collector account
+  const user = await userRepository.findById(collectorId)
+  if (!user) {
+    throw new ApiError(404, 'User account not found')
+  }
+  if (user.isLocked) {
+    throw new ApiError(403, 'Your account is locked. Please contact support.')
+  }
+
+  // 2. Validate scheduledCollectAt
+  if (!scheduledCollectAt) {
+    throw new ApiError(400, 'scheduledCollectAt is required')
+  }
+  const parsedDate = new Date(scheduledCollectAt)
+  if (isNaN(parsedDate.getTime())) {
+    throw new ApiError(400, 'scheduledCollectAt must be a valid datetime')
+  }
+
+  // 3. Fetch report to verify existence
+  const report = await collectorReportRepository.findReportById(reportId)
+  if (!report) {
+    throw new ApiError(404, 'Report not found')
+  }
+
+  // 4. Must be the assigned collector
+  if (report.assigned_collector_id !== collectorId) {
+    throw new ApiError(403, 'You are not the assigned collector for this report')
+  }
+
+  // 5. Update scheduled_collect_at
+  const updated = await wasteReportRepository.updateScheduledCollectAt(reportId, collectorId, parsedDate)
+
+  if (!updated) {
+    throw new ApiError(500, 'Failed to update scheduled collection time')
+  }
+
+  // 6. Create notification for the citizen
+  try {
+    const citizenUserAccountId = await notificationRepository.findCitizenUserAccountIdByReportId(reportId)
+    if (citizenUserAccountId) {
+      await notificationService.createNotification({
+        notificationType: NOTIFICATION_TYPES.COLLECTION_SCHEDULED,
+        recipientUserAccountId: citizenUserAccountId,
+        wasteReportId: reportId,
+        message: `Người thu gom dự kiến sẽ đến vào lúc ${parsedDate.toLocaleString('vi-VN')}`
+      })
+    }
+  } catch (notifError) {
+    // Notification failure should not break the schedule flow
+    console.error('Failed to create schedule notification:', notifError.message)
+  }
+
+  return {
+    success: true,
+    message: 'Collection time scheduled successfully'
+  }
 }
 
 // ==================== DETAIL BY ID ====================
@@ -167,6 +254,8 @@ async function getReportById(userId, reportId) {
     success: true,
     data: {
       reportId: report.waste_report_id,
+      reportCode: report.reportCode || null,
+      wasteCode: report.reportCode || report.waste_report_id || null,
 
       citizen: {
         fullname: report.citizenFullname,
@@ -225,8 +314,6 @@ async function getReportById(userId, reportId) {
 }
 
 // ==================== ACCEPT REPORT ====================
-
-const db = require('../config/database')
 
 const ASSIGNED_STATUS_ID = 3
 const IN_PROGRESS_STATUS_ID = 6
@@ -318,8 +405,6 @@ async function acceptAssignedReport(collectorId, reportId) {
 }
 
 // ==================== SUBMIT RESULT ====================
-
-const { v4: uuidv4 } = require('uuid')
 
 /**
  * Submit the collection result for an ASSIGNED report.
@@ -483,6 +568,8 @@ async function completeReport(collectorId, reportId, { actualQuantity, quantityU
   const collectedRecordId = uuidv4()
   const connection = await db.getConnection()
 
+  let processReward = 0
+  let rewardResult = null
   let pointsAwarded = 0
 
   try {
@@ -526,22 +613,59 @@ async function completeReport(collectorId, reportId, { actualQuantity, quantityU
       recordedAt
     )
 
-    // 7f. Calculate and award points
-    //     points = actualQuantity × pointsPerUnit (0 if no active reward config)
-    const rewardConfig = await collectorReportRepository.findRewardConfig(connection, report.waste_type_id)
-    if (rewardConfig) {
-      pointsAwarded = Number((qty * Number(rewardConfig.points_per_unit)).toFixed(2))
+    // 7f. Process reward (10-step: variance check, fake detection, penalties, etc.)
+    const citizenReportKg = report.weight !== null ? Number(report.weight) : qty
+    rewardResult = await rewardService.processReward(connection, {
+      citizenId: report.citizen_id,
+      userAccountId: report.citizen_user_account_id,
+      wasteReportId: reportId,
+      citizenReportKg,
+      collectorActualKg: qty,
+      currentTime: recordedAt,
+      wasteTypeId: report.waste_type_id
+    })
+    pointsAwarded = rewardResult.finalPoints
 
-      await collectorReportRepository.insertPointTransaction(connection, {
-        pointTransactionId: uuidv4(),
-        citizenId: report.citizen_id,
-        wasteReportId: reportId,
-        pointsDelta: pointsAwarded,
-        transactionReason: 'WASTE_COLLECTION_COMPLETED',
-        createdAt: recordedAt
-      })
+    // 7g. Create notifications for citizen (inside transaction)
+    const citizenUserAccountId =
+      report.citizen_user_account_id || (await notificationRepository.findCitizenUserAccountIdByReportId(reportId))
 
-      await collectorReportRepository.updateCitizenPoints(connection, report.citizen_id, pointsAwarded)
+    if (citizenUserAccountId) {
+      if (pointsAwarded > 0) {
+        await notificationService.createNotification(
+          {
+            notificationType: NOTIFICATION_TYPES.POINT_REWARDED,
+            recipientUserAccountId: citizenUserAccountId,
+            wasteReportId: reportId,
+            message: `Bạn đã nhận được ${pointsAwarded} điểm thưởng từ báo cáo rác thải.`
+          },
+          connection
+        )
+      }
+
+      await notificationService.createNotification(
+        {
+          notificationType: NOTIFICATION_TYPES.COLLECTION_COMPLETED,
+          recipientUserAccountId: citizenUserAccountId,
+          wasteReportId: reportId,
+          message: 'Đơn thu gom của bạn đã hoàn thành thành công.'
+        },
+        connection
+      )
+    }
+
+    // 7h. Notify all Enterprises that the report is completed
+    const enterprises = await userRepository.findAll({ roleId: ROLES.ENTERPRISE })
+    for (const ent of enterprises) {
+      await notificationService.createNotification(
+        {
+          notificationType: NOTIFICATION_TYPES.REPORT_COMPLETED,
+          recipientUserAccountId: ent.userAccountId,
+          wasteReportId: reportId,
+          message: `Báo cáo rác thải (${report.report_code || reportId}) đã được hoàn thành bởi người thu gom.`
+        },
+        connection
+      )
     }
 
     await connection.commit()
@@ -559,7 +683,134 @@ async function completeReport(collectorId, reportId, { actualQuantity, quantityU
       status: 'COMPLETED',
       actualQuantity: qty,
       pointsAwarded,
-      completedAt: recordedAt
+      completedAt: recordedAt,
+      reward: rewardResult
+        ? {
+            variancePercent: rewardResult.variancePercent,
+            penaltyApplied: rewardResult.penaltyApplied,
+            isFake: rewardResult.isFake,
+            currentLevel: rewardResult.currentLevel,
+            reportBlockedUntil: rewardResult.reportBlockedUntil
+          }
+        : null
+    }
+  }
+}
+
+/**
+ * Mark an IN_PROGRESS report as fake.
+ *
+ * Business behavior:
+ *   - Does not require actualQuantity in request
+ *   - Automatically records collected quantity as 0
+ *   - Automatically sets base points to 0
+ *   - Applies fake violation penalties on citizen account
+ *
+ * @param {string} collectorId
+ * @param {string} reportId
+ * @param {object} body { quantityUnit, note }
+ * @param {Array} files multer file objects (req.files)
+ */
+async function markReportAsFake(collectorId, reportId, { quantityUnit, note }, files) {
+  const user = await userRepository.findById(collectorId)
+  if (!user) throw new ApiError(404, 'User account not found')
+  if (user.isLocked) throw new ApiError(403, 'Your account is locked. Please contact support.')
+
+  const report = await collectorReportRepository.findReportForComplete(reportId, collectorId)
+  if (!report) throw new ApiError(404, 'Report not found')
+
+  if (report.status !== 'IN_PROGRESS') {
+    throw new ApiError(400, `Report must be in IN_PROGRESS status to mark fake. Current status: ${report.status}`)
+  }
+
+  if (report.assigned_collector_id !== collectorId) {
+    throw new ApiError(403, 'You are not the assigned collector for this report')
+  }
+
+  const uploadedUrls = []
+  if (files && files.length > 0) {
+    for (const file of files) {
+      const url = await uploadBufferToCloudinary(file.buffer, file.mimetype)
+      uploadedUrls.push(url)
+    }
+  }
+
+  const recordedAt = new Date()
+  const collectedRecordId = uuidv4()
+  const connection = await db.getConnection()
+
+  let rewardResult = null
+  let pointsAwarded = 0
+
+  try {
+    await connection.beginTransaction()
+
+    const collectedStatusId = await collectorReportRepository.findStatusTypeIdByName(connection, 'COLLECTED')
+    if (!collectedStatusId) throw new Error('COLLECTED status type not found in ReportStatusType table')
+
+    await collectorReportRepository.insertCollectedRecord(connection, {
+      collectedRecordId,
+      wasteReportId: reportId,
+      collectorUserAccountId: collectorId,
+      actualQuantityValue: 0,
+      quantityUnit: quantityUnit || 'KG',
+      note: note ?? 'Báo cáo được người thu gom đánh dấu là giả',
+      fileUri: null,
+      recordedAt
+    })
+
+    for (const url of uploadedUrls) {
+      await collectorReportRepository.insertCompletionAttachment(connection, {
+        completionAttachmentId: uuidv4(),
+        collectedRecordId,
+        fileUri: url,
+        uploadedAt: recordedAt
+      })
+    }
+
+    await collectorReportRepository.updateReportStatus(connection, reportId, collectedStatusId)
+
+    await collectorReportRepository.insertStatusHistory(
+      connection,
+      reportId,
+      collectedStatusId,
+      collectorId,
+      recordedAt
+    )
+
+    rewardResult = await rewardService.processForcedFakeViolation(connection, {
+      citizenId: report.citizen_id,
+      userAccountId: report.citizen_user_account_id,
+      wasteReportId: reportId,
+      currentTime: recordedAt
+    })
+    pointsAwarded = rewardResult.finalPoints
+
+    await connection.commit()
+  } catch (error) {
+    await connection.rollback()
+    throw error
+  } finally {
+    connection.release()
+  }
+
+  return {
+    success: true,
+    data: {
+      reportId,
+      status: 'COMPLETED',
+      actualQuantity: 0,
+      pointsAwarded,
+      completedAt: recordedAt,
+      reward: rewardResult
+        ? {
+            variancePercent: rewardResult.variancePercent,
+            penaltyApplied: rewardResult.penaltyApplied,
+            isFake: rewardResult.isFake,
+            currentLevel: rewardResult.currentLevel,
+            reportBlockedUntil: rewardResult.reportBlockedUntil
+          }
+        : null
     }
   }
 }

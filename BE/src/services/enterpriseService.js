@@ -1,6 +1,7 @@
 const ApiError = require('../errors/ApiError')
 const wasteTypeRepository = require('../repositories/wasteTypeRepository')
 const rewardConfigRepository = require('../repositories/rewardConfigRepository')
+const enterpriseRepository = require('../repositories/enterpriseRepository')
 
 // ==================== WASTE TYPE SERVICES ====================
 
@@ -159,21 +160,17 @@ async function toggleWasteTypeStatus(wasteTypeId, isActive) {
 /**
  * Get all WasteTypes (with optional filtering)
  */
-async function getAllWasteTypes({ isActive, page = 1, limit = 20, unitType, includeInactiveReward } = {}) {
-  const pageNum = Math.max(1, parseInt(page) || 1)
-  const limitNum = Math.max(1, Math.min(100, parseInt(limit) || 20))
-  const offset = (pageNum - 1) * limitNum
-
+async function getAllWasteTypes({ isActive, unitType, includeInactiveReward } = {}) {
   const filters = {}
   if (isActive !== undefined && isActive !== null && isActive !== '') {
     filters.isActive = isActive === 'true' || isActive === true
   }
 
-  // unitType filter: nếu truyền lên thì chỉ cần không rỗng
+  // unitType filter chỉ chấp nhận KG hoặc LON
   if (unitType !== undefined && unitType !== null && unitType !== '') {
-    const normalized = String(unitType).trim()
-    if (!normalized) {
-      throw new ApiError(400, 'unitType không được để trống')
+    const normalized = String(unitType).trim().toUpperCase()
+    if (!['KG', 'LON'].includes(normalized)) {
+      throw new ApiError(400, 'unitType chỉ chấp nhận KG hoặc LON')
     }
     filters.unitType = normalized
   }
@@ -184,12 +181,10 @@ async function getAllWasteTypes({ isActive, page = 1, limit = 20, unitType, incl
   const result = await wasteTypeRepository.findAllWithRewardConfig({
     isActive: filters.isActive,
     unitType: filters.unitType,
-    includeInactiveReward: includeInactive,
-    limit: limitNum,
-    offset
+    includeInactiveReward: includeInactive
   })
 
-  // Map response to expected shape and include pagination
+  // Map response to expected shape
   const mapped = result.data.map((wt) => ({
     wasteTypeId: wt.wasteTypeId,
     wasteTypeName: wt.wasteTypeName,
@@ -198,24 +193,21 @@ async function getAllWasteTypes({ isActive, page = 1, limit = 20, unitType, incl
     // createdAt intentionally omitted per API spec
     rewardConfig: wt.rewardConfig
       ? {
-          rewardConfigId: wt.rewardConfig.rewardConfigId,
-          pointsPerUnit: wt.rewardConfig.pointsPerUnit,
-          description: wt.rewardConfig.description,
-          allowedVariancePercent: wt.rewardConfig.allowedVariancePercent,
-          isActive: wt.rewardConfig.isActive
-        }
+        rewardConfigId: wt.rewardConfig.rewardConfigId,
+        pointsPerUnit: wt.rewardConfig.pointsPerUnit,
+        description: wt.rewardConfig.description,
+        allowedVariancePercent: wt.rewardConfig.allowedVariancePercent,
+        minKgRequired: wt.rewardConfig.minKgRequired,
+        maxKgRequired: wt.rewardConfig.maxKgRequired,
+        penaltyPercent: wt.rewardConfig.penaltyPercent,
+        isActive: wt.rewardConfig.isActive
+      }
       : null
   }))
 
   return {
     success: true,
-    data: mapped,
-    pagination: {
-      page: pageNum,
-      limit: limitNum,
-      total: result.total,
-      totalPages: Math.ceil(result.total / limitNum)
-    }
+    data: mapped
   }
 }
 
@@ -243,12 +235,15 @@ async function getWasteTypeById(wasteTypeId) {
       isActive: wasteType.isActive,
       rewardConfig: wasteType.rewardConfig
         ? {
-            rewardConfigId: wasteType.rewardConfig.rewardConfigId,
-            pointsPerUnit: wasteType.rewardConfig.pointsPerUnit,
-            description: wasteType.rewardConfig.description,
-            allowedVariancePercent: wasteType.rewardConfig.allowedVariancePercent,
-            isActive: wasteType.rewardConfig.isActive
-          }
+          rewardConfigId: wasteType.rewardConfig.rewardConfigId,
+          pointsPerUnit: wasteType.rewardConfig.pointsPerUnit,
+          description: wasteType.rewardConfig.description,
+          allowedVariancePercent: wasteType.rewardConfig.allowedVariancePercent,
+          minKgRequired: wasteType.rewardConfig.minKgRequired,
+          maxKgRequired: wasteType.rewardConfig.maxKgRequired,
+          penaltyPercent: wasteType.rewardConfig.penaltyPercent,
+          isActive: wasteType.rewardConfig.isActive
+        }
         : null
     }
   }
@@ -291,7 +286,15 @@ async function deleteWasteType(wasteTypeId) {
  * - is_active = true
  * - Phù hợp BR-18, BR-58
  */
-async function createRewardConfig({ wasteTypeId, pointsPerUnit, description, allowedVariancePercent }) {
+async function createRewardConfig({
+  wasteTypeId,
+  pointsPerUnit,
+  description,
+  allowedVariancePercent,
+  minKgRequired,
+  maxKgRequired,
+  penaltyPercent
+}) {
   // Validate required fields
   if (!wasteTypeId) {
     throw new ApiError(400, 'wasteTypeId is required')
@@ -305,6 +308,33 @@ async function createRewardConfig({ wasteTypeId, pointsPerUnit, description, all
   const points = Number(pointsPerUnit)
   if (isNaN(points) || points <= 0) {
     throw new ApiError(400, 'pointsPerUnit phải là số dương lớn hơn 0')
+  }
+
+  const variance =
+    allowedVariancePercent !== undefined && allowedVariancePercent !== null
+      ? Number(allowedVariancePercent)
+      : 10
+  if (isNaN(variance) || variance < 0) {
+    throw new ApiError(400, 'allowedVariancePercent phải >= 0')
+  }
+
+  const minKg = minKgRequired !== undefined && minKgRequired !== null ? Number(minKgRequired) : 0
+  if (isNaN(minKg) || minKg < 0) {
+    throw new ApiError(400, 'minKgRequired phải >= 0')
+  }
+
+  const maxKg = maxKgRequired !== undefined && maxKgRequired !== null ? Number(maxKgRequired) : 20
+  if (isNaN(maxKg) || maxKg < 0) {
+    throw new ApiError(400, 'maxKgRequired phải >= 0')
+  }
+
+  if (maxKg < minKg) {
+    throw new ApiError(400, 'maxKgRequired phải lớn hơn hoặc bằng minKgRequired')
+  }
+
+  const penalty = penaltyPercent !== undefined && penaltyPercent !== null ? Number(penaltyPercent) : 0
+  if (isNaN(penalty) || penalty < 0) {
+    throw new ApiError(400, 'penaltyPercent phải >= 0')
   }
 
   // Check wasteType exists
@@ -329,19 +359,25 @@ async function createRewardConfig({ wasteTypeId, pointsPerUnit, description, all
     wasteTypeId,
     pointsPerUnit: points,
     description: description || null,
-    allowedVariancePercent: allowedVariancePercent !== undefined ? Number(allowedVariancePercent) : undefined
+    allowedVariancePercent: variance,
+    minKgRequired: minKg,
+    maxKgRequired: maxKg,
+    penaltyPercent: penalty
   })
 
   return {
     success: true,
     data: {
-      reward_config_id: result.rewardConfigId,
-      waste_type_id: result.wasteTypeId,
-      points_per_unit: result.pointsPerUnit,
+      rewardConfigId: result.rewardConfigId,
+      wasteTypeId: result.wasteTypeId,
+      pointsPerUnit: result.pointsPerUnit,
+      allowedVariancePercent: result.allowedVariancePercent,
+      penaltyPercent: result.penaltyPercent,
+      minKgRequired: result.minKgRequired,
+      maxKgRequired: result.maxKgRequired,
       description: result.description,
-      allowed_variance_percent: result.allowedVariancePercent,
-      is_active: result.isActive === 1 || result.isActive === true,
-      created_at: result.createdAt
+      isActive: result.isActive === 1 || result.isActive === true,
+      createdAt: result.createdAt
     }
   }
 }
@@ -355,7 +391,10 @@ async function createRewardConfig({ wasteTypeId, pointsPerUnit, description, all
  * - pointsPerUnit > 0
  * - Không cho update nếu rewardConfig đang inactive
  */
-async function updateRewardConfig(rewardConfigId, { pointsPerUnit, description, allowedVariancePercent }) {
+async function updateRewardConfig(
+  rewardConfigId,
+  { pointsPerUnit, description, allowedVariancePercent, minKgRequired, maxKgRequired, penaltyPercent }
+) {
   // Check existence
   const existingConfig = await rewardConfigRepository.findById(rewardConfigId)
   if (!existingConfig) {
@@ -365,6 +404,11 @@ async function updateRewardConfig(rewardConfigId, { pointsPerUnit, description, 
   // Check if rewardConfig is active
   if (!existingConfig.isActive) {
     throw new ApiError(400, 'Không thể cập nhật RewardConfig đã inactive')
+  }
+
+  const wasteType = await wasteTypeRepository.findById(existingConfig.wasteTypeId)
+  if (!wasteType || !wasteType.isActive) {
+    throw new ApiError(400, 'Không thể cập nhật RewardConfig khi WasteType đã inactive')
   }
 
   // Validate and build update data
@@ -385,9 +429,40 @@ async function updateRewardConfig(rewardConfigId, { pointsPerUnit, description, 
   if (allowedVariancePercent !== undefined) {
     const val = Number(allowedVariancePercent)
     if (isNaN(val) || val < 0) {
-      throw new ApiError(400, 'allowedVariancePercent must be a non-negative integer')
+      throw new ApiError(400, 'allowedVariancePercent phải >= 0')
     }
     updateData.allowedVariancePercent = val
+  }
+
+  if (penaltyPercent !== undefined) {
+    const val = Number(penaltyPercent)
+    if (isNaN(val) || val < 0) {
+      throw new ApiError(400, 'penaltyPercent phải >= 0')
+    }
+    updateData.penaltyPercent = val
+  }
+
+  if (minKgRequired !== undefined) {
+    const val = Number(minKgRequired)
+    if (isNaN(val) || val < 0) {
+      throw new ApiError(400, 'minKgRequired phải >= 0')
+    }
+    updateData.minKgRequired = val
+  }
+
+  if (maxKgRequired !== undefined) {
+    const val = Number(maxKgRequired)
+    if (isNaN(val) || val < 0) {
+      throw new ApiError(400, 'maxKgRequired phải >= 0')
+    }
+    updateData.maxKgRequired = val
+  }
+
+  const effectiveMin = updateData.minKgRequired !== undefined ? updateData.minKgRequired : Number(existingConfig.minKgRequired)
+  const effectiveMax = updateData.maxKgRequired !== undefined ? updateData.maxKgRequired : Number(existingConfig.maxKgRequired)
+
+  if (effectiveMax < effectiveMin) {
+    throw new ApiError(400, 'maxKgRequired phải lớn hơn hoặc bằng minKgRequired')
   }
 
   // Perform update
@@ -400,10 +475,13 @@ async function updateRewardConfig(rewardConfigId, { pointsPerUnit, description, 
   return {
     success: true,
     data: {
-      reward_config_id: result.rewardConfigId,
-      points_per_unit: result.pointsPerUnit,
-      allowed_variance_percent: result.allowedVariancePercent,
-      updated_at: result.updatedAt
+      rewardConfigId: result.rewardConfigId,
+      pointsPerUnit: result.pointsPerUnit,
+      allowedVariancePercent: result.allowedVariancePercent,
+      penaltyPercent: result.penaltyPercent,
+      minKgRequired: result.minKgRequired,
+      maxKgRequired: result.maxKgRequired,
+      updatedAt: new Date().toISOString()
     }
   }
 }
@@ -435,6 +513,9 @@ async function getAllRewardConfigs({ isActive, page = 1, limit = 20 } = {}) {
     points_per_unit: r.pointsPerUnit,
     description: r.description,
     allowed_variance_percent: r.allowedVariancePercent,
+    penalty_percent: r.penaltyPercent,
+    min_kg_required: r.minKgRequired,
+    max_kg_required: r.maxKgRequired,
     is_active: r.isActive === 1 || r.isActive === true,
     created_at: r.createdAt
   }))
@@ -468,6 +549,9 @@ async function getRewardConfigById(rewardConfigId) {
       points_per_unit: config.pointsPerUnit,
       description: config.description,
       allowed_variance_percent: config.allowedVariancePercent,
+      penalty_percent: config.penaltyPercent,
+      min_kg_required: config.minKgRequired,
+      max_kg_required: config.maxKgRequired,
       is_active: config.isActive === 1 || config.isActive === true,
       created_at: config.createdAt
     }
@@ -491,8 +575,114 @@ async function getRewardConfigByWasteTypeId(wasteTypeId) {
       points_per_unit: config.pointsPerUnit,
       description: config.description,
       allowed_variance_percent: config.allowedVariancePercent,
+      penalty_percent: config.penaltyPercent,
+      min_kg_required: config.minKgRequired,
+      max_kg_required: config.maxKgRequired,
       is_active: config.isActive === 1 || config.isActive === true,
       created_at: config.createdAt
+    }
+  }
+}
+
+/**
+ * GET Dashboard Statistics Enterprise
+ */
+async function getDashboardStatistics(fromDate, toDate, groupBy = 'day') {
+  const now = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+
+  let finalGroupBy = groupBy
+  if (finalGroupBy !== 'day' && finalGroupBy !== 'month') {
+    finalGroupBy = 'day'
+  }
+
+  let startDate = fromDate ? new Date(fromDate) : new Date(now.getFullYear(), now.getMonth(), 1)
+  if (isNaN(startDate.getTime())) {
+    throw new ApiError(400, 'fromDate không hợp lệ')
+  }
+
+  let endDate = toDate ? new Date(toDate) : new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+  if (isNaN(endDate.getTime())) {
+    throw new ApiError(400, 'toDate không hợp lệ')
+  }
+
+  if (startDate >= endDate) {
+    throw new ApiError(400, 'fromDate phải nhỏ hơn toDate')
+  }
+
+  const maxAllowedDate = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+  if (startDate > now || endDate > maxAllowedDate) {
+    throw new ApiError(400, 'Không thể truy vấn dữ liệu trong tương lai')
+  }
+
+
+
+
+  const formatDate = (date) => {
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+  }
+
+  const startDateStr = formatDate(startDate)
+  const endDateStr = formatDate(endDate)
+
+  const timeFormat = finalGroupBy === 'month' ? '%Y-%m' : '%Y-%m-%d'
+
+  const startOfCurrentMonth = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01 00:00:00`
+  let nextMo = now.getMonth() + 2
+  let nextMoYr = now.getFullYear()
+  if (nextMo > 12) {
+    nextMo = 1
+    nextMoYr += 1
+  }
+  const startOfNextMonth = `${nextMoYr}-${pad(nextMo)}-01 00:00:00`
+
+  const data = await enterpriseRepository.getDashboardStatistics(
+    startDateStr,
+    endDateStr,
+    timeFormat,
+    startOfCurrentMonth,
+    startOfNextMonth
+  )
+
+  const parseJson = (val) => {
+    if (!val) return null
+    try {
+      if (typeof val === 'string') return JSON.parse(val)
+      return val
+    } catch (e) {
+      return null
+    }
+  }
+
+  const statusStats = parseJson(data.statusStats) || {}
+  let wasteByType = parseJson(data.wasteByType) || []
+  let reportsByTime = parseJson(data.reportsByTime) || []
+  const collectorStats = parseJson(data.collectorStats) || {}
+  const staffStats = parseJson(data.staffStats) || {}
+
+  if (!Array.isArray(wasteByType)) wasteByType = []
+  if (!Array.isArray(reportsByTime)) reportsByTime = []
+
+  return {
+    totalReports: Number(statusStats?.totalReports) || 0,
+    pendingReports: Number(statusStats?.pendingReports) || 0,
+    inProgressReports: Number(statusStats?.inProgressReports) || 0,
+    wasteByType: wasteByType.map(w => ({
+      wasteType: w?.wasteType || '',
+      quantity: Number(w?.quantity) || 0
+    })),
+    reportsByTime: reportsByTime.map(r => ({
+      time: r?.time || '',
+      reports: Number(r?.reports) || 0
+    })),
+    collectorStats: {
+      weeklyTasks: Number(collectorStats?.weeklyTasks) || 0,
+      monthlyTasks: Number(collectorStats?.monthlyTasks) || 0
+    },
+    staffStats: {
+      totalCollectors: Number(staffStats?.totalCollectors) || 0,
+      activeCollectors: Number(staffStats?.activeCollectors) || 0,
+      idleCollectors: Number(staffStats?.idleCollectors) || 0
     }
   }
 }
@@ -511,5 +701,6 @@ module.exports = {
   updateRewardConfig,
   getAllRewardConfigs,
   getRewardConfigById,
-  getRewardConfigByWasteTypeId
+  getRewardConfigByWasteTypeId,
+  getDashboardStatistics
 }

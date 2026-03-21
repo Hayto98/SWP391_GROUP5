@@ -14,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { Star } from "lucide-react";
 
 function PointHistory({ pointTransactions }) {
@@ -37,33 +38,46 @@ function PointHistory({ pointTransactions }) {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>thứ tự</TableHead>
               <TableHead>Nội Dung</TableHead>
               <TableHead className="text-right">Điểm Thay Đổi</TableHead>
               <TableHead>Thời Gian</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {pointTransactions.map((transaction) => (
-              <TableRow key={transaction.point_transaction_id}>
-                <TableCell className="font-medium">
-                  {transaction.transaction_reason}
+            {pointTransactions.length ? (
+              pointTransactions.map((transaction, i) => (
+                <TableRow key={transaction.transactionId}>
+                  <TableCell>{i + 1}</TableCell>
+                  <TableCell className="font-medium">
+                    {transaction.reason}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <span
+                      className={`font-bold flex items-center justify-end gap-1 ${
+                        transaction.points > 0
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }`}
+                    >
+                      {transaction.points > 0 ? "+" : ""}
+                      {transaction.points}
+                      <Star className="size-3" />
+                    </span>
+                  </TableCell>
+                  <TableCell>{formatDate(transaction.createdAt)}</TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell
+                  colSpan={4}
+                  className="py-8 text-center text-muted-foreground"
+                >
+                  Chưa có lịch sử giao dịch điểm.
                 </TableCell>
-                <TableCell className="text-right">
-                  <span
-                    className={`font-bold flex items-center justify-end gap-1 ${
-                      transaction.points_delta > 0
-                        ? "text-green-600"
-                        : "text-red-600"
-                    }`}
-                  >
-                    {transaction.points_delta > 0 ? "+" : ""}
-                    {transaction.points_delta}
-                    <Star className="size-3" />
-                  </span>
-                </TableCell>
-                <TableCell>{formatDate(transaction.created_at)}</TableCell>
               </TableRow>
-            ))}
+            )}
           </TableBody>
         </Table>
       </CardContent>

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,9 +23,18 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Eye, Edit, MapPin, Calendar, Loader2, Trash2 } from "lucide-react";
+import { Eye, Edit, Calendar, Loader2, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -45,8 +54,41 @@ import {
 } from "@/services/wasteReportService";
 import { toast } from "sonner";
 import { reverseGeocode } from "@/services/geocodingService";
-import { getWasteTypeById, getWasteTypes } from "@/services/wasteService";
+import { getWasteTypes } from "@/services/wasteService";
 import EditReportDialog from "./EditReportDialog";
+
+const PAGE_SIZE_OPTIONS = [10, 20, 50];
+const FETCH_ALL_PAGE_SIZE = 100;
+
+function getVisiblePages(currentPage, totalPages) {
+  const delta = 1;
+  const range = [];
+  const rangeWithDots = [];
+
+  for (
+    let i = Math.max(2, currentPage - delta);
+    i <= Math.min(totalPages - 1, currentPage + delta);
+    i += 1
+  ) {
+    range.push(i);
+  }
+
+  if (currentPage - delta > 2) {
+    rangeWithDots.push(1, "...");
+  } else {
+    rangeWithDots.push(1);
+  }
+
+  rangeWithDots.push(...range);
+
+  if (currentPage + delta < totalPages - 1) {
+    rangeWithDots.push("...", totalPages);
+  } else if (totalPages > 1) {
+    rangeWithDots.push(totalPages);
+  }
+
+  return rangeWithDots;
+}
 
 const progressTemplate = {
   PENDING: [
@@ -174,6 +216,7 @@ function mapReport(report) {
 
   return {
     id: report.wasteReportId,
+    reportCode: report?.reportCode || report.wasteReportId,
     wasteTypeId: report?.wasteType?.id || null,
     title: report?.wasteType?.name || "-",
     unitType: report?.wasteType?.unitType || "-",
@@ -230,26 +273,42 @@ function Reports() {
   const [wasteTypes, setWasteTypes] = useState([]);
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
-  const fetchReports = async () => {
+  const fetchReports = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await getMyReports({ page: 1, limit: 100 });
-      const reportsWithLocation = await Promise.all(
-        (response?.data || []).map((report) => mapReportWithLocation(report)),
-      );
+      let page = 1;
+      let total = 0;
+      const allReports = [];
 
-      setReports(reportsWithLocation);
+      do {
+        const response = await getMyReports({
+          page,
+          limit: FETCH_ALL_PAGE_SIZE,
+        });
+
+        const currentBatch = response?.data || [];
+        total = Number(response?.pagination?.total || currentBatch.length);
+        allReports.push(...currentBatch);
+
+        if (currentBatch.length < FETCH_ALL_PAGE_SIZE) {
+          break;
+        }
+
+        page += 1;
+      } while (allReports.length < total);
+
+      setReports(allReports.map((report) => mapReport(report)));
     } catch (error) {
       toast.error(error.message || "Không thể tải danh sách báo cáo");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchReports();
-
     const fetchWasteTypeOptions = async () => {
       try {
         const data = await getWasteTypes();
@@ -261,6 +320,10 @@ function Reports() {
 
     fetchWasteTypeOptions();
   }, []);
+
+  useEffect(() => {
+    fetchReports();
+  }, [fetchReports]);
 
   const handleViewReport = (report) => {
     navigate(`/citizen/reports/${report.id}`);
@@ -357,6 +420,16 @@ function Reports() {
       return true;
     });
   }, [reports, statusFilter, dateFilter]);
+  const totalReports = filteredReports.length;
+  const totalPages = Math.max(1, Math.ceil(totalReports / pageSize) || 1);
+  const effectivePage = Math.min(currentPage, totalPages);
+  const startItem = totalReports === 0 ? 0 : (effectivePage - 1) * pageSize + 1;
+  const endItem = Math.min(effectivePage * pageSize, totalReports);
+
+  const paginatedReports = useMemo(() => {
+    const startIndex = (effectivePage - 1) * pageSize;
+    return filteredReports.slice(startIndex, startIndex + pageSize);
+  }, [effectivePage, filteredReports, pageSize]);
 
   return (
     <div className="space-y-6">
@@ -368,7 +441,13 @@ function Reports() {
           <FieldGroup className="flex gap-4 flex-row">
             <Field>
               <FieldLabel>Trạng thái</FieldLabel>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select
+                value={statusFilter}
+                onValueChange={(value) => {
+                  setStatusFilter(value);
+                  setCurrentPage(1);
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Tất cả trạng thái" />
                 </SelectTrigger>
@@ -407,19 +486,16 @@ function Reports() {
                   <CalendarComponent
                     mode="single"
                     selected={dateFilter}
-                    onSelect={setDateFilter}
+                    onSelect={(value) => {
+                      setDateFilter(value);
+                      setCurrentPage(1);
+                    }}
                     initialFocus
                     locale={vi}
                   />
                 </PopoverContent>
               </Popover>
             </Field>
-
-            {/* <Field className="flex items-end">
-            <Button variant="outline" className="w-full">
-              Lọc thêm
-            </Button>
-          </Field> */}
           </FieldGroup>
         </CardContent>
 
@@ -430,7 +506,7 @@ function Reports() {
                 <TableHead className="max-w-10">Mã báo cáo</TableHead>
                 <TableHead>Loại rác</TableHead>
                 <TableHead>Ngày gửi</TableHead>
-                <TableHead>Địa điểm</TableHead>
+                <TableHead>Cân nặng</TableHead>
                 <TableHead>Trạng thái</TableHead>
                 <TableHead className="text-right">Thao tác</TableHead>
               </TableRow>
@@ -445,7 +521,7 @@ function Reports() {
                     </div>
                   </TableCell>
                 </TableRow>
-              ) : filteredReports.length === 0 ? (
+              ) : paginatedReports.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={6}
@@ -455,12 +531,13 @@ function Reports() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredReports.map((report) => (
+                paginatedReports.map((report) => (
                   <TableRow key={report.id}>
                     <TableCell className="font-medium text-cyan-600 truncate max-w-25">
-                      {report.id}
+                      {report.reportCode}
                     </TableCell>
                     <TableCell>{report.title}</TableCell>
+
                     <TableCell>
                       <div className="flex items-center gap-1 text-sm">
                         <Calendar className="size-3 text-muted-foreground" />
@@ -468,11 +545,8 @@ function Reports() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div
-                        className="flex items-center gap-1 text-sm max-w-85"
-                        title={report.location}
-                      >
-                        <span className="truncate">{report.location}</span>
+                      <div className="flex items-center gap-1 text-sm">
+                        {`${report.weightKg}/${report.unitType}`}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -527,6 +601,99 @@ function Reports() {
               )}
             </TableBody>
           </Table>
+
+          <div className="flex flex-col gap-3 border-t pt-4 mt-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-muted-foreground">
+                Hiển thị {startItem}-{endItem} / {totalReports} báo cáo
+              </p>
+
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  Mỗi trang:
+                </span>
+                <Select
+                  value={String(pageSize)}
+                  onValueChange={(value) => {
+                    setPageSize(Number(value));
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-20 h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAGE_SIZE_OPTIONS.map((size) => (
+                      <SelectItem key={size} value={String(size)}>
+                        {size}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <Pagination className="justify-end">
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (effectivePage > 1) {
+                        setCurrentPage(effectivePage - 1);
+                      }
+                    }}
+                    className={
+                      effectivePage <= 1
+                        ? "pointer-events-none opacity-50"
+                        : "cursor-pointer"
+                    }
+                  />
+                </PaginationItem>
+
+                {getVisiblePages(effectivePage, totalPages).map(
+                  (page, index) =>
+                    page === "..." ? (
+                      <PaginationItem key={`ellipsis-${index}`}>
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    ) : (
+                      <PaginationItem key={page}>
+                        <PaginationLink
+                          href="#"
+                          isActive={page === effectivePage}
+                          className="cursor-pointer"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setCurrentPage(Number(page));
+                          }}
+                        >
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    ),
+                )}
+
+                <PaginationItem>
+                  <PaginationNext
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (effectivePage < totalPages) {
+                        setCurrentPage(effectivePage + 1);
+                      }
+                    }}
+                    className={
+                      effectivePage >= totalPages
+                        ? "pointer-events-none opacity-50"
+                        : "cursor-pointer"
+                    }
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </div>
         </CardContent>
       </Card>
 

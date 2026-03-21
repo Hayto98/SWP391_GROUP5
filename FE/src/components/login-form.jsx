@@ -30,6 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import bgImage from "@/assets/img/TaiCheRacDiemThuong.png";
 
 const loginFormSchema = z.object({
   email: z
@@ -117,7 +118,7 @@ export function LoginForm({ className, ...props }) {
     } catch (error) {
       toast.error(
         error.message ||
-          "Đăng nhập thất bại. Vui lòng kiểm tra email và mật khẩu.",
+        "Đăng nhập thất bại. Vui lòng kiểm tra email và mật khẩu.",
       );
     }
   };
@@ -248,7 +249,7 @@ export function LoginForm({ className, ...props }) {
           </form>
           <div className="bg-muted relative hidden md:block">
             <img
-              src="https://www.blog.impaac.org/wp-content/uploads/2022/10/Crowdfunding-Benefits-Impaac-Foundation-non-profit-platform-sustainable-afforestation-deforestation-sustainable-planet-sustain-save-protect-donate-Daanutsav-Recycling-1024x1024.jpg"
+              src={bgImage}
               alt="Image"
               className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
             />

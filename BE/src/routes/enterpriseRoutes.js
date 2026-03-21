@@ -2,11 +2,26 @@ const express = require('express')
 const enterpriseController = require('../controllers/Enterprise/enterpriseController')
 const enterpriseReportController = require('../controllers/Enterprise/enterpriseReportController')
 const enterpriseCollectorController = require('../controllers/Enterprise/enterpriseCollectorController')
+const voucherController = require('../controllers/Enterprise/voucherController')
+const voucherRedemptionController = require('../controllers/Enterprise/voucherRedemptionController')
+const notificationController = require('../controllers/Enterprise/notificationController')
 const { verifyToken } = require('../middlewares/authMiddleware')
 const { requireRole } = require('../middlewares/roleMiddleware')
 const { ROLES } = require('../utils/constants')
 
 const router = express.Router()
+
+router.use((req, res, next) => {
+  console.log(`Enterprise Router hit: ${req.method} ${req.url}`)
+  next()
+})
+
+/**
+ * GET /enterprise/ping - Unprotected test route
+ */
+router.get('/ping', (req, res) => {
+  res.status(200).json({ message: 'Enterprise router is reached (unprotected)' })
+})
 
 // ==================== MIDDLEWARE ====================
 // Apply authentication to ALL enterprise routes
@@ -15,6 +30,35 @@ router.use(verifyToken)
 // Apply ENTERPRISE role check to ALL enterprise routes
 // Only authenticated users with role ENTERPRISE can access /api/enterprise/*
 router.use(requireRole(ROLES.ENTERPRISE))
+
+// ==================== DEBUG & NOTIFICATION ROUTES ====================
+
+/**
+ * GET /enterprise/ping - Test route
+ */
+router.get('/ping', (req, res) => {
+  res.status(200).json({ message: 'Enterprise router is active' })
+})
+
+/**
+ * GET /enterprise/dashboard/statistics - Thống kê Dashboard
+ */
+router.get('/dashboard/statistics', enterpriseController.getDashboardStatistics)
+
+/**
+ * GET /enterprise/notifications - Danh sách thông báo
+ */
+router.get('/notifications', notificationController.getNotifications)
+
+/**
+ * PATCH /enterprise/notifications/read-all - Đánh dấu tất cả đã đọc
+ */
+router.patch('/notifications/read-all', notificationController.markAllAsRead)
+
+/**
+ * PATCH /enterprise/notifications/:notificationId/read - Đánh dấu đã đọc
+ */
+router.patch('/notifications/:notificationId/read', notificationController.markAsRead)
 
 // ==================== WASTE TYPE ROUTES ====================
 
@@ -116,5 +160,40 @@ router.post('/reports/:reportId/reject', enterpriseReportController.rejectReport
  * Request body: { collectorUserAccountId }
  */
 router.post('/reports/:reportId/assign', enterpriseReportController.assignReport)
+
+// ==================== VOUCHER ROUTES ====================
+
+const { uploadSingle } = require('../middlewares/upload')
+
+/**
+ * POST /enterprise/vouchers - Tạo Voucher mới (Supports multipart/form-data)
+ */
+router.post('/vouchers', uploadSingle, voucherController.createVoucher)
+
+/**
+ * PUT /enterprise/vouchers/:voucherId - Cập nhật Voucher (Supports multipart/form-data)
+ */
+router.put('/vouchers/:voucherId', uploadSingle, voucherController.updateVoucher)
+
+/**
+ * DELETE /enterprise/vouchers/:voucherId - Xóa Voucher (Soft delete)
+ */
+router.delete('/vouchers/:voucherId', voucherController.deleteVoucher)
+
+/**
+ * GET /enterprise/vouchers - Danh sách Voucher
+ */
+router.get('/vouchers', voucherController.getVouchers)
+
+/**
+ * GET /enterprise/vouchers/statistics - Thống kê voucher đã đổi
+ */
+router.get('/vouchers/statistics', voucherRedemptionController.getVoucherStatistics)
+
+/**
+ * GET /enterprise/vouchers/:voucherId - Chi tiết Voucher
+ */
+router.get('/vouchers/:voucherId', voucherController.getVoucherById)
+
 
 module.exports = router

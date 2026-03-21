@@ -1,6 +1,7 @@
 import { CardHeader } from "@/components/ui/card";
 import { X, MapPinOffIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   MapContainer,
   TileLayer,
@@ -10,8 +11,9 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { searchAddress, getPlaceDetails } from "@/services/geocodingService";
 
 // Fix default marker icon
 delete L.Icon.Default.prototype._getIconUrl;
@@ -24,7 +26,7 @@ L.Icon.Default.mergeOptions({
     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
 
-// LocationPicker component - must be inside MapContainer
+// LocationPicker component
 function LocationPicker({ onChange }) {
   useMapEvents({
     click(e) {
@@ -39,6 +41,24 @@ function LocationSelection({ marker, onMapClick, onDeleteMarker }) {
   const [mapCenter, setMapCenter] = useState([10.7769, 106.7009]);
   const [mapRef, setMapRef] = useState(null);
 
+  const [search, setSearch] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const searchDebounceRef = useRef(null);
+  const searchControllerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+      if (searchControllerRef.current) {
+        searchControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  // Lấy vị trí GPS
   const getUserLocation = () => {
     setIsLoadingLocation(true);
 
@@ -48,18 +68,17 @@ function LocationSelection({ marker, onMapClick, onDeleteMarker }) {
           const lat = position.coords.latitude;
           const lng = position.coords.longitude;
 
-          // Set marker tại vị trí người dùng
           onMapClick?.({ lat, lng });
 
-          // Di chuyển map đến vị trí người dùng
           setMapCenter([lat, lng]);
+
           if (mapRef) {
             mapRef.flyTo([lat, lng], 17);
           }
 
           setIsLoadingLocation(false);
         },
-        (error) => {
+        () => {
           toast.error(
             "Không thể lấy vị trí của bạn. Vui lòng cho phép truy cập vị trí.",
           );
@@ -77,21 +96,114 @@ function LocationSelection({ marker, onMapClick, onDeleteMarker }) {
     }
   };
 
+  // Search address
+  const handleSearch = async (value) => {
+    setSearch(value);
+
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+
+    if (searchControllerRef.current) {
+      searchControllerRef.current.abort();
+    }
+
+    if (value.length < 3) {
+      setSuggestions([]);
+      return;
+    }
+
+    searchDebounceRef.current = setTimeout(async () => {
+      const controller = new AbortController();
+      searchControllerRef.current = controller;
+
+      const results = await searchAddress(value, 5, {
+        signal: controller.signal,
+      });
+
+      if (!controller.signal.aborted) {
+        setSuggestions(results);
+      }
+    }, 500);
+  };
+
+  // Chọn địa chỉ
+  const handleSelectLocation = async (item) => {
+    const { place_id, address } = item;
+    let lat = item.lat;
+    let lng = item.lng;
+
+    // Fetch coordinates if not available (from autocomplete)
+    if (!lat || !lng) {
+      const details = await getPlaceDetails(place_id);
+      if (details) {
+        lat = details.lat;
+        lng = details.lng;
+      } else {
+        toast.error("Không thể lấy tọa độ để định vị địa điểm này");
+        return;
+      }
+    }
+
+    onMapClick?.({
+      lat,
+      lng,
+      name: address,
+    });
+
+    setMapCenter([lat, lng]);
+
+    if (mapRef) {
+      mapRef.flyTo([lat, lng], 17);
+    }
+
+    setSearch(address);
+    setSuggestions([]);
+  };
+
   return (
     <>
       <CardHeader className="text-start px-0">
-        <div className="flex ">
-          <h3 className="font-semibold">Vị trí thu gom </h3>
-          <span className="text-destructive"> *</span>
-
-          {/* <span className="text-sm text-muted-foreground">
-            Đã chọn {markers.length} vị trí
-          </span> */}
+        <div className="flex">
+          <h3 className="font-semibold">Vị trí thu gom</h3>
+          <span className="text-destructive">*</span>
         </div>
       </CardHeader>
 
       <div className="space-y-4">
-        {/* Map Section */}
+        {/* Search Address */}
+        <div className="relative">
+          <Input
+            placeholder="Nhập địa chỉ..."
+            value={search}
+            onChange={(e) => handleSearch(e.target.value)}
+            onFocus={() => setIsSearchFocused(true)}
+            onBlur={() => {
+              setTimeout(() => {
+                setIsSearchFocused(false);
+              }, 120);
+            }}
+          />
+
+          {isSearchFocused && suggestions.length > 0 && (
+            <div className="absolute z-50 bg-white border w-full rounded-md shadow-md max-h-60 overflow-auto">
+              {suggestions.map((item, index) => (
+                <button
+                  key={index}
+                  className="w-full text-left px-3 py-2 hover:bg-gray-100 text-sm"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleSelectLocation(item);
+                  }}
+                >
+                  {item.address}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Map */}
         <div className="relative border rounded-lg overflow-hidden h-80">
           <Button
             onClick={getUserLocation}
@@ -101,6 +213,7 @@ function LocationSelection({ marker, onMapClick, onDeleteMarker }) {
           >
             Lấy vị trí hiện tại của bạn
           </Button>
+
           <MapContainer
             ref={setMapRef}
             center={mapCenter}
@@ -108,10 +221,12 @@ function LocationSelection({ marker, onMapClick, onDeleteMarker }) {
             className="h-full w-full z-0"
           >
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
+
             <LocationPicker onChange={onMapClick} />
+
             {marker && (
               <Marker key={marker.id} position={marker.position}>
                 <Popup>
@@ -138,23 +253,23 @@ function LocationSelection({ marker, onMapClick, onDeleteMarker }) {
         </div>
       </div>
 
-      {/* Danh sách các vị trí đã chọn */}
+      {/* Selected location */}
       {marker && (
         <div className="space-y-3">
           <h3 className="text-sm font-semibold flex items-center gap-2 mt-4">
-            vị trí đã chọn
+            Vị trí đã chọn
           </h3>
+
           <div className="space-y-2">
-            <div
-              key={marker.id}
-              className="flex items-center justify-between p-3 rounded-lg border bg-green-50 border-green-200"
-            >
+            <div className="flex items-center justify-between p-3 rounded-lg border bg-green-50 border-green-200">
               <div className="flex items-start gap-3">
-                <button className="flex items-center justify-center size-6 ">
+                <button className="flex items-center justify-center size-6">
                   <MapPinOffIcon />
                 </button>
+
                 <div className="text-start">
                   <p className="font-medium text-sm">Điểm thu gom đã chọn</p>
+
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-xs text-muted-foreground">
                       {marker.name}
@@ -162,6 +277,7 @@ function LocationSelection({ marker, onMapClick, onDeleteMarker }) {
                   </div>
                 </div>
               </div>
+
               <Button
                 variant="ghost"
                 size="icon"

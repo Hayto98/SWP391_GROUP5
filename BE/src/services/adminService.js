@@ -7,7 +7,6 @@ const { ROLES, USER_STATUS } = require('../utils/constants')
 const DEFAULT_SALT_ROUNDS = 10
 
 // ==================== READ ====================
-
 /**
  * Get all users with pagination, keyword search, and role filter
  */

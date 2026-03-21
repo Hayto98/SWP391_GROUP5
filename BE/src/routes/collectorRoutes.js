@@ -5,6 +5,7 @@ const { ROLES } = require('../utils/constants')
 const { uploadMultiple, uploadSingle } = require('../middlewares/upload')
 const collectorReportController = require('../controllers/Collector/collectorReportController')
 const collectorController = require('../controllers/Collector/collectorController')
+const notificationController = require('../controllers/Collector/notificationController')
 
 const router = express.Router()
 
@@ -35,5 +36,11 @@ router.get('/reports/:reportId/result', collectorReportController.getResult)
 router.patch('/reports/:reportId/accept', collectorReportController.acceptReport)
 router.post('/reports/:reportId/result', uploadSingle, collectorReportController.submitResult)
 router.post('/reports/:reportId/complete', smartUploadComplete, collectorReportController.completeReport)
+router.patch('/reports/:reportId/mark-fake', smartUploadComplete, collectorReportController.markReportAsFake)
+router.patch('/reports/:reportId/schedule', collectorReportController.scheduleCollection)
+
+// --- NOTIFICATIONS ---
+router.get('/notifications', notificationController.getNotifications)
+router.patch('/notifications/:notificationId/read', notificationController.markAsRead)
 
 module.exports = router

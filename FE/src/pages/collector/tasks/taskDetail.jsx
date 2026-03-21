@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { Loader2, MapPin, Phone, Recycle, Scale } from "lucide-react";
+import { Calendar, Loader2, MapPin, Phone, Recycle, Scale } from "lucide-react";
 import {
   acceptCollectorReport,
   getCollectorReportById,
+  markCollectorReportAsFake,
+  scheduleCollectorReport,
   submitCollectorReportResult,
 } from "@/services/collectorReport.service";
 import { reverseGeocode } from "@/services/geocodingService";
@@ -11,6 +13,12 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import ImageSection from "@/components/ui/image-section";
 import {
   Dialog,
@@ -53,9 +61,12 @@ function getStatusStyle(status) {
 function mapApiData(apiData) {
   const lat = Number(apiData?.location?.lat);
   const lng = Number(apiData?.location?.lng);
+  const reportId = apiData?.reportId || "";
+  const reportCode = apiData?.reportCode || apiData?.wasteCode || reportId;
 
   return {
-    reportId: apiData?.reportId || "",
+    reportId,
+    reportCode,
     citizen: {
       fullname: apiData?.citizen?.fullname || "-",
       phone: apiData?.citizen?.phone || "-",
@@ -80,6 +91,26 @@ function mapApiData(apiData) {
   };
 }
 
+function getDefaultScheduleDateTime() {
+  return new Date(Date.now() + 30 * 60000);
+}
+
+function toTimeHHmm(date) {
+  const h = String(date.getHours()).padStart(2, "0");
+  const m = String(date.getMinutes()).padStart(2, "0");
+  return `${h}:${m}`;
+}
+
+function buildDateTimeFromParts(dateValue, timeValue) {
+  if (!(dateValue instanceof Date) || Number.isNaN(dateValue.getTime()))
+    return null;
+  if (!timeValue || !/^\d{2}:\d{2}$/.test(timeValue)) return null;
+  const [hours, minutes] = timeValue.split(":").map(Number);
+  const result = new Date(dateValue);
+  result.setHours(hours, minutes, 0, 0);
+  return Number.isNaN(result.getTime()) ? null : result;
+}
+
 function TaskDetail() {
   const navigate = useNavigate();
   const { taskId } = useParams();
@@ -87,11 +118,23 @@ function TaskDetail() {
   const [task, setTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState(false);
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [scheduleSaving, setScheduleSaving] = useState(false);
+  const [scheduledDate, setScheduledDate] = useState(
+    getDefaultScheduleDateTime(),
+  );
+  const [scheduledTime, setScheduledTime] = useState(
+    toTimeHHmm(getDefaultScheduleDateTime()),
+  );
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
   const [submitSaving, setSubmitSaving] = useState(false);
+  const [markingFake, setMarkingFake] = useState(false);
+  const [fakeDialogOpen, setFakeDialogOpen] = useState(false);
+  const [fakeNote, setFakeNote] = useState("");
+  const [fakeFile, setFakeFile] = useState(null);
+  const [fakeFilePreview, setFakeFilePreview] = useState("");
   const [actualQuantity, setActualQuantity] = useState("");
-  const [quantityUnit, setQuantityUnit] = useState("KG");
   const [note, setNote] = useState("");
   const [resultFile, setResultFile] = useState(null);
   const [resultFilePreview, setResultFilePreview] = useState("");
@@ -109,6 +152,20 @@ function TaskDetail() {
       URL.revokeObjectURL(previewUrl);
     };
   }, [resultFile]);
+
+  useEffect(() => {
+    if (!fakeFile) {
+      setFakeFilePreview("");
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(fakeFile);
+    setFakeFilePreview(previewUrl);
+
+    return () => {
+      URL.revokeObjectURL(previewUrl);
+    };
+  }, [fakeFile]);
 
   useEffect(() => {
     const fetchDetail = async () => {
@@ -143,7 +200,6 @@ function TaskDetail() {
 
     if (task.status === "IN_PROGRESS") {
       setActualQuantity(task.actualQuantity ?? "");
-      setQuantityUnit(task.unitType || "KG");
       setNote("");
       setResultFile(null);
       setSubmitDialogOpen(true);
@@ -183,14 +239,16 @@ function TaskDetail() {
 
     setSubmitSaving(true);
     try {
+      const submitUnit = task.unitType || "KG";
       const response = await submitCollectorReportResult(task.reportId, {
         actualQuantity: quantity,
-        quantityUnit,
+        quantityUnit: submitUnit,
         note,
         file: resultFile,
       });
 
       const submittedQuantity = response?.data?.actualQuantity ?? quantity;
+      const completedReportId = response?.data?.reportId || task.reportId;
 
       setTask((prev) => ({
         ...prev,
@@ -198,10 +256,91 @@ function TaskDetail() {
       }));
       setSubmitDialogOpen(false);
       toast.success("Cập nhật kết quả thu gom thành công");
+      navigate("/collector/history", {
+        state: { openReportId: completedReportId },
+      });
     } catch (error) {
       toast.error(error.message || "Cập nhật kết quả thu gom thất bại");
     } finally {
       setSubmitSaving(false);
+    }
+  };
+
+  const handleConfirmScheduleAndAccept = async () => {
+    if (!task || scheduleSaving) {
+      return;
+    }
+
+    const scheduledDateTime = buildDateTimeFromParts(
+      scheduledDate,
+      scheduledTime,
+    );
+    if (!scheduledDateTime) {
+      toast.warning("Vui lòng chọn ngày và giờ thu gom hợp lệ.");
+      return;
+    }
+
+    if (scheduledDateTime.getTime() < Date.now()) {
+      toast.warning("Không thể chọn thời gian trong quá khứ.");
+      return;
+    }
+
+    setScheduleSaving(true);
+    setAccepting(true);
+    try {
+      await scheduleCollectorReport(
+        task.reportId,
+        scheduledDateTime.toISOString(),
+      );
+      await acceptCollectorReport(task.reportId);
+      setTask((prev) => ({
+        ...prev,
+        status: "IN_PROGRESS",
+      }));
+      setScheduleDialogOpen(false);
+      setSuccessDialogOpen(true);
+    } catch (error) {
+      toast.error(error.message || "Nhận nhiệm vụ thất bại");
+    } finally {
+      setScheduleSaving(false);
+      setAccepting(false);
+    }
+  };
+
+  const handleOpenMarkAsFakeDialog = () => {
+    if (!task || task.status !== "IN_PROGRESS") {
+      return;
+    }
+
+    setFakeNote("");
+    setFakeFile(null);
+    setFakeDialogOpen(true);
+  };
+
+  const handleMarkAsFake = async () => {
+    if (!task || markingFake || task.status !== "IN_PROGRESS") {
+      return;
+    }
+
+    setMarkingFake(true);
+    try {
+      const response = await markCollectorReportAsFake(task.reportId, {
+        quantityUnit: task.unitType || "KG",
+        note: fakeNote,
+        file: fakeFile,
+      });
+
+      setTask((prev) => ({
+        ...prev,
+        status: response?.data?.status || "COLLECTED",
+        actualQuantity: response?.data?.actualQuantity ?? 0,
+      }));
+      setFakeDialogOpen(false);
+      toast.success("Đã đánh dấu báo cáo giả thành công");
+    } catch (error) {
+      toast.error(error.message || "Đánh dấu báo cáo giả thất bại");
+    } finally {
+      setMarkingFake(false);
     }
   };
 
@@ -253,7 +392,7 @@ function TaskDetail() {
         </div>
 
         <h1 className="text-3xl font-bold text-gray-900">
-          Nhiệm vụ #{task.reportId}
+          Nhiệm vụ {task.reportCode}
         </h1>
         <p className="text-green-600 text-sm mt-1 mb-6">
           Báo cáo thu gom rác thải từ người dân
@@ -307,7 +446,7 @@ function TaskDetail() {
 
           <div className="space-y-4">
             <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm space-y-3">
-              <InfoRow label="Mã báo cáo" value={task.reportId} />
+              <InfoRow label="Mã báo cáo" value={task.reportCode} />
               <InfoRow label="Trạng thái" value={task.status} />
               <InfoRow
                 label="Loại rác"
@@ -341,8 +480,22 @@ function TaskDetail() {
             </div>
 
             <button
-              onClick={handleAcceptTask}
-              disabled={accepting || task.status === "COLLECTED"}
+              onClick={() => {
+                if (task.status === "ASSIGNED") {
+                  const defaultDate = getDefaultScheduleDateTime();
+                  setScheduledDate(defaultDate);
+                  setScheduledTime(toTimeHHmm(defaultDate));
+                  setScheduleDialogOpen(true);
+                  return;
+                }
+                handleAcceptTask();
+              }}
+              disabled={
+                accepting ||
+                scheduleSaving ||
+                markingFake ||
+                task.status === "COLLECTED"
+              }
               className="w-full rounded-xl bg-green-500 text-white py-3 font-semibold hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {accepting
@@ -351,17 +504,95 @@ function TaskDetail() {
                   ? "Cập nhật kết quả thu gom"
                   : "Nhận nhiệm vụ"}
             </button>
+
+            {task.status === "IN_PROGRESS" && (
+              <button
+                onClick={handleOpenMarkAsFakeDialog}
+                disabled={
+                  markingFake || submitSaving || accepting || scheduleSaving
+                }
+                className="w-full rounded-xl bg-red-500 text-white py-3 font-semibold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {markingFake ? "Đang xử lý..." : "Báo cáo giả"}
+              </button>
+            )}
           </div>
         </div>
       </main>
+
+      <Dialog open={scheduleDialogOpen} onOpenChange={setScheduleDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Lên lịch trước khi nhận nhiệm vụ</DialogTitle>
+            <DialogDescription>
+              Chọn thời gian dự kiến thu gom.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Thời gian thu gom dự kiến</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="justify-start font-normal"
+                    disabled={scheduleSaving}
+                  >
+                    <Calendar className="mr-2 size-4" />
+                    {scheduledDate
+                      ? scheduledDate.toLocaleDateString("vi-VN")
+                      : "Chọn ngày"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={scheduledDate}
+                    onSelect={(date) => {
+                      if (date) setScheduledDate(date);
+                    }}
+                    disabled={(date) =>
+                      date < new Date(new Date().setHours(0, 0, 0, 0))
+                    }
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+
+              <Input
+                type="time"
+                value={scheduledTime}
+                onChange={(e) => setScheduledTime(e.target.value)}
+                disabled={scheduleSaving}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setScheduleDialogOpen(false)}
+              disabled={scheduleSaving}
+            >
+              Hủy
+            </Button>
+            <Button
+              onClick={handleConfirmScheduleAndAccept}
+              disabled={scheduleSaving}
+            >
+              {scheduleSaving ? "Đang xử lý..." : "Xác nhận và nhận nhiệm vụ"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={successDialogOpen} onOpenChange={setSuccessDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Nhận nhiệm vụ thành công</DialogTitle>
             <DialogDescription>
-              Nhiệm vụ đã chuyển sang trạng thái IN_PROGRESS. Bạn có thể bắt đầu
-              cập nhật kết quả thu gom.
+              Bạn có thể tiến hành thu gom rác.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -370,11 +601,65 @@ function TaskDetail() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={submitDialogOpen} onOpenChange={setSubmitDialogOpen}>
+      <Dialog open={fakeDialogOpen} onOpenChange={setFakeDialogOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
+            <DialogTitle>Đánh dấu báo cáo giả</DialogTitle>
+            <DialogDescription>
+              Nhập ghi chú và ảnh minh chứng trước khi xác nhận.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm font-medium mb-1">Ghi chú</p>
+              <Textarea
+                value={fakeNote}
+                onChange={(e) => setFakeNote(e.target.value)}
+                placeholder="Ví dụ: Không tìm thấy rác tại vị trí báo cáo"
+                rows={3}
+              />
+            </div>
+
+            <div>
+              <p className="text-sm font-medium mb-1">Ảnh minh chứng</p>
+              <Input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setFakeFile(e.target.files?.[0] || null)}
+              />
+
+              {fakeFilePreview && (
+                <div className="mt-3">
+                  <ImageSection
+                    title="Xem trước ảnh minh chứng"
+                    image={fakeFilePreview}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setFakeDialogOpen(false)}
+              disabled={markingFake}
+            >
+              Hủy
+            </Button>
+            <Button onClick={handleMarkAsFake} disabled={markingFake}>
+              {markingFake ? "Đang xử lý..." : "Xác nhận báo cáo giả"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={submitDialogOpen} onOpenChange={setSubmitDialogOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
             <DialogTitle>Cập nhật kết quả thu gom</DialogTitle>
-            <DialogDescription>Nhập thông tin thực tế .</DialogDescription>
+            <DialogDescription>Nhập thông tin thực tế.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
@@ -398,15 +683,6 @@ function TaskDetail() {
                   setActualQuantity(value);
                 }}
                 placeholder="Ví dụ: 4"
-              />
-            </div>
-
-            <div>
-              <p className="text-sm font-medium mb-1">Đơn vị</p>
-              <Input
-                value={quantityUnit}
-                onChange={(e) => setQuantityUnit(e.target.value.toUpperCase())}
-                placeholder="KG"
               />
             </div>
 

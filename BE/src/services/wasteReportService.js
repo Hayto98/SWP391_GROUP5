@@ -4,6 +4,10 @@ const { v4: uuidv4 } = require('uuid')
 const cloudinary = require('../config/cloudinary')
 const sharp = require('sharp')
 const db = require('../config/database')
+const rewardService = require('./rewardService')
+const userRepository = require('../repositories/userRepository')
+const notificationService = require('./notificationService')
+const { ROLES, NOTIFICATION_TYPES } = require('../utils/constants')
 
 // ==================== HELPERS ====================
 
@@ -118,9 +122,42 @@ async function createReport({
 
   // ── 5. Generate unique Code and Persist using transaction ────
   let created = null;
+  let spamResult = null;
+  let duplicateResult = null;
+  let isTransactionCommitted = false;
   const connection = await db.getConnection();
   try {
     await connection.beginTransaction();
+
+    const currentTime = new Date();
+
+    // STEP 0.5: Spam prevention — rate limit + daily limit
+    spamResult = await rewardService.checkSpam(connection, {
+      citizenId,
+      currentTime
+    })
+    if (!spamResult.allowed) {
+      await connection.rollback();
+      connection.release();
+      throw new ApiError(429, spamResult.message)
+    }
+
+    // DUPLICATE REPORT DETECTION
+    duplicateResult = await rewardService.checkDuplicateAndHandleSpam(connection, {
+      citizenId,
+      gpsLat,
+      gpsLng,
+      description: description.trim(),
+      fileUri: imageUrl || null,
+      currentTime
+    })
+
+    if (duplicateResult.isDuplicate) {
+      await connection.commit();
+      isTransactionCommitted = true;
+      connection.release();
+      throw new ApiError(400, duplicateResult.message || 'Báo cáo này bị trùng')
+    }
 
     const reportCode = await generateReportCode();
 
@@ -133,13 +170,16 @@ async function createReport({
       gpsLng,
       description: description.trim(),
       weight: weight ?? null,
-      fileUri: imageUrl || null
+      fileUri: imageUrl || null,
+      isDuplicate: duplicateResult.isDuplicate
     }, connection)
 
     await connection.commit();
+    isTransactionCommitted = true;
   } catch (error) {
-    if (connection) await connection.rollback();
+    if (connection && !isTransactionCommitted) await connection.rollback();
 
+    if (error.status === 400 || error.status === 429) throw error
     if (error.code === 'INVALID_WASTE_TYPE') {
       throw new ApiError(400, error.message)
     }
@@ -148,7 +188,24 @@ async function createReport({
     }
     throw error
   } finally {
-    if (connection) connection.release();
+    if (connection && !isTransactionCommitted) connection.release();
+  }
+
+  // ── 6. Send notifications to Enterprises ───────────────────────
+  try {
+    const enterprises = await userRepository.findAll({ roleId: ROLES.ENTERPRISE })
+    console.log(`[DEBUG] Notifying ${enterprises.length} Enterprises of new report ${created.wasteReportId}`);
+    for (const ent of enterprises) {
+      console.log(`[DEBUG] Sending notif to Enterprise: ${ent.userAccountId || ent.user_account_id}`);
+      await notificationService.createNotification({
+        notificationType: NOTIFICATION_TYPES.NEW_REPORT_PENDING,
+        recipientUserAccountId: ent.userAccountId || ent.user_account_id,
+        wasteReportId: created.wasteReportId,
+        message: `Có báo cáo rác thải mới (${created.reportCode || created?.report_code}) đang chờ xử lý.`
+      })
+    }
+  } catch (notifError) {
+    console.error('Failed to notify enterprises of new report:', notifError.message)
   }
 
   return {
@@ -161,6 +218,10 @@ async function createReport({
     description: description.trim(),
     attachments: imageUrl ? [{ fileUri: imageUrl }] : [],
     status: 'PENDING',
+    isSpam: spamResult?.isSpam || false,
+    spamMessage: spamResult?.isSpam ? spamResult.message : undefined,
+    isDuplicate: duplicateResult?.isDuplicate || false,
+    duplicateMessage: duplicateResult?.isDuplicate ? duplicateResult.message : undefined,
     createdAt: created.createdAt
   }
 }
@@ -358,8 +419,8 @@ async function deleteReport(reportId, userAccountId) {
     throw new ApiError(400, 'Bạn chỉ có thể xóa báo cáo khi đang ở trạng thái chờ xử lý (PENDING).')
   }
 
-  // 3. Delete the record via repository
-  await wasteReportRepository.deleteReportById(reportId)
+  // 3. Delete the record via repository (Soft Delete)
+  await wasteReportRepository.deleteReportById(reportId, userAccountId)
 
   return {
     success: true,
