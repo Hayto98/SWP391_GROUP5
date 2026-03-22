@@ -212,13 +212,13 @@ async function findReportForCollector(reportId) {
 }
 
 /**
- * Get total collected quantity and optional grouped totals for a collector.
+ * Get collector completion statistics and optional grouped totals.
  *
  * @param {string} collectorId
  * @param {Date|string|null} fromDate
  * @param {Date|string|null} toDate
  * @param {string} groupBy - one of 'day', 'month', 'year'
- * @returns {{ totalCollectedQuantity: number, grouped: Array<{ period: string, total: number }> }}
+ * @returns {{ totalCollectedQuantity: number, totalCompletedTasks: number, grouped: Array<{ period: string, total: number }> }}
  */
 async function getCollectionStatistics(collectorId, fromDate, toDate, groupBy = 'day') {
   const allowed = new Set(['day', 'month', 'year'])
@@ -250,10 +250,15 @@ async function getCollectionStatistics(collectorId, fromDate, toDate, groupBy = 
     params.push(toDate)
   }
 
-  // Total
+  // Total collected quantity
   const totalSql = `SELECT COALESCE(SUM(actual_quantity_value),0) AS totalCollectedQuantity FROM collectedrecord` + whereClause
   const [totalRows] = await db.execute(totalSql, params)
   const totalCollectedQuantity = Number(totalRows[0].totalCollectedQuantity || 0)
+
+  // Total completed tasks (1 collected record = 1 completed task)
+  const totalCompletedTasksSql = `SELECT COUNT(*) AS totalCompletedTasks FROM collectedrecord` + whereClause
+  const [countRows] = await db.execute(totalCompletedTasksSql, params)
+  const totalCompletedTasks = Number(countRows[0].totalCompletedTasks || 0)
 
   // Grouped
   const groupSql = `SELECT DATE_FORMAT(recorded_at, '${periodFormat}') AS period, COALESCE(SUM(actual_quantity_value),0) AS total
@@ -263,7 +268,7 @@ async function getCollectionStatistics(collectorId, fromDate, toDate, groupBy = 
 
   const grouped = groupRows.map((r) => ({ period: r.period, total: Number(r.total) }))
 
-  return { totalCollectedQuantity, grouped }
+  return { totalCollectedQuantity, totalCompletedTasks, grouped }
 }
 
 /**

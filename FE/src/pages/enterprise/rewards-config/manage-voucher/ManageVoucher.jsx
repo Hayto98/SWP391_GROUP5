@@ -177,7 +177,6 @@ function VoucherFormDialog({ open, onClose, onSave, initial }) {
   const handleFileChange = (e) => set("file", e.target.files[0] || null);
 
   const handleSave = () => {
-    if (!form.voucherCode.trim()) return toast.error("Nhập mã voucher!");
     if (!form.title.trim()) return toast.error("Nhập tiêu đề!");
     if (!form.description.trim()) return toast.error("Nhập mô tả!");
     if (!form.pointsRequired || Number(form.pointsRequired) <= 0) return toast.error("Điểm quy đổi phải lớn hơn 0!");
@@ -206,17 +205,6 @@ function VoucherFormDialog({ open, onClose, onSave, initial }) {
         </DialogHeader>
 
         <div className="grid gap-4 py-2">
-          {/* Mã voucher */}
-          <div className="space-y-1.5">
-            <Label htmlFor="vf-code">Mã voucher *</Label>
-            <Input
-              id="vf-code"
-              placeholder="VD: SAVE50K"
-              value={form.voucherCode}
-              onChange={(e) => set("voucherCode", e.target.value.toUpperCase())}
-              className="font-mono"
-            />
-          </div>
           {/* Tiêu đề */}
           <div className="space-y-1.5">
             <Label htmlFor="vf-title">Tiêu đề *</Label>
@@ -399,7 +387,6 @@ export default function ManageVoucher() {
       try {
         const token = localStorage.getItem("accessToken");
         const formData = new FormData();
-        formData.append("voucherCode", data.voucherCode);
         formData.append("title", data.title);
         formData.append("description", data.description);
         formData.append("pointsRequired", data.pointsRequired);
@@ -425,7 +412,6 @@ export default function ManageVoucher() {
         const token = localStorage.getItem("accessToken");
         // Gửi form-data lên API
         const formData = new FormData();
-        formData.append("voucherCode", data.voucherCode);
         formData.append("title", data.title);
         formData.append("description", data.description);
         formData.append("pointsRequired", data.pointsRequired);
