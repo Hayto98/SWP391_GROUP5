@@ -564,20 +564,7 @@ export default function PendingReports() {
                         >
                           Chi tiết
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className={
-                            (r?.status === "PENDING"
-                              ? "bg-[#2196F3] text-white border-[#2196F3] shadow font-bold hover:bg-[#1976D2] hover:border-[#1976D2] hover:text-white focus:text-white active:text-white disabled:bg-[#2196F3] disabled:text-white disabled:border-[#2196F3]"
-                              : "bg-white text-[#2196F3] border-[#2196F3] shadow hover:bg-[#e3f2fd] hover:border-[#2196F3] hover:text-[#2196F3] focus:text-[#2196F3] active:text-[#2196F3]")
-                            + " min-w-[90px] h-10 px-4 text-base flex items-center justify-center"
-                          }
-                          disabled={acting === r?.code || r?.status !== "PENDING"}
-                          onClick={() => handleAssignPopupOpen(r?.code)}
-                        >
-                          {r?.status === "PENDING" ? "Gán" : "Đã gán"}
-                        </Button>
+                        {/* Nút Gán đã được loại bỏ, chỉ còn thao tác gán ở trang chi tiết báo cáo */}
                       </div>
                     </TableCell>
                   </TableRow>
