@@ -1,4 +1,5 @@
 const userRepository = require('../repositories/userRepository')
+const collectorReportRepository = require('../repositories/collectorReportRepository')
 const ApiError = require('../errors/ApiError')
 
 /**
@@ -45,7 +46,32 @@ async function updateWorkingStatus(collectorId, isWorking) {
   }
 }
 
+/**
+ * Get collector dashboard statistics
+ * @param {string} collectorId
+ * @param {object} options - { fromDate, toDate, groupBy }
+ */
+async function getDashboardStatistics(collectorId, { fromDate, toDate, groupBy } = {}) {
+  const user = await userRepository.findById(collectorId)
+  if (!user) {
+    throw new ApiError(404, 'Collector not found')
+  }
+
+  if (user.isLocked) {
+    throw new ApiError(403, 'Account is locked')
+  }
+
+  // Let repository handle null/undefined dates and grouping validation
+  const stats = await collectorReportRepository.getCollectionStatistics(collectorId, fromDate, toDate, groupBy)
+
+  return {
+    message: 'Statistics fetched successfully',
+    data: stats
+  }
+}
+
 module.exports = {
   getWorkingStatus,
-  updateWorkingStatus
+  updateWorkingStatus,
+  getDashboardStatistics
 }
