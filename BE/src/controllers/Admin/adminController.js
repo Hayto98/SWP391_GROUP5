@@ -1,4 +1,5 @@
 const adminService = require('../../services/adminService')
+const complaintService = require('../../services/complaintService')
 
 // ==================== READ ====================
 
@@ -111,14 +112,25 @@ async function deleteUser(req, res, next) {
   }
 }
 
-module.exports = {
-  getAllUsers,
-  getUserById,
-  createUser,
-  updateUser,
-  changeUserRole,
-  changeUserStatus,
-  deleteUser
+/**
+ * PUT /admin/report-complaints/:complaintId/resolve
+ * Resolve a citizen complaint and optionally refund points.
+ */
+async function resolveComplaint(req, res, next) {
+  try {
+    const adminId = req.user?.sub
+    const { complaintId } = req.params
+    const { adminResponse, refundPoints } = req.body
+    const result = await complaintService.resolveComplaint({
+      adminId,
+      complaintId,
+      adminResponse,
+      refundPoints: Number(refundPoints) || 0
+    })
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
 }
 
 module.exports = {
@@ -128,5 +140,6 @@ module.exports = {
   updateUser,
   changeUserRole,
   changeUserStatus,
-  deleteUser
+  deleteUser,
+  resolveComplaint
 }
