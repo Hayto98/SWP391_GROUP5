@@ -49,8 +49,16 @@ async function findAssignedReports(collectorId, { wasteTypeId, limit, offset }) 
         wt.unit_type       AS unitType,
         rst.status_name    AS status
       FROM wastereport wr
+      LEFT JOIN (
+        SELECT waste_report_id, waste_type_id
+        FROM waste_report_item wri1
+        WHERE created_at = (
+          SELECT MIN(created_at) FROM waste_report_item wri2 WHERE wri1.waste_report_id = wri2.waste_report_id
+        )
+        LIMIT 1
+      ) first_item ON wr.waste_report_id = first_item.waste_report_id
       INNER JOIN wastetype wt
-        ON wr.waste_type_id = wt.waste_type_id
+        ON first_item.waste_type_id = wt.waste_type_id
       INNER JOIN reportstatustype rst
         ON wr.report_status_type_id = rst.report_status_type_id
       WHERE wr.report_status_type_id IN (?, ?, ?)
@@ -60,7 +68,7 @@ async function findAssignedReports(collectorId, { wasteTypeId, limit, offset }) 
   const params = [ASSIGNED_STATUS_ID, COLLECTED_STATUS_ID, IN_PROGRESS_STATUS_ID, collectorId]
 
   if (wasteTypeId) {
-    sql += ` AND wr.waste_type_id = ?`
+    sql += ` AND first_item.waste_type_id = ?`
     params.push(Number(wasteTypeId))
   }
 
@@ -174,8 +182,16 @@ async function findReportForCollector(reportId) {
       cua.phone          AS collectorPhone,
       GROUP_CONCAT(ra.file_uri SEPARATOR '|||') AS citizen_image_uris
     FROM wastereport wr
+    LEFT JOIN (
+      SELECT waste_report_id, waste_type_id
+      FROM waste_report_item wri1
+      WHERE created_at = (
+        SELECT MIN(created_at) FROM waste_report_item wri2 WHERE wri1.waste_report_id = wri2.waste_report_id
+      )
+      LIMIT 1
+    ) first_item ON wr.waste_report_id = first_item.waste_report_id
     INNER JOIN wastetype wt
-      ON wr.waste_type_id = wt.waste_type_id
+      ON first_item.waste_type_id = wt.waste_type_id
     INNER JOIN reportstatustype rst
       ON wr.report_status_type_id = rst.report_status_type_id
     INNER JOIN citizen c
@@ -507,7 +523,7 @@ async function findReportForComplete(reportId, collectorId) {
     `SELECT
        wr.waste_report_id,
        wr.assigned_collector_id,
-       wr.waste_type_id,
+       first_item.waste_type_id,
        wr.citizen_id,
        wr.weight,
        c.user_account_id      AS citizen_user_account_id,
@@ -515,6 +531,14 @@ async function findReportForComplete(reportId, collectorId) {
        cr.collected_record_id,
        cr.actual_quantity_value
      FROM wastereport wr
+     LEFT JOIN (
+       SELECT waste_report_id, waste_type_id
+       FROM waste_report_item wri1
+       WHERE created_at = (
+         SELECT MIN(created_at) FROM waste_report_item wri2 WHERE wri1.waste_report_id = wri2.waste_report_id
+       )
+       LIMIT 1
+     ) first_item ON wr.waste_report_id = first_item.waste_report_id
      INNER JOIN reportstatustype rst
        ON wr.report_status_type_id = rst.report_status_type_id
      INNER JOIN citizen c
