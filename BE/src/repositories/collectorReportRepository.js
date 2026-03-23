@@ -50,12 +50,9 @@ async function findAssignedReports(collectorId, { wasteTypeId, limit, offset }) 
         rst.status_name    AS status
       FROM wastereport wr
       LEFT JOIN (
-        SELECT waste_report_id, waste_type_id
-        FROM waste_report_item wri1
-        WHERE created_at = (
-          SELECT MIN(created_at) FROM waste_report_item wri2 WHERE wri1.waste_report_id = wri2.waste_report_id
-        )
-        LIMIT 1
+        SELECT waste_report_id, MIN(waste_type_id) as waste_type_id
+        FROM waste_report_item
+        GROUP BY waste_report_id
       ) first_item ON wr.waste_report_id = first_item.waste_report_id
       INNER JOIN wastetype wt
         ON first_item.waste_type_id = wt.waste_type_id
@@ -184,12 +181,9 @@ async function findReportForCollector(reportId) {
       GROUP_CONCAT(ra.file_uri SEPARATOR '|||') AS citizen_image_uris
     FROM wastereport wr
     LEFT JOIN (
-      SELECT waste_report_id, waste_type_id
-      FROM waste_report_item wri1
-      WHERE created_at = (
-        SELECT MIN(created_at) FROM waste_report_item wri2 WHERE wri1.waste_report_id = wri2.waste_report_id
-      )
-      LIMIT 1
+      SELECT waste_report_id, MIN(waste_type_id) as waste_type_id
+      FROM waste_report_item
+      GROUP BY waste_report_id
     ) first_item ON wr.waste_report_id = first_item.waste_report_id
     INNER JOIN wastetype wt
       ON first_item.waste_type_id = wt.waste_type_id
@@ -244,13 +238,13 @@ async function getCollectionStatistics(collectorId, fromDate, toDate, groupBy = 
   let periodFormat
   switch (groupBy) {
     case 'month':
-      periodFormat = "%Y-%m"
+      periodFormat = '%Y-%m'
       break
     case 'year':
-      periodFormat = "%Y"
+      periodFormat = '%Y'
       break
     default:
-      periodFormat = "%Y-%m-%d"
+      periodFormat = '%Y-%m-%d'
   }
 
   const params = [collectorId]
@@ -268,7 +262,8 @@ async function getCollectionStatistics(collectorId, fromDate, toDate, groupBy = 
   }
 
   // Total collected quantity
-  const totalSql = `SELECT COALESCE(SUM(actual_quantity_value),0) AS totalCollectedQuantity FROM collectedrecord` + whereClause
+  const totalSql =
+    `SELECT COALESCE(SUM(actual_quantity_value),0) AS totalCollectedQuantity FROM collectedrecord` + whereClause
   const [totalRows] = await db.execute(totalSql, params)
   const totalCollectedQuantity = Number(totalRows[0].totalCollectedQuantity || 0)
 
@@ -278,8 +273,11 @@ async function getCollectionStatistics(collectorId, fromDate, toDate, groupBy = 
   const totalCompletedTasks = Number(countRows[0].totalCompletedTasks || 0)
 
   // Grouped
-  const groupSql = `SELECT DATE_FORMAT(recorded_at, '${periodFormat}') AS period, COALESCE(SUM(actual_quantity_value),0) AS total
-    FROM collectedrecord` + whereClause + ` GROUP BY period ORDER BY period ASC`
+  const groupSql =
+    `SELECT DATE_FORMAT(recorded_at, '${periodFormat}') AS period, COALESCE(SUM(actual_quantity_value),0) AS total
+    FROM collectedrecord` +
+    whereClause +
+    ` GROUP BY period ORDER BY period ASC`
 
   const [groupRows] = await db.execute(groupSql, params)
 
@@ -353,7 +351,7 @@ async function findCollectedRecord(reportId, collectorId) {
     [row.collected_record_id]
   )
 
-  const items = itemRows.map(item => ({
+  const items = itemRows.map((item) => ({
     collectedItemId: item.collected_item_id,
     wasteTypeId: item.waste_type_id,
     wasteTypeName: item.waste_type_name,
@@ -582,14 +580,7 @@ async function findReportForComplete(reportId, collectorId) {
        cr.collected_record_id,
        cr.actual_quantity_value
      FROM wastereport wr
-     LEFT JOIN (
-       SELECT waste_report_id, waste_type_id
-       FROM waste_report_item wri1
-       WHERE created_at = (
-         SELECT MIN(created_at) FROM waste_report_item wri2 WHERE wri1.waste_report_id = wri2.waste_report_id
-       )
-       LIMIT 1
-     ) first_item ON wr.waste_report_id = first_item.waste_report_id
+     LEFT JOIN (SELECT waste_report_id, MIN(waste_type_id) as waste_type_id FROM waste_report_item GROUP BY waste_report_id) first_item ON wr.waste_report_id = first_item.waste_report_id
      INNER JOIN reportstatustype rst
        ON wr.report_status_type_id = rst.report_status_type_id
      INNER JOIN citizen c
@@ -603,7 +594,6 @@ async function findReportForComplete(reportId, collectorId) {
   )
   return rows[0] || null
 }
-
 
 /**
  * Fetch active reward config for a waste type.

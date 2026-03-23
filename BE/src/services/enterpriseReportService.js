@@ -273,13 +273,7 @@ async function getReportById(reportId) {
     success: true,
     data: {
       reportId: report.reportId || report.wasteReportId,
-      wasteReportId: report.wasteReportId || report.reportId,
       reportCode: report?.reportCode ?? null,
-      wasteType: {
-        id: report?.wasteType?.id ?? null,
-        name: report?.wasteType?.name ?? null,
-        unitType: report?.wasteType?.unitType ?? report?.unitType ?? null
-      },
       items: report?.items || [],
       citizen: {
         fullname: report?.citizen?.fullname ?? null,
@@ -298,18 +292,15 @@ async function getReportById(reportId) {
       },
       description: report?.description ?? null,
       weight: report?.weight ?? null,
-      weightKg: report?.weightKg ?? report?.weight ?? null,
       actualQuantity: report?.actualQuantity ?? null,
-      unitType: report?.unitType ?? report?.wasteType?.unitType ?? null,
       status: report?.status ?? null,
       createdAt: report?.createdAt ?? null,
-      attachments,
-      images: citizenImages,
       citizenImages,
       assignedCollector: report?.assignedCollector || null,
       collectorImages: Array.isArray(report?.collectorImages) ? report.collectorImages : [],
       collectedRecord: report?.collectedRecord || null,
-      reason: report?.reason ?? null
+      reason: report?.reason ?? null,
+      rewardPoint: report?.rewardPoint ?? null
     }
   }
 }

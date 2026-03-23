@@ -15,6 +15,8 @@ async function createReport(req, res, next) {
     const { gpsLat, gpsLng, description, weight, fileUri } = req.body
     const fileBuffer = req.file ? req.file.buffer : null
     const fileMimetype = req.file ? req.file.mimetype : null
+    const parsedWeight =
+      weight !== undefined && weight !== null && String(weight).trim() !== '' ? parseFloat(weight) : null
 
     // Hỗ trợ items dạng JSON string (multipart) hoặc array (JSON body)
     let items = req.body.items
@@ -32,7 +34,7 @@ async function createReport(req, res, next) {
       gpsLat: parseFloat(gpsLat),
       gpsLng: parseFloat(gpsLng),
       description,
-      weight: weight ? parseFloat(weight) : null,
+      weight: parsedWeight,
       fileBuffer,
       fileMimetype,
       fileUriFromBody: fileUri || null

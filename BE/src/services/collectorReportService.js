@@ -232,9 +232,9 @@ async function getReportById(userId, reportId) {
 
   const joinedUris = report.citizen_image_uris
     ? report.citizen_image_uris
-      .split('|||')
-      .map((value) => value.trim())
-      .filter(Boolean)
+        .split('|||')
+        .map((value) => value.trim())
+        .filter(Boolean)
     : []
 
   const fallbackUris = Array.isArray(fallbackCitizenImages)
@@ -250,13 +250,40 @@ async function getReportById(userId, reportId) {
 
   const citizenImages = [...new Set(allCitizenUris)].filter(Boolean).map((fileUri) => ({ file_uri: fileUri }))
 
+  // Lấy rewardPoint
+  const [ptRows] = await db.execute(
+    `SELECT point_transaction_id, points_delta, transaction_reason, created_at 
+     FROM pointtransaction 
+     WHERE waste_report_id = ? 
+     ORDER BY created_at DESC 
+     LIMIT 1`,
+    [reportId]
+  )
+  const rewardPoint =
+    ptRows.length > 0
+      ? {
+          pointTransactionId: ptRows[0].point_transaction_id,
+          pointsDelta: ptRows[0].points_delta,
+          transactionReason: ptRows[0].transaction_reason,
+          createdAt: ptRows[0].created_at
+        }
+      : null
+
+  // Calculate correct weight (fallback to sum of items if weight is 0)
+  const calculatedWeight = reportItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
+  const finalWeight =
+    report.weight !== null && Number(report.weight) > 0
+      ? Number(report.weight)
+      : calculatedWeight > 0
+        ? calculatedWeight
+        : null
+
   // 6️⃣ Map DTO (use alias names!)
   return {
     success: true,
     data: {
       reportId: report.waste_report_id,
       reportCode: report.reportCode || null,
-      wasteCode: report.reportCode || report.waste_report_id || null,
 
       citizen: {
         fullname: report.citizenFullname,
@@ -269,28 +296,17 @@ async function getReportById(userId, reportId) {
         phone: report.collectorPhone ?? null
       },
 
-      wasteType: {
-        id: report.wasteTypeId,
-        name: report.wasteTypeName
-      },
-
       items: reportItems,
 
-      weight: report.weight !== null ? Number(report.weight) : null,
+      weight: finalWeight,
 
       actualQuantity: collectedRecord ? Number(collectedRecord.actual_quantity_value) : null,
-
-      unitType: collectedRecord?.quantity_unit ?? report.unitType ?? null,
 
       location: {
         lat: report.lat !== null ? Number(report.lat) : null,
         lng: report.lng !== null ? Number(report.lng) : null
       },
 
-      // Backward-compatible key used by current FE pages.
-      images: citizenImages,
-
-      // Explicit alias to clarify these are original citizen report images.
       citizenImages,
 
       collectorImages: collectedRecord
@@ -299,19 +315,20 @@ async function getReportById(userId, reportId) {
 
       collectedRecord: collectedRecord
         ? {
-          collectedRecordId: collectedRecord.collected_record_id,
-          wasteReportId: collectedRecord.waste_report_id,
-          collectorUserAccountId: collectedRecord.collector_user_account_id,
-          actualQuantityValue: Number(collectedRecord.actual_quantity_value),
-          quantityUnit: collectedRecord.quantity_unit,
-          recordedAt: collectedRecord.recorded_at,
-          fileUri: collectedRecord.file_uri,
-          note: collectedRecord.note,
-          completionImages: collectedRecord.completion_images || []
-        }
+            collectedRecordId: collectedRecord.collected_record_id,
+            wasteReportId: collectedRecord.waste_report_id,
+            collectorUserAccountId: collectedRecord.collector_user_account_id,
+            actualQuantityValue: Number(collectedRecord.actual_quantity_value),
+            quantityUnit: collectedRecord.quantity_unit,
+            recordedAt: collectedRecord.recorded_at,
+            fileUri: collectedRecord.file_uri,
+            note: collectedRecord.note,
+            completionImages: collectedRecord.completion_images || []
+          }
         : null,
 
-      status: report.status
+      status: report.status,
+      rewardPoint
     }
   }
 }
@@ -701,12 +718,12 @@ async function completeReport(collectorId, reportId, { actualItems, quantityUnit
       completedAt: recordedAt,
       reward: rewardResult
         ? {
-          variancePercent: rewardResult.variancePercent,
-          penaltyApplied: rewardResult.penaltyApplied,
-          isFake: rewardResult.isFake,
-          currentLevel: rewardResult.currentLevel,
-          reportBlockedUntil: rewardResult.reportBlockedUntil
-        }
+            variancePercent: rewardResult.variancePercent,
+            penaltyApplied: rewardResult.penaltyApplied,
+            isFake: rewardResult.isFake,
+            currentLevel: rewardResult.currentLevel,
+            reportBlockedUntil: rewardResult.reportBlockedUntil
+          }
         : null
     }
   }
@@ -819,12 +836,12 @@ async function markReportAsFake(collectorId, reportId, { quantityUnit, note }, f
       completedAt: recordedAt,
       reward: rewardResult
         ? {
-          variancePercent: rewardResult.variancePercent,
-          penaltyApplied: rewardResult.penaltyApplied,
-          isFake: rewardResult.isFake,
-          currentLevel: rewardResult.currentLevel,
-          reportBlockedUntil: rewardResult.reportBlockedUntil
-        }
+            variancePercent: rewardResult.variancePercent,
+            penaltyApplied: rewardResult.penaltyApplied,
+            isFake: rewardResult.isFake,
+            currentLevel: rewardResult.currentLevel,
+            reportBlockedUntil: rewardResult.reportBlockedUntil
+          }
         : null
     }
   }

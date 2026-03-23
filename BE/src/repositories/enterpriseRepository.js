@@ -27,14 +27,7 @@ class EnterpriseRepository {
               wt.waste_type_name AS wasteType,
               COALESCE(SUM(cr.actual_quantity_value), 0) AS quantity
             FROM wastereport wr
-            LEFT JOIN (
-              SELECT waste_report_id, waste_type_id
-              FROM waste_report_item wri1
-              WHERE created_at = (
-                SELECT MIN(created_at) FROM waste_report_item wri2 WHERE wri1.waste_report_id = wri2.waste_report_id
-              )
-              LIMIT 1
-            ) first_item ON wr.waste_report_id = first_item.waste_report_id
+            LEFT JOIN (SELECT waste_report_id, MIN(waste_type_id) as waste_type_id FROM waste_report_item GROUP BY waste_report_id) first_item ON wr.waste_report_id = first_item.waste_report_id
             JOIN wastetype wt ON first_item.waste_type_id = wt.waste_type_id
             JOIN collectedrecord cr ON wr.waste_report_id = cr.waste_report_id
             WHERE wr.created_at >= ? AND wr.created_at < ?

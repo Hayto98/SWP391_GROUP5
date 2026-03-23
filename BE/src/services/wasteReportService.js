@@ -52,15 +52,15 @@ async function uploadBufferToCloudinary(buffer, mimetype) {
  * Generates a formatted report code: WR-YYYY-NNNN
  */
 async function generateReportCode() {
-  const currentYear = new Date().getFullYear();
+  const currentYear = new Date().getFullYear()
 
   // Atomically fetch numerical sequence
-  const sequenceNumber = await wasteReportRepository.getNextSequence(currentYear);
+  const sequenceNumber = await wasteReportRepository.getNextSequence(currentYear)
 
   // Pad to 4 digits (e.g., 5 becomes '0005')
-  const paddedSequence = String(sequenceNumber).padStart(4, '0');
+  const paddedSequence = String(sequenceNumber).padStart(4, '0')
 
-  return `WR-${currentYear}-${paddedSequence}`;
+  return `WR-${currentYear}-${paddedSequence}`
 }
 
 /**
@@ -144,17 +144,22 @@ async function createReport({
   }
 
   // Normalize items
-  const normalizedItems = items.map(item => ({
+  const normalizedItems = items.map((item) => ({
     waste_type_id: Number(item.waste_type_id),
     quantity: Number(item.quantity)
   }))
 
+  const totalItemWeight = normalizedItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
+  const hasExplicitWeight =
+    weight !== undefined && weight !== null && String(weight).trim() !== '' && Number.isFinite(Number(weight))
+  const normalizedWeight = hasExplicitWeight && Number(weight) >= 0 ? Number(weight) : totalItemWeight
+
   // Validate waste_type_ids exist in DB
-  const wasteTypeIds = normalizedItems.map(i => i.waste_type_id)
+  const wasteTypeIds = normalizedItems.map((i) => i.waste_type_id)
   const invalidIds = await wasteReportRepository.validateWasteTypeIds(wasteTypeIds)
   if (invalidIds.length > 0) {
     throw new ApiError(400, 'Dữ liệu không hợp lệ.', [
-      ...invalidIds.map(id => `waste_type_id ${id} không tồn tại hoặc không còn hoạt động.`)
+      ...invalidIds.map((id) => `waste_type_id ${id} không tồn tại hoặc không còn hoạt động.`)
     ])
   }
 
@@ -173,15 +178,15 @@ async function createReport({
   }
 
   // ── Generate unique Code and Persist using transaction ────
-  let created = null;
-  let spamResult = null;
-  let duplicateResult = null;
-  let isTransactionCommitted = false;
-  const connection = await db.getConnection();
+  let created = null
+  let spamResult = null
+  let duplicateResult = null
+  let isTransactionCommitted = false
+  const connection = await db.getConnection()
   try {
-    await connection.beginTransaction();
+    await connection.beginTransaction()
 
-    const currentTime = new Date();
+    const currentTime = new Date()
 
     // STEP 0.5: Spam prevention — rate limit + daily limit
     spamResult = await rewardService.checkSpam(connection, {
@@ -189,8 +194,8 @@ async function createReport({
       currentTime
     })
     if (!spamResult.allowed) {
-      await connection.rollback();
-      connection.release();
+      await connection.rollback()
+      connection.release()
       throw new ApiError(429, spamResult.message)
     }
 
@@ -205,31 +210,34 @@ async function createReport({
     })
 
     if (duplicateResult.isDuplicate) {
-      await connection.commit();
-      isTransactionCommitted = true;
-      connection.release();
+      await connection.commit()
+      isTransactionCommitted = true
+      connection.release()
       throw new ApiError(400, duplicateResult.message || 'Báo cáo này bị trùng')
     }
 
-    const reportCode = await generateReportCode();
+    const reportCode = await generateReportCode()
 
-    created = await wasteReportRepository.createReport({
-      citizenId,
-      citizenUserAccountId: userAccountId,
-      items: normalizedItems,
-      reportCode,
-      gpsLat,
-      gpsLng,
-      description: description.trim(),
-      weight: weight ?? null,
-      fileUri: imageUrl || null,
-      isDuplicate: duplicateResult.isDuplicate
-    }, connection)
+    created = await wasteReportRepository.createReport(
+      {
+        citizenId,
+        citizenUserAccountId: userAccountId,
+        items: normalizedItems,
+        reportCode,
+        gpsLat,
+        gpsLng,
+        description: description.trim(),
+        weight: normalizedWeight,
+        fileUri: imageUrl || null,
+        isDuplicate: duplicateResult.isDuplicate
+      },
+      connection
+    )
 
-    await connection.commit();
-    isTransactionCommitted = true;
+    await connection.commit()
+    isTransactionCommitted = true
   } catch (error) {
-    if (connection && !isTransactionCommitted) await connection.rollback();
+    if (connection && !isTransactionCommitted) await connection.rollback()
 
     if (error.status === 400 || error.status === 429) throw error
     console.error('[createReport] DB Error:', error.code, error.message)
@@ -238,15 +246,15 @@ async function createReport({
     }
     throw error
   } finally {
-    if (connection && !isTransactionCommitted) connection.release();
+    if (connection && !isTransactionCommitted) connection.release()
   }
 
   // ── Send notifications to Enterprises ───────────────────────
   try {
     const enterprises = await userRepository.findAll({ roleId: ROLES.ENTERPRISE })
-    console.log(`[DEBUG] Notifying ${enterprises.length} Enterprises of new report ${created.wasteReportId}`);
+    console.log(`[DEBUG] Notifying ${enterprises.length} Enterprises of new report ${created.wasteReportId}`)
     for (const ent of enterprises) {
-      console.log(`[DEBUG] Sending notif to Enterprise: ${ent.userAccountId || ent.user_account_id}`);
+      console.log(`[DEBUG] Sending notif to Enterprise: ${ent.userAccountId || ent.user_account_id}`)
       await notificationService.createNotification({
         notificationType: NOTIFICATION_TYPES.NEW_REPORT_PENDING,
         recipientUserAccountId: ent.userAccountId || ent.user_account_id,
@@ -262,14 +270,15 @@ async function createReport({
   const reportItems = await wasteReportRepository.findWasteReportItems(created.wasteReportId)
 
   return {
-    wasteReportId: created.wasteReportId,
+    reportId: created.wasteReportId,
     reportCode: created.reportCode || created?.report_code,
     citizenId,
     items: reportItems,
     gpsLat,
     gpsLng,
     description: description.trim(),
-    attachments: imageUrl ? [{ fileUri: imageUrl }] : [],
+    weight: normalizedWeight,
+    images: imageUrl ? [{ file_uri: imageUrl }] : [],
     status: 'PENDING',
     isSpam: spamResult?.isSpam || false,
     spamMessage: spamResult?.isSpam ? spamResult.message : undefined,
@@ -392,17 +401,17 @@ async function updateReport(reportId, userAccountId, updateData) {
       throw new ApiError(400, 'Dữ liệu không hợp lệ.', itemErrors)
     }
 
-    normalizedItems = items.map(item => ({
+    normalizedItems = items.map((item) => ({
       waste_type_id: Number(item.waste_type_id),
       quantity: Number(item.quantity)
     }))
 
     // Validate waste_type_ids exist in DB
-    const wasteTypeIds = normalizedItems.map(i => i.waste_type_id)
+    const wasteTypeIds = normalizedItems.map((i) => i.waste_type_id)
     const invalidIds = await wasteReportRepository.validateWasteTypeIds(wasteTypeIds)
     if (invalidIds.length > 0) {
       throw new ApiError(400, 'Dữ liệu không hợp lệ.', [
-        ...invalidIds.map(id => `waste_type_id ${id} không tồn tại hoặc không còn hoạt động.`)
+        ...invalidIds.map((id) => `waste_type_id ${id} không tồn tại hoặc không còn hoạt động.`)
       ])
     }
   }

@@ -69,10 +69,7 @@ async function applyPenaltyIfLevelEscalated(
 
     if (currentLevel === 2) {
       // Lấy số điểm hiện tại của citizen
-      const [rows] = await connection.execute(
-        'SELECT total_points FROM citizen WHERE citizen_id = ?',
-        [citizenId]
-      )
+      const [rows] = await connection.execute('SELECT total_points FROM citizen WHERE citizen_id = ?', [citizenId])
       const currentPoints = rows.length > 0 && rows[0].total_points ? Number(rows[0].total_points) : 0
       // Trừ % số điểm hiện tại
       const PENALTY_PERCENT = penaltyPercent
@@ -705,7 +702,10 @@ async function processForcedFakeViolation(connection, { citizenId, userAccountId
  * @param {Date}   params.currentTime
  * @returns {object} Final points and variance info
  */
-async function processRewardMultiItems(connection, { citizenId, userAccountId, wasteReportId, collectedRecordId, currentTime }) {
+async function processRewardMultiItems(
+  connection,
+  { citizenId, userAccountId, wasteReportId, collectedRecordId, currentTime }
+) {
   // 1. Fetch citizen data (FOR UPDATE)
   const citizen = await rewardRepository.findCitizenForReward(connection, citizenId)
   if (!citizen) throw new ApiError(404, 'Citizen not found')
@@ -728,11 +728,17 @@ async function processRewardMultiItems(connection, { citizenId, userAccountId, w
   let totalVarianceSum = 0
   let penaltyApplied = false
 
+  // Fetch report code for transaction reasons
+  const reportCode = await rewardRepository.findReportCodeById(connection, wasteReportId)
+
   // 3. Process each citizen item
   for (const citizenItem of citizenItems) {
     const wasteTypeId = citizenItem.waste_type_id
     const citizenKg = Number(citizenItem.quantity)
     const actualKg = collectorItemMap.get(wasteTypeId) || 0 // 0 if collector didn't collect this type
+
+    // Fetch waste type name for better transaction reason
+    const wasteTypeName = await rewardRepository.findWasteTypeName(connection, wasteTypeId)
 
     const config = await rewardRepository.findRewardConfigByWasteType(connection, wasteTypeId)
     if (!config) continue // Skip if no config
@@ -776,7 +782,7 @@ async function processRewardMultiItems(connection, { citizenId, userAccountId, w
           citizenId,
           wasteReportId,
           pointsDelta: points,
-          transactionReason: `Thưởng điểm rác loại ID ${wasteTypeId}`,
+          transactionReason: `[${reportCode}] Thưởng ${points} điểm - ${wasteTypeName}`,
           createdAt: currentTime
         })
       }
@@ -793,7 +799,7 @@ async function processRewardMultiItems(connection, { citizenId, userAccountId, w
           citizenId,
           wasteReportId,
           pointsDelta: points,
-          transactionReason: `Thưởng điểm rác ${wasteTypeId} (trước phạt)`,
+          transactionReason: `[${reportCode}] Thưởng ${points} điểm - ${wasteTypeName} (dự kiến)`,
           createdAt: currentTime
         })
       }
@@ -804,7 +810,7 @@ async function processRewardMultiItems(connection, { citizenId, userAccountId, w
           citizenId,
           wasteReportId,
           pointsDelta: -penalty,
-          transactionReason: `Phạt sai số rác loại ID ${wasteTypeId} (${itemVariancePercent.toFixed(1)}%)`,
+          transactionReason: `[${reportCode}] Phạt ${penalty} điểm - ${wasteTypeName} sai ${itemVariancePercent.toFixed(1)}%`,
           createdAt: currentTime
         })
       }
@@ -817,7 +823,7 @@ async function processRewardMultiItems(connection, { citizenId, userAccountId, w
   }
 
   // Option B: No overall fake marker, no violation escalation
-  const avgVariance = citizenItems.length > 0 ? (totalVarianceSum / citizenItems.length) : 0
+  const avgVariance = citizenItems.length > 0 ? totalVarianceSum / citizenItems.length : 0
 
   return {
     finalPoints: totalFinalPoints,

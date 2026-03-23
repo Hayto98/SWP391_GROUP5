@@ -16,8 +16,8 @@ async function validateWasteTypeIds(wasteTypeIds) {
     `SELECT waste_type_id FROM wastetype WHERE waste_type_id IN (${placeholders}) AND is_active = 1 AND IFNULL(is_deleted, 0) = 0`,
     wasteTypeIds
   )
-  const validIds = new Set(rows.map(r => r.waste_type_id))
-  return wasteTypeIds.filter(id => !validIds.has(id))
+  const validIds = new Set(rows.map((r) => r.waste_type_id))
+  return wasteTypeIds.filter((id) => !validIds.has(id))
 }
 
 /**
@@ -44,10 +44,7 @@ async function insertWasteReportItems(wasteReportId, items, connection) {
  * @param {object} connection - transaction connection
  */
 async function deleteWasteReportItems(wasteReportId, connection) {
-  await connection.execute(
-    `DELETE FROM waste_report_item WHERE waste_report_id = ?`,
-    [wasteReportId]
-  )
+  await connection.execute(`DELETE FROM waste_report_item WHERE waste_report_id = ?`, [wasteReportId])
 }
 
 /**
@@ -70,7 +67,7 @@ async function findWasteReportItems(wasteReportId) {
      ORDER BY wri.created_at ASC`,
     [wasteReportId]
   )
-  return rows.map(r => ({
+  return rows.map((r) => ({
     wasteReportItemId: r.waste_report_item_id,
     wasteTypeId: r.waste_type_id,
     wasteTypeName: r.waste_type_name,
@@ -118,6 +115,10 @@ async function createReport(
   const wasteReportId = uuidv4()
   const statusHistoryId = uuidv4()
   const createdAt = new Date()
+  const sumWeightFromItems = (items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0)
+  const hasValidWeight =
+    weight !== undefined && weight !== null && String(weight).trim() !== '' && Number.isFinite(Number(weight))
+  const persistedWeight = hasValidWeight && Number(weight) >= 0 ? Number(weight) : sumWeightFromItems
 
   // Primary waste_type_id = first item (backward compatibility)
   const primaryWasteTypeId = items[0].waste_type_id
@@ -141,7 +142,7 @@ async function createReport(
         gpsLat,
         gpsLng,
         description,
-        weight ?? 0,
+        persistedWeight,
         fileUri || null,
         createdAt,
         isDuplicate ? 1 : 0
@@ -271,14 +272,7 @@ async function findMyReports(citizenId, { fromDate, toDate, status, limit, offse
     FROM wastereport wr
     JOIN citizen c ON wr.citizen_id = c.citizen_id
     JOIN useraccount ua_citizen ON c.user_account_id = ua_citizen.user_account_id
-    LEFT JOIN (
-      SELECT waste_report_id, waste_type_id
-      FROM waste_report_item wri1
-      WHERE created_at = (
-        SELECT MIN(created_at) FROM waste_report_item wri2 WHERE wri1.waste_report_id = wri2.waste_report_id
-      )
-      LIMIT 1
-    ) first_item ON wr.waste_report_id = first_item.waste_report_id
+    LEFT JOIN (SELECT waste_report_id, MIN(waste_type_id) as waste_type_id FROM waste_report_item GROUP BY waste_report_id) first_item ON wr.waste_report_id = first_item.waste_report_id
     LEFT JOIN wastetype wt ON first_item.waste_type_id = wt.waste_type_id
     JOIN reportstatustype rst ON wr.report_status_type_id = rst.report_status_type_id
     LEFT JOIN useraccount ua_collector ON wr.assigned_collector_id = ua_collector.user_account_id
@@ -338,49 +332,79 @@ async function findMyReports(citizenId, { fromDate, toDate, status, limit, offse
   const [countRows] = await db.execute('SELECT FOUND_ROWS() as totalCount')
   const total = countRows[0].totalCount
 
-  const data = rows.map((row) => {
-    const attachments = row.file_uri ? [{ fileUri: row.file_uri }] : []
+  const data = await Promise.all(
+    rows.map(async (row) => {
+      // const attachments = row.file_uri ? [{ fileUri: row.file_uri }] : [] // Bỏ field attachments
+      const images = row.file_uri ? [{ file_uri: row.file_uri }] : []
 
-    const statusVal = row.current_status || 'PENDING'
+      const statusVal = row.current_status || 'PENDING'
 
-    let assignedCollector = null
-    if (statusVal === 'ASSIGNED' || statusVal === 'IN_PROGRESS' || statusVal === 'COLLECTED') {
-      if (row.collector_user_account_id) {
-        assignedCollector = {
-          userAccountId: row.collector_user_account_id,
-          fullname: row.collector_fullname,
-          phone: row.collector_phone,
-          avatar: null
+      let assignedCollector = null
+      if (statusVal === 'ASSIGNED' || statusVal === 'IN_PROGRESS' || statusVal === 'COLLECTED') {
+        if (row.collector_user_account_id) {
+          assignedCollector = {
+            userAccountId: row.collector_user_account_id,
+            fullname: row.collector_fullname,
+            phone: row.collector_phone,
+            avatar: null
+          }
         }
       }
-    }
 
-    return {
-      wasteReportId: row.waste_report_id,
-      reportCode: row.report_code,
-      wasteType: {
-        id: row.waste_type_id,
-        name: row.waste_type_name,
-        unitType: row.unit_type
-      },
-      citizen: {
-        fullname: row.citizen_fullname,
-        phone: row.citizen_phone
-      },
-      location: {
-        lat: Number(row.gps_lat),
-        lng: Number(row.gps_lng)
-      },
-      description: row.description,
-      weight: row.weight !== null && row.weight !== undefined ? Number(row.weight) : null,
-      weightKg: row.weight !== null && row.weight !== undefined ? Number(row.weight) : null,
-      status: statusVal,
-      createdAt: row.created_at,
-      attachments: attachments,
-      assignedCollector: assignedCollector,
-      reason: row.reject_reason || null
-    }
-  })
+      // Lấy items cho từng report
+      const items = await findWasteReportItems(row.waste_report_id)
+      // Calculate sum of items for fallback weight
+      const calculatedWeight = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
+      const finalWeight =
+        row.weight !== null && row.weight !== undefined && Number(row.weight) > 0
+          ? Number(row.weight)
+          : calculatedWeight > 0
+            ? calculatedWeight
+            : null
+      // Lấy rewardPoint
+      const [ptRows] = await db.execute(
+        `SELECT point_transaction_id, points_delta, transaction_reason, created_at 
+       FROM pointtransaction 
+       WHERE waste_report_id = ? 
+       ORDER BY created_at DESC 
+       LIMIT 1`,
+        [row.waste_report_id]
+      )
+      const rewardPoint =
+        ptRows.length > 0
+          ? {
+              pointTransactionId: ptRows[0].point_transaction_id,
+              pointsDelta: ptRows[0].points_delta,
+              transactionReason: ptRows[0].transaction_reason,
+              createdAt: ptRows[0].created_at
+            }
+          : null
+
+      return {
+        reportId: row.waste_report_id, //Thay thế wasteReportId thành reportId
+        reportCode: row.report_code,
+        items: items, // Thêm items
+        citizen: {
+          fullname: row.citizen_fullname,
+          phone: row.citizen_phone
+        },
+        location: {
+          lat: Number(row.gps_lat),
+          lng: Number(row.gps_lng)
+        },
+        description: row.description,
+        weight: finalWeight,
+        weightKg: finalWeight,
+        unitType: row.unit_type || null,
+        status: statusVal,
+        createdAt: row.created_at,
+        images: images, // Sử dụng images thay vì attachments
+        assignedCollector: assignedCollector,
+        reason: row.reject_reason || null,
+        rewardPoint: rewardPoint // Thêm rewardPoint
+      }
+    })
+  )
 
   return {
     data,
@@ -430,14 +454,7 @@ async function findReportById(reportId) {
     FROM wastereport wr
     JOIN citizen c ON wr.citizen_id = c.citizen_id
     JOIN useraccount ua_citizen ON c.user_account_id = ua_citizen.user_account_id
-    LEFT JOIN (
-      SELECT waste_report_id, waste_type_id
-      FROM waste_report_item wri1
-      WHERE created_at = (
-        SELECT MIN(created_at) FROM waste_report_item wri2 WHERE wri1.waste_report_id = wri2.waste_report_id
-      )
-      LIMIT 1
-    ) first_item ON wr.waste_report_id = first_item.waste_report_id
+    LEFT JOIN (SELECT waste_report_id, MIN(waste_type_id) as waste_type_id FROM waste_report_item GROUP BY waste_report_id) first_item ON wr.waste_report_id = first_item.waste_report_id
     LEFT JOIN wastetype wt ON first_item.waste_type_id = wt.waste_type_id
     JOIN reportstatustype rst ON wr.report_status_type_id = rst.report_status_type_id
     LEFT JOIN useraccount ua_collector ON wr.assigned_collector_id = ua_collector.user_account_id
@@ -548,16 +565,37 @@ async function findReportById(reportId) {
   // Lấy danh sách waste_report_item cho report này
   const reportItems = await findWasteReportItems(reportId)
 
+  // Calculate correct weight (fallback to sum of items if weight is 0)
+  const calculatedWeight = reportItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
+  const finalWeight =
+    row.weight !== null && row.weight !== undefined && Number(row.weight) > 0
+      ? Number(row.weight)
+      : calculatedWeight > 0
+        ? calculatedWeight
+        : null
+
+  const [ptRows] = await db.execute(
+    `SELECT point_transaction_id, points_delta, transaction_reason, created_at 
+     FROM pointtransaction 
+     WHERE waste_report_id = ? 
+     ORDER BY created_at DESC 
+     LIMIT 1`,
+    [reportId]
+  )
+  const rewardPoint =
+    ptRows.length > 0
+      ? {
+          pointTransactionId: ptRows[0].point_transaction_id,
+          pointsDelta: ptRows[0].points_delta,
+          transactionReason: ptRows[0].transaction_reason,
+          createdAt: ptRows[0].created_at
+        }
+      : null
+
   return {
     reportId: row.waste_report_id,
-    wasteReportId: row.waste_report_id,
     reportCode: row.report_code,
     citizenId: row.citizen_id, // include to verify ownership later in service
-    wasteType: {
-      id: row.waste_type_id,
-      name: row.waste_type_name,
-      unitType: row.unit_type
-    },
     items: reportItems,
     citizen: {
       fullname: row.citizen_fullname,
@@ -568,20 +606,20 @@ async function findReportById(reportId) {
       lng: Number(row.gps_lng)
     },
     description: row.description,
-    weight: row.weight !== null && row.weight !== undefined ? Number(row.weight) : null,
-    weightKg: row.weight !== null && row.weight !== undefined ? Number(row.weight) : null,
+    weight: finalWeight,
+    weightKg: finalWeight,
     actualQuantity: collectedRecord ? Number(collectedRecord.actualQuantityValue) : null,
     unitType: collectedRecord?.quantityUnit || row.unit_type || null,
     status: statusVal,
     createdAt: row.created_at,
     scheduledCollectAt: row.scheduled_collect_at || null,
-    attachments: attachments,
     images: attachments.map((item) => ({ file_uri: item.fileUri })),
     assignedCollector: assignedCollector,
     collector: assignedCollector,
     collectorImages,
     collectedRecord,
-    reason: row.reject_reason || null
+    reason: row.reject_reason || null,
+    rewardPoint: rewardPoint
   }
 }
 
@@ -760,14 +798,7 @@ async function findAllReports({ status, fromDate, toDate, limit, offset }) {
     FROM wastereport wr
     JOIN citizen c ON wr.citizen_id = c.citizen_id
     JOIN useraccount ua_citizen ON c.user_account_id = ua_citizen.user_account_id
-    LEFT JOIN (
-      SELECT waste_report_id, waste_type_id
-      FROM waste_report_item wri1
-      WHERE created_at = (
-        SELECT MIN(created_at) FROM waste_report_item wri2 WHERE wri1.waste_report_id = wri2.waste_report_id
-      )
-      LIMIT 1
-    ) first_item ON wr.waste_report_id = first_item.waste_report_id
+    LEFT JOIN (SELECT waste_report_id, MIN(waste_type_id) as waste_type_id FROM waste_report_item GROUP BY waste_report_id) first_item ON wr.waste_report_id = first_item.waste_report_id
     LEFT JOIN wastetype wt ON first_item.waste_type_id = wt.waste_type_id
     JOIN reportstatustype rst ON wr.report_status_type_id = rst.report_status_type_id
     LEFT JOIN useraccount ua_collector ON wr.assigned_collector_id = ua_collector.user_account_id
