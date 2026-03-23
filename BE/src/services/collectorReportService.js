@@ -221,12 +221,13 @@ async function getReportById(userId, reportId) {
   // ✅ No status restriction — collector can view their report at any status
   // (ASSIGNED, IN_PROGRESS, COLLECTED). Ownership check above is sufficient.
 
-  // 5️⃣ Fetch citizen images + collected record.
+  // 5️⃣ Fetch citizen images + collected record + items.
   // Primary source: joined GROUP_CONCAT from findReportForCollector.
   // Fallback source: direct read from reportattachment table.
-  const [fallbackCitizenImages, collectedRecord] = await Promise.all([
+  const [fallbackCitizenImages, collectedRecord, reportItems] = await Promise.all([
     collectorReportRepository.findImagesByReportId(reportId),
-    collectorReportRepository.findCollectedRecord(reportId, userId)
+    collectorReportRepository.findCollectedRecord(reportId, userId),
+    wasteReportRepository.findWasteReportItems(reportId)
   ])
 
   const joinedUris = report.citizen_image_uris
@@ -272,6 +273,8 @@ async function getReportById(userId, reportId) {
         id: report.wasteTypeId,
         name: report.wasteTypeName
       },
+
+      items: reportItems,
 
       weight: report.weight !== null ? Number(report.weight) : null,
 

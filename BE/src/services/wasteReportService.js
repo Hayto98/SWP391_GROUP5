@@ -431,7 +431,12 @@ async function updateReport(reportId, userAccountId, updateData) {
     normalizedData.description = normalizedDescription
   }
 
-  if (parsedWeightKg !== undefined && Number.isFinite(parsedWeightKg) && parsedWeightKg >= 0) {
+  if (normalizedItems) {
+    // Calculate total weight from items if updating items
+    const totalWeight = normalizedItems.reduce((sum, item) => sum + item.quantity, 0)
+    normalizedData.weight = totalWeight
+  } else if (parsedWeightKg !== undefined && Number.isFinite(parsedWeightKg) && parsedWeightKg >= 0) {
+    // Or from the body explicitly (if not updating items)
     normalizedData.weight = parsedWeightKg
   }
 

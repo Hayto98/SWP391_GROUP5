@@ -280,6 +280,7 @@ async function getReportById(reportId) {
         name: report?.wasteType?.name ?? null,
         unitType: report?.wasteType?.unitType ?? report?.unitType ?? null
       },
+      items: report?.items || [],
       citizen: {
         fullname: report?.citizen?.fullname ?? null,
         phone: report?.citizen?.phone ?? null

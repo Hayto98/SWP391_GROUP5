@@ -593,10 +593,6 @@ async function updateReportById(reportId, updateData) {
   const fields = []
   const values = []
 
-  if (updateData.waste_type_id !== undefined) {
-    fields.push('waste_type_id = ?')
-    values.push(updateData.waste_type_id)
-  }
   if (updateData.gps_lat !== undefined) {
     fields.push('gps_lat = ?')
     values.push(updateData.gps_lat)
