@@ -69,10 +69,7 @@ async function applyPenaltyIfLevelEscalated(
 
     if (currentLevel === 2) {
       // Lấy số điểm hiện tại của citizen
-      const [rows] = await connection.execute(
-        'SELECT total_points FROM citizen WHERE citizen_id = ?',
-        [citizenId]
-      )
+      const [rows] = await connection.execute('SELECT total_points FROM citizen WHERE citizen_id = ?', [citizenId])
       const currentPoints = rows.length > 0 && rows[0].total_points ? Number(rows[0].total_points) : 0
       // Trừ % số điểm hiện tại
       const PENALTY_PERCENT = penaltyPercent
@@ -223,7 +220,9 @@ async function checkDuplicateAndHandleSpam(
   const [recentReports] = await connection.execute(
     `SELECT gps_lat, gps_lng, description, file_uri 
      FROM wastereport 
-     WHERE citizen_id = ? AND created_at >= ?`,
+     WHERE citizen_id = ? 
+       AND created_at >= ? 
+       AND report_status_type_id NOT IN (4, 5)`,
     [citizenId, thirtyMinsAgo]
   )
 
@@ -689,8 +688,156 @@ async function processForcedFakeViolation(connection, { citizenId, userAccountId
   }
 }
 
+/**
+ * Process reward for a multi-item completed waste report (Option B).
+ * Calculates points per item. If an item has high variance, only that item is penalized.
+ * The report is NOT marked as completely fake, and no violation level is escalated.
+ *
+ * @param {object} connection - mysql2 connection (active transaction)
+ * @param {object} params
+ * @param {string} params.citizenId
+ * @param {string} params.userAccountId
+ * @param {string} params.wasteReportId
+ * @param {string} params.collectedRecordId
+ * @param {Date}   params.currentTime
+ * @returns {object} Final points and variance info
+ */
+async function processRewardMultiItems(
+  connection,
+  { citizenId, userAccountId, wasteReportId, collectedRecordId, currentTime }
+) {
+  // 1. Fetch citizen data (FOR UPDATE)
+  const citizen = await rewardRepository.findCitizenForReward(connection, citizenId)
+  if (!citizen) throw new ApiError(404, 'Citizen not found')
+
+  if (citizen.reportBlockedUntil && currentTime < new Date(citizen.reportBlockedUntil)) {
+    throw new ApiError(403, 'Bạn đang bị tạm khóa và không thể tạo báo cáo mới')
+  }
+
+  // 2. Fetch items
+  const citizenItems = await rewardRepository.findReportItems(connection, wasteReportId)
+  const collectorItems = await rewardRepository.findCollectedItems(connection, collectedRecordId)
+
+  // Map collector items for easy lookup
+  const collectorItemMap = new Map()
+  for (const item of collectorItems) {
+    collectorItemMap.set(item.waste_type_id, Number(item.actual_quantity))
+  }
+
+  let totalFinalPoints = 0
+  let totalVarianceSum = 0
+  let penaltyApplied = false
+
+  // Fetch report code for transaction reasons
+  const reportCode = await rewardRepository.findReportCodeById(connection, wasteReportId)
+
+  // 3. Process each citizen item
+  for (const citizenItem of citizenItems) {
+    const wasteTypeId = citizenItem.waste_type_id
+    const citizenKg = Number(citizenItem.quantity)
+    const actualKg = collectorItemMap.get(wasteTypeId) || 0 // 0 if collector didn't collect this type
+
+    // Fetch waste type name for better transaction reason
+    const wasteTypeName = await rewardRepository.findWasteTypeName(connection, wasteTypeId)
+
+    const config = await rewardRepository.findRewardConfigByWasteType(connection, wasteTypeId)
+    if (!config) continue // Skip if no config
+
+    const { pointsPerUnit, allowedVariancePercent, penaltyPercent, minKgRequired, maxKgRequired } = config
+
+    // Check minimum config
+    if (actualKg < Number(minKgRequired)) {
+      continue // No points for this item
+    }
+
+    // Check maximum config
+    let cappedActualKg = actualKg
+    if (maxKgRequired !== null && maxKgRequired !== undefined && cappedActualKg > Number(maxKgRequired)) {
+      cappedActualKg = Number(maxKgRequired)
+    }
+
+    // Base points for this item
+    const baseKgForPoints = Math.min(citizenKg, cappedActualKg)
+    const points = Math.floor(baseKgForPoints * Number(pointsPerUnit))
+
+    // Variance for this item
+    let itemVariancePercent = 0
+    if (cappedActualKg === 0) {
+      itemVariancePercent = 100
+    } else if (cappedActualKg < citizenKg) {
+      const difference = citizenKg - cappedActualKg
+      itemVariancePercent = (difference / cappedActualKg) * 100
+    }
+
+    totalVarianceSum += itemVariancePercent
+
+    const isItemFake = cappedActualKg === 0 || itemVariancePercent > Number(allowedVariancePercent)
+
+    if (!isItemFake) {
+      // Valid item
+      totalFinalPoints += points
+      if (points > 0) {
+        await rewardRepository.insertPointTransaction(connection, {
+          pointTransactionId: uuidv4(),
+          citizenId,
+          wasteReportId,
+          pointsDelta: points,
+          transactionReason: `[${reportCode}] Thưởng ${points} điểm - ${wasteTypeName}`,
+          createdAt: currentTime
+        })
+      }
+    } else {
+      // Fake item → penalty for this item only
+      penaltyApplied = true
+      const penalty = Math.floor((points * Number(penaltyPercent)) / 100)
+      const netPoints = points - penalty
+      totalFinalPoints += netPoints
+
+      if (points > 0) {
+        await rewardRepository.insertPointTransaction(connection, {
+          pointTransactionId: uuidv4(),
+          citizenId,
+          wasteReportId,
+          pointsDelta: points,
+          transactionReason: `[${reportCode}] Thưởng ${points} điểm - ${wasteTypeName} (dự kiến)`,
+          createdAt: currentTime
+        })
+      }
+
+      if (penalty > 0) {
+        await rewardRepository.insertPointTransaction(connection, {
+          pointTransactionId: uuidv4(),
+          citizenId,
+          wasteReportId,
+          pointsDelta: -penalty,
+          transactionReason: `[${reportCode}] Phạt ${penalty} điểm - ${wasteTypeName} sai ${itemVariancePercent.toFixed(1)}%`,
+          createdAt: currentTime
+        })
+      }
+    }
+  }
+
+  // Update total points ONCE
+  if (totalFinalPoints !== 0) {
+    await rewardRepository.updateCitizenPoints(connection, citizenId, totalFinalPoints)
+  }
+
+  // Option B: No overall fake marker, no violation escalation
+  const avgVariance = citizenItems.length > 0 ? totalVarianceSum / citizenItems.length : 0
+
+  return {
+    finalPoints: totalFinalPoints,
+    variancePercent: Math.round(avgVariance * 100) / 100,
+    penaltyApplied,
+    isFake: false, // Overall report is not entirely fake
+    currentLevel: getViolationLevel(citizen.totalViolationCount),
+    reportBlockedUntil: citizen.reportBlockedUntil
+  }
+}
+
 module.exports = {
   processReward,
+  processRewardMultiItems,
   processForcedFakeViolation,
   checkSpam,
   checkDuplicateAndHandleSpam,
