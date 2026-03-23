@@ -232,9 +232,9 @@ async function getReportById(userId, reportId) {
 
   const joinedUris = report.citizen_image_uris
     ? report.citizen_image_uris
-        .split('|||')
-        .map((value) => value.trim())
-        .filter(Boolean)
+      .split('|||')
+      .map((value) => value.trim())
+      .filter(Boolean)
     : []
 
   const fallbackUris = Array.isArray(fallbackCitizenImages)
@@ -299,16 +299,16 @@ async function getReportById(userId, reportId) {
 
       collectedRecord: collectedRecord
         ? {
-            collectedRecordId: collectedRecord.collected_record_id,
-            wasteReportId: collectedRecord.waste_report_id,
-            collectorUserAccountId: collectedRecord.collector_user_account_id,
-            actualQuantityValue: Number(collectedRecord.actual_quantity_value),
-            quantityUnit: collectedRecord.quantity_unit,
-            recordedAt: collectedRecord.recorded_at,
-            fileUri: collectedRecord.file_uri,
-            note: collectedRecord.note,
-            completionImages: collectedRecord.completion_images || []
-          }
+          collectedRecordId: collectedRecord.collected_record_id,
+          wasteReportId: collectedRecord.waste_report_id,
+          collectorUserAccountId: collectedRecord.collector_user_account_id,
+          actualQuantityValue: Number(collectedRecord.actual_quantity_value),
+          quantityUnit: collectedRecord.quantity_unit,
+          recordedAt: collectedRecord.recorded_at,
+          fileUri: collectedRecord.file_uri,
+          note: collectedRecord.note,
+          completionImages: collectedRecord.completion_images || []
+        }
         : null,
 
       status: report.status
@@ -528,19 +528,31 @@ async function submitResult(collectorId, reportId, { actualQuantity, note, quant
  *
  * @param {string} collectorId
  * @param {string} reportId
- * @param {object} body  { actualQuantity, quantityUnit, note }
+ * @param {object} body  { actualItems, quantityUnit, note }
  * @param {Array}  files  multer file objects (req.files)
  */
-async function completeReport(collectorId, reportId, { actualQuantity, quantityUnit, note }, files) {
+async function completeReport(collectorId, reportId, { actualItems, quantityUnit, note }, files) {
   // 1. Account check
   const user = await userRepository.findById(collectorId)
   if (!user) throw new ApiError(404, 'User account not found')
   if (user.isLocked) throw new ApiError(403, 'Your account is locked. Please contact support.')
 
-  // 2. Validate actualQuantity
-  const qty = Number(actualQuantity)
-  if (!Number.isFinite(qty) || qty <= 0) {
-    throw new ApiError(400, 'actualQuantity must be a number greater than 0')
+  // 2. Validate actualItems
+  if (!Array.isArray(actualItems) || actualItems.length === 0) {
+    throw new ApiError(400, 'actualItems phải là một mảng và không được để trống')
+  }
+
+  let qty = 0
+  const normalizedItems = []
+  for (let i = 0; i < actualItems.length; i++) {
+    const item = actualItems[i]
+    const wId = Number(item.waste_type_id)
+    const q = Number(item.actual_quantity)
+    if (!Number.isInteger(wId) || wId <= 0 || !Number.isFinite(q) || q <= 0) {
+      throw new ApiError(400, `Item ${i + 1}: waste_type_id và actual_quantity phải hợp lệ (lớn hơn 0)`)
+    }
+    qty += q
+    normalizedItems.push({ waste_type_id: wId, actual_quantity: q })
   }
 
   // 3. Fetch report (with citizen_id and waste_type_id for points)
@@ -587,12 +599,15 @@ async function completeReport(collectorId, reportId, { actualQuantity, quantityU
       collectedRecordId,
       wasteReportId: reportId,
       collectorUserAccountId: collectorId,
-      actualQuantityValue: qty,
+      actualQuantityValue: qty, // Total quantity
       quantityUnit: quantityUnit || 'KG',
       note: note ?? null,
       fileUri: null,
       recordedAt
     })
+
+    // 7b2. Insert Collected Items
+    await collectorReportRepository.insertCollectedItems(connection, collectedRecordId, normalizedItems)
 
     // 7c. Insert CompletionAttachment for each uploaded image
     for (const url of uploadedUrls) {
@@ -616,16 +631,13 @@ async function completeReport(collectorId, reportId, { actualQuantity, quantityU
       recordedAt
     )
 
-    // 7f. Process reward (10-step: variance check, fake detection, penalties, etc.)
-    const citizenReportKg = report.weight !== null ? Number(report.weight) : qty
-    rewardResult = await rewardService.processReward(connection, {
+    // 7f. Process reward (multi-item logic)
+    rewardResult = await rewardService.processRewardMultiItems(connection, {
       citizenId: report.citizen_id,
       userAccountId: report.citizen_user_account_id,
       wasteReportId: reportId,
-      citizenReportKg,
-      collectorActualKg: qty,
-      currentTime: recordedAt,
-      wasteTypeId: report.waste_type_id
+      collectedRecordId,
+      currentTime: recordedAt
     })
     pointsAwarded = rewardResult.finalPoints
 
@@ -689,12 +701,12 @@ async function completeReport(collectorId, reportId, { actualQuantity, quantityU
       completedAt: recordedAt,
       reward: rewardResult
         ? {
-            variancePercent: rewardResult.variancePercent,
-            penaltyApplied: rewardResult.penaltyApplied,
-            isFake: rewardResult.isFake,
-            currentLevel: rewardResult.currentLevel,
-            reportBlockedUntil: rewardResult.reportBlockedUntil
-          }
+          variancePercent: rewardResult.variancePercent,
+          penaltyApplied: rewardResult.penaltyApplied,
+          isFake: rewardResult.isFake,
+          currentLevel: rewardResult.currentLevel,
+          reportBlockedUntil: rewardResult.reportBlockedUntil
+        }
         : null
     }
   }
@@ -807,12 +819,12 @@ async function markReportAsFake(collectorId, reportId, { quantityUnit, note }, f
       completedAt: recordedAt,
       reward: rewardResult
         ? {
-            variancePercent: rewardResult.variancePercent,
-            penaltyApplied: rewardResult.penaltyApplied,
-            isFake: rewardResult.isFake,
-            currentLevel: rewardResult.currentLevel,
-            reportBlockedUntil: rewardResult.reportBlockedUntil
-          }
+          variancePercent: rewardResult.variancePercent,
+          penaltyApplied: rewardResult.penaltyApplied,
+          isFake: rewardResult.isFake,
+          currentLevel: rewardResult.currentLevel,
+          reportBlockedUntil: rewardResult.reportBlockedUntil
+        }
         : null
     }
   }

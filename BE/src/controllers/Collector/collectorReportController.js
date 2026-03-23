@@ -79,20 +79,28 @@ async function submitResult(req, res, next) {
 /**
  * POST /collector/reports/:reportId/complete
  * Collector completes the collection — uploads proof images, records results, marks COLLECTED.
- * Body: multipart/form-data  { actualQuantity, quantityUnit, note, files[] }
+ * Body: multipart/form-data  { actualItems, quantityUnit, note, files[] }
  */
 async function completeReport(req, res, next) {
   try {
     const collectorId = req.user.sub
     const { reportId } = req.params
 
-    const { actualQuantity, quantityUnit, note } = req.body || {}
+    let { actualItems, quantityUnit, note } = req.body || {}
     const files = req.files || []
+
+    if (typeof actualItems === 'string') {
+      try {
+        actualItems = JSON.parse(actualItems)
+      } catch (err) {
+        throw new require('../../utils/ApiError')(400, 'actualItems không đúng định dạng JSON')
+      }
+    }
 
     const result = await collectorReportService.completeReport(
       collectorId,
       reportId,
-      { actualQuantity, quantityUnit, note },
+      { actualItems, quantityUnit, note },
       files
     )
 

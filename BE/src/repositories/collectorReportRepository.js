@@ -141,6 +141,7 @@ module.exports = {
   findReportForResult,
   findStatusTypeIdByName,
   insertCollectedRecord,
+  insertCollectedItems,
   insertCompletionAttachment,
   findCollectionResult,
   getCollectionStatistics,
@@ -339,6 +340,27 @@ async function findCollectedRecord(reportId, collectorId) {
 
   const row = rows[0]
 
+  const [itemRows] = await db.execute(
+    `SELECT
+       ci.collected_item_id,
+       ci.waste_type_id,
+       wt.waste_type_name,
+       wt.unit_type,
+       ci.actual_quantity
+     FROM collected_item ci
+     INNER JOIN wastetype wt ON ci.waste_type_id = wt.waste_type_id
+     WHERE ci.collected_record_id = ?`,
+    [row.collected_record_id]
+  )
+
+  const items = itemRows.map(item => ({
+    collectedItemId: item.collected_item_id,
+    wasteTypeId: item.waste_type_id,
+    wasteTypeName: item.waste_type_name,
+    unitType: item.unit_type,
+    actualQuantity: Number(item.actual_quantity)
+  }))
+
   return {
     collected_record_id: row.collected_record_id,
     waste_report_id: row.waste_report_id,
@@ -348,6 +370,7 @@ async function findCollectedRecord(reportId, collectorId) {
     recorded_at: row.recorded_at,
     file_uri: row.file_uri,
     note: row.note,
+    items,
     completion_images: row.completion_image_uris ? row.completion_image_uris.split('|||') : []
   }
 }
@@ -506,6 +529,34 @@ async function insertCollectedRecord(
       recordedAt
     ]
   )
+}
+
+/**
+ * Insert multiple items into collected_item table (inside a transaction).
+ *
+ * @param {object} connection - mysql2 connection
+ * @param {string} collectedRecordId
+ * @param {Array} items - [{ waste_type_id, actual_quantity }]
+ */
+async function insertCollectedItems(connection, collectedRecordId, items) {
+  if (!items || items.length === 0) return
+
+  const { v4: uuidv4 } = require('uuid')
+  const values = []
+  const placeholders = []
+
+  for (const item of items) {
+    placeholders.push('(?, ?, ?, ?)')
+    values.push(uuidv4(), collectedRecordId, item.waste_type_id, item.actual_quantity)
+  }
+
+  const query = `
+    INSERT INTO collected_item
+      (collected_item_id, collected_record_id, waste_type_id, actual_quantity)
+    VALUES ${placeholders.join(', ')}
+  `
+
+  await connection.execute(query, values)
 }
 
 // ==================== COMPLETE REPORT ====================

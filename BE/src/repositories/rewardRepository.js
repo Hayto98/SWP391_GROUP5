@@ -66,6 +66,40 @@ async function findRewardConfigByWasteType(connection, wasteTypeId) {
   return rows[0] || null
 }
 
+/**
+ * Fetch all items reported by citizen for a report (inside transaction).
+ *
+ * @param {object} connection
+ * @param {string} wasteReportId
+ * @returns {Array}
+ */
+async function findReportItems(connection, wasteReportId) {
+  const [rows] = await connection.execute(
+    `SELECT waste_type_id, quantity
+     FROM waste_report_item
+     WHERE waste_report_id = ?`,
+    [wasteReportId]
+  )
+  return rows
+}
+
+/**
+ * Fetch all actual items recorded by collector for a collected record (inside transaction).
+ *
+ * @param {object} connection
+ * @param {string} collectedRecordId
+ * @returns {Array}
+ */
+async function findCollectedItems(connection, collectedRecordId) {
+  const [rows] = await connection.execute(
+    `SELECT waste_type_id, actual_quantity
+     FROM collected_item
+     WHERE collected_record_id = ?`,
+    [collectedRecordId]
+  )
+  return rows
+}
+
 // ==================== WRITE ====================
 
 /**
@@ -210,6 +244,8 @@ async function updateCitizenSpamViolation(connection, citizenId, {
 module.exports = {
   findCitizenForReward,
   findRewardConfigByWasteType,
+  findReportItems,
+  findCollectedItems,
   insertPointTransaction,
   updateCitizenPoints,
   updateCitizenViolation,
