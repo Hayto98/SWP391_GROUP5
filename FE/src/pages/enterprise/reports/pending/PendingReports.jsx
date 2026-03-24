@@ -166,8 +166,7 @@ export default function PendingReports() {
     doAction,
     exportExcel,
     reload,
-  } = usePendingReports();
-
+  } = usePendingReports();  
   const total = data?.result?.total || 0;
   const rows = data?.result?.rows || [];
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -184,6 +183,30 @@ export default function PendingReports() {
   const [selectedReportAddress, setSelectedReportAddress] = useState("");
   const [isHistoryPopupOpen, setHistoryPopupOpen] = useState(false);
   const [assignmentHistoryRows, setAssignmentHistoryRows] = useState([]);
+  // State cho dropdown collector hoạt động
+  const [activeCollectors, setActiveCollectors] = useState([]);
+  const [selectedCollectorId, setSelectedCollectorId] = useState("");
+  // Fetch danh sách collector hoạt động khi mount
+  useEffect(() => {
+    const fetchCollectors = async () => {
+      try {
+        // Lấy access token từ localStorage
+        const token = localStorage.getItem("accessToken");
+        const res = await fetch("http://localhost:3000/enterprise/collectors/available", {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : "",
+          },
+        });
+        const data = await res.json();
+        console.log("[Collector API] Response:", data);
+        setActiveCollectors(data.collectors || []);
+      } catch (e) {
+        console.error("[Collector API] Error:", e);
+        setActiveCollectors([]);
+      }
+    };
+    fetchCollectors();
+  }, []);
 
   const pages = useMemo(() => {
     const arr = [];
@@ -369,6 +392,30 @@ export default function PendingReports() {
       refreshAssignmentHistory,
     ],
   );
+  const [selectedReports, setSelectedReports] = useState([]);
+
+// Handler chọn từng báo cáo
+const handleSelectReport = (code, checked) => {
+  setSelectedReports((prev) => {
+    if (checked) return [...prev, code];
+    return prev.filter((c) => c !== code);
+  });
+};
+
+// Handler chọn tất cả/bỏ chọn tất cả
+// Handler chọn tất cả/bỏ chọn tất cả
+// Nếu onlyAccepted = true, chỉ chọn các báo cáo ACCEPTED
+const handleSelectAll = (checked, onlyAccepted = false) => {
+  if (checked) {
+    if (onlyAccepted) {
+      setSelectedReports(rows.filter(r => r.status === "ACCEPTED").map((r) => r.code));
+    } else {
+      setSelectedReports(rows.map((r) => r.code));
+    }
+  } else {
+    setSelectedReports([]);
+  }
+};
 
   return (
     <div className="space-y-6">
@@ -380,7 +427,41 @@ export default function PendingReports() {
               Hiển thị {data?.result?.total ?? 0} báo cáo theo bộ lọc hiện tại
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            {/* Dropdown chọn collector cho gán hàng loạt */}
+            <select
+              className="border rounded px-2 py-1"
+              value={selectedCollectorId}
+              onChange={e => setSelectedCollectorId(e.target.value)}
+            >
+              <option value="">Chọn collector</option>
+              {activeCollectors.map((c) => (
+                <option key={c.userAccountId} value={c.userAccountId}>{c.fullname}</option>
+              ))}
+            </select>
+            <Button
+              variant="default"
+              disabled={
+                !selectedCollectorId || selectedReports.length === 0 || rows.filter(r => r.status === "ACCEPTED").length === 0
+              }
+              onClick={async () => {
+                // Gán collector cho các báo cáo đã chọn
+                const collector = activeCollectors.find(c => c.userAccountId === selectedCollectorId);
+                if (!collector) return;
+                for (const code of selectedReports) {
+                  // Giả sử có hàm assignTaskToCollector nhận {reportId, collectorId}
+                  try {
+                    await assignTaskToCollector({ reportId: code, collectorId: collector.userAccountId });
+                  } catch (e) {
+                    // Có thể toast lỗi từng báo cáo nếu muốn
+                  }
+                }
+                toast.success("Đã gán collector cho các báo cáo đã chọn.");
+                reload();
+              }}
+            >
+              Gán collector
+            </Button>
             <Button
               variant="outline"
               onClick={() => {
@@ -488,6 +569,25 @@ export default function PendingReports() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>
+                <input
+                  type="checkbox"
+                  aria-label="Chọn tất cả"
+                  checked={
+                    selectedCollectorId
+                      ? rows.filter(r => r.status === "ACCEPTED").length > 0 && rows.filter(r => r.status === "ACCEPTED").every((r) => selectedReports.includes(r.code))
+                      : rows.length > 0 && rows.every((r) => selectedReports.includes(r.code))
+                  }
+                  onChange={e => {
+                    if (selectedCollectorId) {
+                      handleSelectAll(e.target.checked, true);
+                    } else {
+                      handleSelectAll(e.target.checked);
+                    }
+                  }}
+                  disabled={selectedCollectorId && rows.filter(r => r.status === "ACCEPTED").length === 0}
+                />
+                </TableHead>
                 <TableHead>Mã báo cáo</TableHead>
                 <TableHead>Công dân</TableHead>
                 <TableHead>Loại rác</TableHead>
@@ -499,22 +599,37 @@ export default function PendingReports() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center">
+                  <TableCell colSpan={8} className="h-24 text-center">
                     Đang tải...
                   </TableCell>
                 </TableRow>
               ) : rows.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={8}
                     className="h-24 text-center text-muted-foreground"
                   >
                     Không có báo cáo nào
                   </TableCell>
                 </TableRow>
               ) : (
-                rows.filter(Boolean).map((r, idx) => (
-                  <TableRow key={r?.code || r?.reportCode || `row-${idx}`}>
+                rows.filter(Boolean).map((r, idx) => {
+                  const isAccepted = r.status === "ACCEPTED";
+                  const isDimmed = selectedCollectorId && !isAccepted;
+                  return (
+                    <TableRow
+                      key={r?.code || r?.reportCode || `row-${idx}`}
+                      style={isDimmed ? { opacity: 0.5 } : {}}
+                    >
+                      <TableCell>
+                        <input
+                          type="checkbox"
+                          checked={selectedReports.includes(r.code)}
+                          onChange={e => handleSelectReport(r.code, e.target.checked)}
+                          aria-label={`Chọn báo cáo ${r?.reportCode || r?.code || idx+1}`}
+                          disabled={selectedCollectorId ? !isAccepted : false}
+                        />
+                      </TableCell>
                     <TableCell>
                       <Button
                         type="button"
@@ -568,7 +683,8 @@ export default function PendingReports() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ))
+                );
+                })
               )}
             </TableBody>
           </Table>
