@@ -175,6 +175,20 @@ async function getDashboardStatistics(req, res, next) {
   }
 }
 
+// ==================== EMPLOYEE CONTROLLERS ====================
+
+/**
+ * POST /enterprise/employees - Enterprise tạo nhân viên (Collector)
+ */
+async function createEmployee(req, res, next) {
+  try {
+    const result = await enterpriseService.createEmployee(req.body)
+    res.status(201).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
 module.exports = {
   // WasteType
   createWasteType,
@@ -192,5 +206,8 @@ module.exports = {
   updateRewardConfig,
 
   // Dashboard
-  getDashboardStatistics
+  getDashboardStatistics,
+
+  // Employee
+  createEmployee
 }

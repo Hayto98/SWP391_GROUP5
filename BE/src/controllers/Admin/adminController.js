@@ -97,6 +97,21 @@ async function changeUserStatus(req, res, next) {
   }
 }
 
+// ==================== ENTERPRISE ====================
+
+/**
+ * POST /admin/enterprises - Create new Enterprise user
+ * Request body: { fullname, email, phone, password }
+ */
+async function createEnterprise(req, res, next) {
+  try {
+    const result = await adminService.createEnterprise(req.body)
+    res.status(201).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
 // ==================== DELETE ====================
 
 /**
@@ -137,6 +152,7 @@ module.exports = {
   getAllUsers,
   getUserById,
   createUser,
+  createEnterprise,
   updateUser,
   changeUserRole,
   changeUserStatus,

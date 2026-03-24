@@ -196,4 +196,13 @@ router.get('/vouchers/statistics', voucherRedemptionController.getVoucherStatist
 router.get('/vouchers/:voucherId', voucherController.getVoucherById)
 
 
+// ==================== EMPLOYEE (COLLECTOR) ROUTES ====================
+
+/**
+ * POST /enterprise/employees - Enterprise tạo nhân viên (Collector)
+ * Request body: { fullname, email, phone, password }
+ */
+router.post('/employees', enterpriseController.createEmployee)
+
+
 module.exports = router

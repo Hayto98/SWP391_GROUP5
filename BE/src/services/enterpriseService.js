@@ -2,6 +2,12 @@ const ApiError = require('../errors/ApiError')
 const wasteTypeRepository = require('../repositories/wasteTypeRepository')
 const rewardConfigRepository = require('../repositories/rewardConfigRepository')
 const enterpriseRepository = require('../repositories/enterpriseRepository')
+const bcrypt = require('bcryptjs')
+const { v4: uuidv4 } = require('uuid')
+const userRepository = require('../repositories/userRepository')
+const { ROLES } = require('../utils/constants')
+
+const DEFAULT_SALT_ROUNDS = 10
 
 // ==================== WASTE TYPE SERVICES ====================
 
@@ -687,6 +693,64 @@ async function getDashboardStatistics(fromDate, toDate, groupBy = 'day') {
   }
 }
 
+// ==================== EMPLOYEE (COLLECTOR) SERVICES ====================
+
+/**
+ * Enterprise tạo nhân viên (Collector)
+ * POST /enterprise/employees
+ *
+ * Business Rules:
+ * - Role cố định là ROLES.COLLECTOR (3)
+ * - Email và phone phải unique
+ * - Password bắt buộc
+ */
+async function createEmployee({ fullname, email, phone, password }) {
+  if (!fullname || !email || !phone || !password) {
+    throw new ApiError(400, 'fullname, email, phone và password là bắt buộc')
+  }
+
+  const existingByEmail = await userRepository.findByEmail(email)
+  if (existingByEmail) {
+    throw new ApiError(409, 'Email đã được đăng ký')
+  }
+
+  const existingByPhone = await userRepository.findByPhone(phone)
+  if (existingByPhone) {
+    throw new ApiError(409, 'Số điện thoại đã được đăng ký')
+  }
+
+  const userAccountId = uuidv4()
+  const saltRounds = Number(process.env.BCRYPT_SALT_ROUNDS || DEFAULT_SALT_ROUNDS)
+  const passwordHash = await bcrypt.hash(password, saltRounds)
+  const createdAt = new Date()
+
+  try {
+    await userRepository.createUser({
+      userAccountId,
+      fullname,
+      email,
+      phone,
+      passwordHash,
+      roleId: ROLES.COLLECTOR,
+      createdAt
+    })
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') {
+      throw new ApiError(409, 'Email hoặc số điện thoại đã tồn tại')
+    }
+    throw error
+  }
+
+  return {
+    userAccountId,
+    fullname,
+    email,
+    phone,
+    roleId: ROLES.COLLECTOR,
+    createdAt
+  }
+}
+
 module.exports = {
   // WasteType
   createWasteType,
@@ -702,5 +766,8 @@ module.exports = {
   getAllRewardConfigs,
   getRewardConfigById,
   getRewardConfigByWasteTypeId,
-  getDashboardStatistics
+  getDashboardStatistics,
+
+  // Employee
+  createEmployee
 }
