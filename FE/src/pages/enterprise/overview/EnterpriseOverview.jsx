@@ -84,46 +84,53 @@ function WasteRing({ percent, totalText, totalSubText }) {
 }
 
 export default function EnterpriseOverview() {
-  const [range, setRange] = useState("month");
-  const { data, loading, error, refetch } = useEnterpriseOverview(range);
+  // State cho filter dashboard
+  const [fromDate, setFromDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01 00:00:00`;
+  });
+  const [toDate, setToDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-31 23:59:59`;
+  });
+  const [groupBy, setGroupBy] = useState('month');
+
+  // State filter thực tế dùng cho API
+  const [filter, setFilter] = useState({ fromDate, toDate, groupBy });
+  const { data, loading, error, refetch } = useEnterpriseOverview(filter);
 
   const stats = useMemo(() => {
     if (!data?.summary) return [];
     const s = data.summary;
-
     return [
       {
         title: "Chờ xử lý",
         value: String(s.pending),
-        sub: `${s.pendingDelta >= 0 ? "+" : ""}${s.pendingDelta}% so với hôm qua`,
         tone: "default",
         icon: <Clock3 className="size-4" />,
       },
       {
         title: "Đang thực hiện",
         value: String(s.inProgress),
-        sub: `${s.inProgressDelta >= 0 ? "+" : ""}${s.inProgressDelta}% đang di chuyển`,
         tone: "info",
         icon: <Truck className="size-4" />,
       },
       {
         title: "Đã hoàn tất",
         value: String(s.done),
-        sub: `${s.doneDelta >= 0 ? "+" : ""}${s.doneDelta}% hiệu suất`,
         tone: "success",
         icon: <CheckCircle2 className="size-4" />,
       },
       {
         title: "SLA cảnh báo",
         value: String(s.slaWarning),
-        sub: `${s.slaDelta >= 0 ? "+" : ""}${s.slaDelta}% với tuần này`,
         tone: "danger",
         icon: <AlertTriangle className="size-4" />,
       },
     ];
   }, [data]);
 
-  const activeChart = data?.chart?.active || data?.chart?.[range];
+  const activeChart = data?.chart?.active;
   const chartValues = activeChart?.values || [];
   const maxChartValue = Math.max(...chartValues, 1);
   const highlightValue = Math.max(...chartValues, 0);
@@ -171,19 +178,42 @@ export default function EnterpriseOverview() {
             <p className="text-xs text-muted-foreground">Quản trị doanh nghiệp</p>
           </div>
 
-          <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto">
-            <Button variant="outline" className="justify-between sm:w-48">
-              Tháng 10, 2023
-              <ChevronDown className="size-4 text-muted-foreground" />
-            </Button>
-
-            <div className="relative sm:w-64">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="Tìm kiếm đơn hàng..." className="pl-9" />
-            </div>
-
-            <Button variant="outline" size="icon" title="Thông báo">
-              <Bell className="size-4" />
+          <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto items-center">
+            {/* Date range picker (simple) */}
+            <input
+              type="date"
+              value={fromDate.slice(0, 10)}
+              onChange={e => setFromDate(`${e.target.value} 00:00:00`)}
+              className="border rounded px-2 py-1 text-sm"
+              style={{ minWidth: 120 }}
+            />
+            <span className="mx-1">-</span>
+            <input
+              type="date"
+              value={toDate.slice(0, 10)}
+              onChange={e => setToDate(`${e.target.value} 23:59:59`)}
+              className="border rounded px-2 py-1 text-sm"
+              style={{ minWidth: 120 }}
+            />
+            <select
+              value={groupBy}
+              onChange={e => setGroupBy(e.target.value)}
+              className="border rounded px-2 py-1 text-sm ml-2"
+            >
+              <option value="day">Theo ngày</option>
+              <option value="month">Theo tháng</option>
+              <option value="year">Theo năm</option>
+            </select>
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-2"
+              onClick={() => {
+                setFilter({ fromDate, toDate, groupBy });
+                setTimeout(() => refetch(), 0); // Đảm bảo refetch sau khi setFilter
+              }}
+            >
+              Lọc
             </Button>
           </div>
         </CardContent>
@@ -225,7 +255,7 @@ export default function EnterpriseOverview() {
                 </span>
               </div>
               <p className="text-3xl font-black leading-none tracking-tight">{item.value}</p>
-              <p className="text-xs font-medium text-muted-foreground">{item.sub}</p>
+              {/* Đã xoá sub */}
             </CardContent>
           </Card>
         ))}
@@ -239,22 +269,7 @@ export default function EnterpriseOverview() {
               <CardDescription>So sánh xu hướng theo từng chu kỳ vận hành.</CardDescription>
             </div>
 
-            <div className="flex gap-2">
-              <Button
-                variant={range === "week" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setRange("week")}
-              >
-                Tuần
-              </Button>
-              <Button
-                variant={range === "month" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setRange("month")}
-              >
-                Tháng
-              </Button>
-            </div>
+            {/* Range buttons removed: API does not support range switching */}
           </CardHeader>
 
           <CardContent>
@@ -343,16 +358,16 @@ export default function EnterpriseOverview() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Mã đơn</TableHead>
-                  <TableHead>Địa điểm</TableHead>
                   <TableHead>Loại rác</TableHead>
                   <TableHead>Thời gian</TableHead>
                   <TableHead>Trạng thái</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
+
                 {activities.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-6 text-center text-muted-foreground">
+                    <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
                       Không có dữ liệu hoạt động.
                     </TableCell>
                   </TableRow>
@@ -361,7 +376,6 @@ export default function EnterpriseOverview() {
                 {activities.map((activity) => (
                   <TableRow key={activity.code}>
                     <TableCell className="font-mono text-xs font-semibold">{activity.code}</TableCell>
-                    <TableCell>{activity.district}</TableCell>
                     <TableCell>{activity.type}</TableCell>
                     <TableCell>{activity.time}</TableCell>
                     <TableCell>

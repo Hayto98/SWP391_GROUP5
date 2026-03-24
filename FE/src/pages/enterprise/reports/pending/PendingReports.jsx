@@ -103,7 +103,7 @@ function getStatusClass(status) {
     return "bg-red-100 text-red-700 border-red-200";
   }
   if (status === "ACCEPTED") {
-    return "bg-[#2196F3]/10 text-[#2196F3] border-[#2196F3]"; // Có thể dùng màu xanh dương như PENDING nếu cần
+    return "bg-[#9C27B0]/10 text-[#9C27B0] border-[#9C27B0]"; // Tím nhạt
   }
   return "bg-slate-100 text-slate-700 border-slate-200";
 }

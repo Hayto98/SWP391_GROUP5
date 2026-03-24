@@ -460,44 +460,46 @@ export default function ReportDetail() {
                 Gán
               </Button>
             )}
-            {/* Chấp nhận */}
-            <Button
-              variant="outline"
-              className={
-                (canAccept || rawStatus === "ACCEPTED"
-                  ? "bg-[#4CAF50] text-white border-[#4CAF50] shadow font-bold hover:bg-[#388E3C] hover:border-[#388E3C] hover:text-white focus:text-white active:text-white disabled:bg-[#4CAF50] disabled:text-white disabled:border-[#4CAF50]"
-                  : "text-[#4CAF50] border-[#A5D6A7] hover:bg-[#E8F5E9] hover:text-[#4CAF50] focus:text-[#4CAF50] active:text-[#4CAF50]")
-              }
-              type="button"
-              disabled={!canAccept || actionLoading !== ""}
-              title={
-                canAccept
-                  ? "Chấp nhận báo cáo"
-                  : "Chỉ có thể chấp nhận khi báo cáo đang PENDING"
-              }
-              onClick={() => handleAction("accept")}
-            >
-              {actionLoading === "accept" ? "..." : "Chấp nhận"}
-            </Button>
-            {/* Từ chối */}
-            <Button
-              variant="outline"
-              className={
-                (canReject || rawStatus === "REJECTED"
-                  ? "bg-[#F44336] text-white border-[#F44336] shadow font-bold hover:bg-[#C62828] hover:border-[#C62828] hover:text-white focus:text-white active:text-white"
-                  : "text-[#F44336] border-[#FFCDD2] hover:bg-[#FFEBEE] hover:text-[#F44336] focus:text-[#F44336] active:text-[#F44336]")
-              }
-              type="button"
-              disabled={!canReject || actionLoading !== ""}
-              title={
-                canReject
-                  ? "Từ chối báo cáo"
-                  : "Chỉ có thể từ chối khi báo cáo đang PENDING"
-              }
-              onClick={openRejectPopup}
-            >
-              {actionLoading === "reject" ? "..." : "Từ chối"}
-            </Button>
+            {/* Chỉ hiển thị 2 nút khi trạng thái là PENDING */}
+            {rawStatus === "PENDING" && <>
+              <Button
+                variant="outline"
+                className={
+                  (canAccept || rawStatus === "ACCEPTED"
+                    ? "bg-[#4CAF50] text-white border-[#4CAF50] shadow font-bold hover:bg-[#388E3C] hover:border-[#388E3C] hover:text-white focus:text-white active:text-white disabled:bg-[#4CAF50] disabled:text-white disabled:border-[#4CAF50]"
+                    : "text-[#4CAF50] border-[#A5D6A7] hover:bg-[#E8F5E9] hover:text-[#4CAF50] focus:text-[#4CAF50] active:text-[#4CAF50]")
+                }
+                type="button"
+                disabled={!canAccept || actionLoading !== ""}
+                title={
+                  canAccept
+                    ? "Chấp nhận báo cáo"
+                    : "Chỉ có thể chấp nhận khi báo cáo đang PENDING"
+                }
+                onClick={() => handleAction("accept")}
+              >
+                {actionLoading === "accept" ? "..." : "Chấp nhận"}
+              </Button>
+              {/* Từ chối */}
+              <Button
+                variant="outline"
+                className={
+                  (canReject || rawStatus === "REJECTED"
+                    ? "bg-[#F44336] text-white border-[#F44336] shadow font-bold hover:bg-[#C62828] hover:border-[#C62828] hover:text-white focus:text-white active:text-white"
+                    : "text-[#F44336] border-[#FFCDD2] hover:bg-[#FFEBEE] hover:text-[#F44336] focus:text-[#F44336] active:text-[#F44336]")
+                }
+                type="button"
+                disabled={!canReject || actionLoading !== ""}
+                title={
+                  canReject
+                    ? "Từ chối báo cáo"
+                    : "Chỉ có thể từ chối khi báo cáo đang PENDING"
+                }
+                onClick={openRejectPopup}
+              >
+                {actionLoading === "reject" ? "..." : "Từ chối"}
+              </Button>
+            </>}
 
             {/* Quay về */}
             <Button
