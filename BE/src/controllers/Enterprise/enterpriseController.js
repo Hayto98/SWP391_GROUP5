@@ -189,6 +189,18 @@ async function createEmployee(req, res, next) {
   }
 }
 
+/**
+ * DELETE /enterprise/employees/:employeeId - Enterprise xóa nhân viên
+ */
+async function deleteEmployee(req, res, next) {
+  try {
+    const result = await enterpriseService.deleteEmployee(req.params.employeeId)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
 module.exports = {
   // WasteType
   createWasteType,
@@ -209,5 +221,6 @@ module.exports = {
   getDashboardStatistics,
 
   // Employee
-  createEmployee
+  createEmployee,
+  deleteEmployee
 }

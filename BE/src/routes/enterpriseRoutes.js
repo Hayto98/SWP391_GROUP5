@@ -195,7 +195,6 @@ router.get('/vouchers/statistics', voucherRedemptionController.getVoucherStatist
  */
 router.get('/vouchers/:voucherId', voucherController.getVoucherById)
 
-
 // ==================== EMPLOYEE (COLLECTOR) ROUTES ====================
 
 /**
@@ -204,5 +203,9 @@ router.get('/vouchers/:voucherId', voucherController.getVoucherById)
  */
 router.post('/employees', enterpriseController.createEmployee)
 
+/**
+ * DELETE /enterprise/employees/:employeeId - Enterprise xóa nhân viên (soft delete)
+ */
+router.delete('/employees/:employeeId', enterpriseController.deleteEmployee)
 
 module.exports = router

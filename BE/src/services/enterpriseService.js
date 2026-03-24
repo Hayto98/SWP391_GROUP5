@@ -751,6 +751,32 @@ async function createEmployee({ fullname, email, phone, password }) {
   }
 }
 
+/**
+ * Enterprise xóa nhân viên (Collector) — soft delete
+ * DELETE /enterprise/employees/:employeeId
+ *
+ * Business Rules:
+ * - Nhân viên phải tồn tại và có roleId = COLLECTOR
+ * - Dùng soft delete (is_locked = 1, ban_reason = 'Account deactivated')
+ */
+async function deleteEmployee(employeeId) {
+  const user = await userRepository.findById(employeeId)
+  if (!user) {
+    throw new ApiError(404, 'Nhân viên không tồn tại')
+  }
+
+  if (user.roleId !== ROLES.COLLECTOR) {
+    throw new ApiError(403, 'Chỉ có thể xóa tài khoản nhân viên (Collector)')
+  }
+
+  await userRepository.softDeleteUser(employeeId)
+
+  return {
+    success: true,
+    message: 'Nhân viên đã được xóa'
+  }
+}
+
 module.exports = {
   // WasteType
   createWasteType,
@@ -769,5 +795,6 @@ module.exports = {
   getDashboardStatistics,
 
   // Employee
-  createEmployee
+  createEmployee,
+  deleteEmployee
 }
