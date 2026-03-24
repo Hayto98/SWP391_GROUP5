@@ -79,6 +79,58 @@ class EnterpriseRepository {
 
     return rows[0] || {}
   }
+
+  /**
+   * Fetch employee statistics with pagination:
+   * Total assigned, completed, and rejected reports for each collector.
+   * Can be filtered by a specific month or week if needed, though default is all-time or configurable via query timeframe.
+   */
+  async getEmployeeStatistics({ limit, offset, month, year }) {
+    let dateFilter = ''
+    const params = []
+
+    if (month && year) {
+      dateFilter = 'AND MONTH(wr.assigned_at) = ? AND YEAR(wr.assigned_at) = ?'
+      params.push(Number(month), Number(year))
+    } else if (year) {
+      dateFilter = 'AND YEAR(wr.assigned_at) = ?'
+      params.push(Number(year))
+    }
+
+    // Main query
+    const query = `
+      SELECT 
+        ua.user_account_id AS employeeId,
+        ua.fullname AS employeeName,
+        ua.email AS employeeEmail,
+        COUNT(wr.waste_report_id) AS totalAssigned,
+        SUM(CASE WHEN rst.status_name = 'COMPLETED' THEN 1 ELSE 0 END) AS totalCompleted,
+        SUM(CASE WHEN rst.status_name = 'REJECTED' THEN 1 ELSE 0 END) AS totalRejected
+      FROM useraccount ua
+      LEFT JOIN wastereport wr ON ua.user_account_id = wr.assigned_collector_id ${dateFilter}
+      LEFT JOIN reportstatustype rst ON wr.report_status_type_id = rst.report_status_type_id
+      WHERE ua.role_id = 3 AND ua.is_locked = 0
+      GROUP BY ua.user_account_id
+      ORDER BY totalCompleted DESC, totalAssigned DESC
+      LIMIT ? OFFSET ?
+    `
+    // Count query
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM useraccount
+      WHERE role_id = 3 AND is_locked = 0
+    `
+
+    params.push(Number(limit), Number(offset))
+    
+    const [rows] = await db.query(query, params)
+    const [countRows] = await db.query(countQuery)
+
+    return {
+      data: rows,
+      total: countRows[0].total
+    }
+  }
 }
 
 module.exports = new EnterpriseRepository()

@@ -797,6 +797,44 @@ async function getEmployees({ page = 1, limit = 20, keyword } = {}) {
 }
 
 /**
+ * Enterprise thống kê công việc của nhân viên (Collector)
+ * GET /enterprise/employees/statistics
+ */
+async function getEmployeeStatistics({ page = 1, limit = 20, month, year } = {}) {
+  const pageNum = Math.max(1, parseInt(page) || 1)
+  const limitNum = Math.max(1, Math.min(100, parseInt(limit) || 20))
+  const offset = (pageNum - 1) * limitNum
+
+  const result = await enterpriseRepository.getEmployeeStatistics({
+    limit: limitNum,
+    offset,
+    month,
+    year
+  })
+
+  // Format data
+  const formattedData = result.data.map(emp => ({
+    employeeId: emp.employeeId,
+    employeeName: emp.employeeName,
+    employeeEmail: emp.employeeEmail,
+    totalAssigned: Number(emp.totalAssigned) || 0,
+    totalCompleted: Number(emp.totalCompleted) || 0,
+    totalRejected: Number(emp.totalRejected) || 0,
+    completionRate: emp.totalAssigned > 0 
+      ? Math.round((Number(emp.totalCompleted) / Number(emp.totalAssigned)) * 100) 
+      : 0
+  }))
+
+  return {
+    data: formattedData,
+    total: result.total,
+    page: pageNum,
+    limit: limitNum,
+    totalPages: Math.ceil(result.total / limitNum)
+  }
+}
+
+/**
  * Enterprise xóa nhân viên (Collector) — soft delete
  * DELETE /enterprise/employees/:employeeId
  *
@@ -843,5 +881,6 @@ module.exports = {
   createEmployee,
   getEmployees,
   getEmployeeById,
-  deleteEmployee
+  deleteEmployee,
+  getEmployeeStatistics
 }

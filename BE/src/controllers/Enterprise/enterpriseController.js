@@ -190,6 +190,19 @@ async function createEmployee(req, res, next) {
 }
 
 /**
+ * GET /enterprise/employees/statistics - Enterprise thống kê công việc nhân viên (Collector)
+ * Query params: page, limit, month, year
+ */
+async function getEmployeeStatistics(req, res, next) {
+  try {
+    const result = await enterpriseService.getEmployeeStatistics(req.query)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
  * GET /enterprise/employees/:employeeId - Lấy chi tiết nhân viên
  */
 async function getEmployeeById(req, res, next) {
@@ -247,6 +260,7 @@ module.exports = {
   // Employee
   createEmployee,
   getEmployees,
+  getEmployeeStatistics,
   getEmployeeById,
   deleteEmployee
 }
