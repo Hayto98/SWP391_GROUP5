@@ -752,6 +752,21 @@ async function createEmployee({ fullname, email, phone, password }) {
 }
 
 /**
+ * Enterprise lấy nhân viên theo ID
+ * GET /enterprise/employees/:employeeId
+ */
+async function getEmployeeById(employeeId) {
+  const user = await userRepository.findById(employeeId)
+  if (!user) {
+    throw new ApiError(404, 'Nhân viên không tồn tại')
+  }
+  if (user.roleId !== ROLES.COLLECTOR) {
+    throw new ApiError(403, 'Không phải tài khoản nhân viên')
+  }
+  return user
+}
+
+/**
  * Enterprise lấy danh sách nhân viên (Collector)
  * GET /enterprise/employees
  */
@@ -827,5 +842,6 @@ module.exports = {
   // Employee
   createEmployee,
   getEmployees,
+  getEmployeeById,
   deleteEmployee
 }

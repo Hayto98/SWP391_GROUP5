@@ -202,6 +202,7 @@ router.get('/vouchers/:voucherId', voucherController.getVoucherById)
  * Query params: page, limit, keyword
  */
 router.get('/employees', enterpriseController.getEmployees)
+router.get('/employees/:employeeId', enterpriseController.getEmployeeById)
 
 /**
  * POST /enterprise/employees - Enterprise tạo nhân viên (Collector)
