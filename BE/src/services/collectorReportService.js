@@ -278,6 +278,9 @@ async function getReportById(userId, reportId) {
         ? calculatedWeight
         : null
 
+  const primaryItem = reportItems[0] || null
+  const collectedItems = Array.isArray(collectedRecord?.items) ? collectedRecord.items : []
+
   // 6️⃣ Map DTO (use alias names!)
   return {
     success: true,
@@ -298,6 +301,15 @@ async function getReportById(userId, reportId) {
 
       items: reportItems,
 
+      wasteType: primaryItem
+        ? {
+            id: primaryItem.wasteTypeId,
+            name: primaryItem.wasteTypeName
+          }
+        : null,
+
+      unitType: primaryItem?.unitType || collectedRecord?.quantity_unit || null,
+
       weight: finalWeight,
 
       actualQuantity: collectedRecord ? Number(collectedRecord.actual_quantity_value) : null,
@@ -309,9 +321,13 @@ async function getReportById(userId, reportId) {
 
       citizenImages,
 
+      images: citizenImages,
+
       collectorImages: collectedRecord
         ? [collectedRecord.file_uri, ...(collectedRecord.completion_images || [])].filter(Boolean)
         : [],
+
+      collectedItems,
 
       collectedRecord: collectedRecord
         ? {
@@ -323,7 +339,8 @@ async function getReportById(userId, reportId) {
             recordedAt: collectedRecord.recorded_at,
             fileUri: collectedRecord.file_uri,
             note: collectedRecord.note,
-            completionImages: collectedRecord.completion_images || []
+            completionImages: collectedRecord.completion_images || [],
+            items: collectedItems
           }
         : null,
 

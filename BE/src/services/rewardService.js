@@ -725,6 +725,8 @@ async function processRewardMultiItems(
   }
 
   let totalFinalPoints = 0
+  let totalRewardPoints = 0
+  let totalPenaltyPoints = 0
   let totalVarianceSum = 0
   let penaltyApplied = false
 
@@ -736,9 +738,6 @@ async function processRewardMultiItems(
     const wasteTypeId = citizenItem.waste_type_id
     const citizenKg = Number(citizenItem.quantity)
     const actualKg = collectorItemMap.get(wasteTypeId) || 0 // 0 if collector didn't collect this type
-
-    // Fetch waste type name for better transaction reason
-    const wasteTypeName = await rewardRepository.findWasteTypeName(connection, wasteTypeId)
 
     const config = await rewardRepository.findRewardConfigByWasteType(connection, wasteTypeId)
     if (!config) continue // Skip if no config
@@ -776,45 +775,38 @@ async function processRewardMultiItems(
     if (!isItemFake) {
       // Valid item
       totalFinalPoints += points
-      if (points > 0) {
-        await rewardRepository.insertPointTransaction(connection, {
-          pointTransactionId: uuidv4(),
-          citizenId,
-          wasteReportId,
-          pointsDelta: points,
-          transactionReason: `[${reportCode}] Thưởng ${points} điểm - ${wasteTypeName}`,
-          createdAt: currentTime
-        })
-      }
+      totalRewardPoints += points
     } else {
       // Fake item → penalty for this item only
       penaltyApplied = true
       const penalty = Math.floor((points * Number(penaltyPercent)) / 100)
       const netPoints = points - penalty
       totalFinalPoints += netPoints
-
-      if (points > 0) {
-        await rewardRepository.insertPointTransaction(connection, {
-          pointTransactionId: uuidv4(),
-          citizenId,
-          wasteReportId,
-          pointsDelta: points,
-          transactionReason: `[${reportCode}] Thưởng ${points} điểm - ${wasteTypeName} (dự kiến)`,
-          createdAt: currentTime
-        })
-      }
-
-      if (penalty > 0) {
-        await rewardRepository.insertPointTransaction(connection, {
-          pointTransactionId: uuidv4(),
-          citizenId,
-          wasteReportId,
-          pointsDelta: -penalty,
-          transactionReason: `[${reportCode}] Phạt ${penalty} điểm - ${wasteTypeName} sai ${itemVariancePercent.toFixed(1)}%`,
-          createdAt: currentTime
-        })
-      }
+      totalRewardPoints += points
+      totalPenaltyPoints += penalty
     }
+  }
+
+  if (totalRewardPoints > 0) {
+    await rewardRepository.insertPointTransaction(connection, {
+      pointTransactionId: uuidv4(),
+      citizenId,
+      wasteReportId,
+      pointsDelta: totalRewardPoints,
+      transactionReason: `[${reportCode}] Thưởng tổng ${totalRewardPoints} điểm`,
+      createdAt: currentTime
+    })
+  }
+
+  if (totalPenaltyPoints > 0) {
+    await rewardRepository.insertPointTransaction(connection, {
+      pointTransactionId: uuidv4(),
+      citizenId,
+      wasteReportId,
+      pointsDelta: -totalPenaltyPoints,
+      transactionReason: `[${reportCode}] Phạt tổng ${totalPenaltyPoints} điểm do sai lệch khối lượng`,
+      createdAt: currentTime
+    })
   }
 
   // Update total points ONCE
