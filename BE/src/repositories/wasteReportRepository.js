@@ -361,22 +361,28 @@ async function findMyReports(citizenId, { fromDate, toDate, status, limit, offse
           : calculatedWeight > 0
             ? calculatedWeight
             : null
-      // Lấy rewardPoint
-      const [ptRows] = await db.execute(
-        `SELECT point_transaction_id, points_delta, transaction_reason, created_at 
-       FROM pointtransaction 
-       WHERE waste_report_id = ? 
-       ORDER BY created_at DESC 
-       LIMIT 1`,
+      // Lấy rewardPoint: pointsDelta = tổng điểm theo waste_report_id
+      const [ptSumRows] = await db.execute(
+        `SELECT COALESCE(SUM(points_delta), 0) AS total_points_delta
+         FROM pointtransaction
+         WHERE waste_report_id = ?`,
+        [row.waste_report_id]
+      )
+      const [ptLatestRows] = await db.execute(
+        `SELECT point_transaction_id, transaction_reason, created_at
+         FROM pointtransaction
+         WHERE waste_report_id = ?
+         ORDER BY created_at DESC
+         LIMIT 1`,
         [row.waste_report_id]
       )
       const rewardPoint =
-        ptRows.length > 0
+        ptLatestRows.length > 0
           ? {
-              pointTransactionId: ptRows[0].point_transaction_id,
-              pointsDelta: ptRows[0].points_delta,
-              transactionReason: ptRows[0].transaction_reason,
-              createdAt: ptRows[0].created_at
+              pointTransactionId: ptLatestRows[0].point_transaction_id,
+              pointsDelta: Number(ptSumRows[0]?.total_points_delta || 0),
+              transactionReason: ptLatestRows[0].transaction_reason,
+              createdAt: ptLatestRows[0].created_at
             }
           : null
 
@@ -548,6 +554,37 @@ async function findReportById(reportId) {
       }
     : null
 
+  let collectedItems = []
+  if (collectedRecord?.collectedRecordId) {
+    const [collectedItemRows] = await db.execute(
+      `SELECT
+         ci.collected_item_id,
+         ci.collected_record_id,
+         ci.waste_type_id,
+         wt.waste_type_name,
+         wt.unit_type,
+         ci.actual_quantity
+       FROM collected_item ci
+       INNER JOIN wastetype wt ON wt.waste_type_id = ci.waste_type_id
+       WHERE ci.collected_record_id = ?
+       ORDER BY wt.waste_type_name ASC`,
+      [collectedRecord.collectedRecordId]
+    )
+
+    collectedItems = collectedItemRows.map((item) => ({
+      collectedItemId: item.collected_item_id,
+      collectedRecordId: item.collected_record_id,
+      wasteTypeId: item.waste_type_id,
+      wasteTypeName: item.waste_type_name,
+      unitType: item.unit_type,
+      actualQuantity: Number(item.actual_quantity)
+    }))
+  }
+
+  if (collectedRecord) {
+    collectedRecord.items = collectedItems
+  }
+
   const statusVal = row.current_status || 'PENDING'
 
   let assignedCollector = null
@@ -574,21 +611,27 @@ async function findReportById(reportId) {
         ? calculatedWeight
         : null
 
-  const [ptRows] = await db.execute(
-    `SELECT point_transaction_id, points_delta, transaction_reason, created_at 
-     FROM pointtransaction 
-     WHERE waste_report_id = ? 
-     ORDER BY created_at DESC 
+  const [ptSumRows] = await db.execute(
+    `SELECT COALESCE(SUM(points_delta), 0) AS total_points_delta
+     FROM pointtransaction
+     WHERE waste_report_id = ?`,
+    [reportId]
+  )
+  const [ptLatestRows] = await db.execute(
+    `SELECT point_transaction_id, transaction_reason, created_at
+     FROM pointtransaction
+     WHERE waste_report_id = ?
+     ORDER BY created_at DESC
      LIMIT 1`,
     [reportId]
   )
   const rewardPoint =
-    ptRows.length > 0
+    ptLatestRows.length > 0
       ? {
-          pointTransactionId: ptRows[0].point_transaction_id,
-          pointsDelta: ptRows[0].points_delta,
-          transactionReason: ptRows[0].transaction_reason,
-          createdAt: ptRows[0].created_at
+          pointTransactionId: ptLatestRows[0].point_transaction_id,
+          pointsDelta: Number(ptSumRows[0]?.total_points_delta || 0),
+          transactionReason: ptLatestRows[0].transaction_reason,
+          createdAt: ptLatestRows[0].created_at
         }
       : null
 
@@ -618,6 +661,7 @@ async function findReportById(reportId) {
     collector: assignedCollector,
     collectorImages,
     collectedRecord,
+    collectedItems,
     reason: row.reject_reason || null,
     rewardPoint: rewardPoint
   }
