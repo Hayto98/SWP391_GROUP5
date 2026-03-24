@@ -207,6 +207,40 @@ function TrashReport() {
     }
   };
 
+  const handleAIPrediction = (analysis) => {
+    if (!analysis || analysis.length === 0) {
+      toast.info("AI không nhận diện được loại rác nào rõ ràng trong ảnh.");
+      return;
+    }
+
+    const descriptionElements = analysis.map((item, index) => {
+      if (item.isSupported) {
+        return (
+          <div key={index} className="flex items-start gap-2 mt-1.5 text-sm">
+            <span className="text-green-600 font-bold mt-0.5">✓</span>
+            <span>
+              <span className="font-semibold">{item.originalName}</span>: Có hỗ trợ ({item.matchedWasteTypeName})
+            </span>
+          </div>
+        );
+      } else {
+        return (
+          <div key={index} className="flex items-start gap-2 mt-1.5 text-sm">
+            <span className="text-destructive font-bold mt-0.5">✕</span>
+            <span className="text-muted-foreground">
+              <span className="font-semibold">{item.originalName}</span>: Hệ thống chưa hỗ trợ thu gom
+            </span>
+          </div>
+        );
+      }
+    });
+
+    toast("Kết quả AI phân tích rác:", {
+      description: <div>{descriptionElements}</div>,
+      duration: 8000,
+    });
+  };
+
   return (
     <Card className="space-y-4">
       <CardContent>
@@ -239,6 +273,7 @@ function TrashReport() {
           setFiles={setFiles}
           onSubmit={handleSendReport}
           submitting={submitting}
+          onAIPrediction={handleAIPrediction}
         />
       </CardContent>
     </Card>
