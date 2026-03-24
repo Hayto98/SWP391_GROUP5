@@ -128,6 +128,13 @@ function History() {
         const items = response?.data?.items || [];
 
         const mapped = items.map((item) => {
+          const itemNames = Array.isArray(item?.items)
+            ? item.items
+                .map((w) => w?.wasteTypeName)
+                .filter(Boolean)
+                .join(", ")
+            : "";
+
           return {
             id: item.reportId,
             reportCode:
@@ -139,7 +146,7 @@ function History() {
               item?.citizenFullname ||
               item?.citizenName ||
               "Không xác định",
-            wasteType: item?.wasteType?.name || "Không xác định",
+            wasteType: itemNames || item?.wasteType?.name || "Không xác định",
             weight: item.weight,
             unitType: item.unitType,
 
@@ -303,9 +310,67 @@ function History() {
   const detailUnit =
     detailData?.collectedRecord?.quantityUnit || detailData?.unitType || "KG";
 
-  const sceneImages = Array.isArray(detailData?.images)
-    ? detailData.images
+  const detailReportedItems = Array.isArray(detailData?.items)
+    ? detailData.items
     : [];
+
+  const detailCollectedItems = Array.isArray(detailData?.collectedItems)
+    ? detailData.collectedItems
+    : Array.isArray(detailData?.collectedRecord?.items)
+      ? detailData.collectedRecord.items
+      : [];
+
+  const detailCompareRows = useMemo(() => {
+    const byWasteTypeId = new Map();
+
+    detailReportedItems.forEach((item) => {
+      const wasteTypeId = Number(item?.wasteTypeId);
+      if (!Number.isFinite(wasteTypeId)) return;
+      byWasteTypeId.set(wasteTypeId, {
+        wasteTypeId,
+        wasteTypeName: item?.wasteTypeName || "-",
+        unitType: item?.unitType || detailUnit,
+        citizenQuantity: Number(item?.quantity || 0),
+        collectorQuantity: 0,
+      });
+    });
+
+    detailCollectedItems.forEach((item) => {
+      const wasteTypeId = Number(item?.wasteTypeId);
+      if (!Number.isFinite(wasteTypeId)) return;
+
+      const existing = byWasteTypeId.get(wasteTypeId);
+      if (existing) {
+        existing.collectorQuantity = Number(item?.actualQuantity || 0);
+        existing.unitType = item?.unitType || existing.unitType || detailUnit;
+      } else {
+        byWasteTypeId.set(wasteTypeId, {
+          wasteTypeId,
+          wasteTypeName: item?.wasteTypeName || "-",
+          unitType: item?.unitType || detailUnit,
+          citizenQuantity: 0,
+          collectorQuantity: Number(item?.actualQuantity || 0),
+        });
+      }
+    });
+
+    return Array.from(byWasteTypeId.values()).sort((a, b) =>
+      a.wasteTypeName.localeCompare(b.wasteTypeName, "vi"),
+    );
+  }, [detailCollectedItems, detailReportedItems, detailUnit]);
+
+  const detailWasteTypeText = detailReportedItems.length
+    ? detailReportedItems
+        .map((item) => item?.wasteTypeName)
+        .filter(Boolean)
+        .join(", ")
+    : detailData?.wasteType?.name || "-";
+
+  const sceneImages = Array.isArray(detailData?.citizenImages)
+    ? detailData.citizenImages
+    : Array.isArray(detailData?.images)
+      ? detailData.images
+      : [];
   const collectorImages = Array.isArray(detailData?.collectorImages)
     ? detailData.collectorImages
     : [];
@@ -494,9 +559,7 @@ function History() {
         <DialogContent className="md:min-w-[70vw] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Chi tiết báo cáo thu gom</DialogTitle>
-            <DialogDescription>
-              Thông tin chi tiết từ API collector theo báo cáo đã chọn.
-            </DialogDescription>
+            <DialogDescription>Thông tin chi tiết .</DialogDescription>
           </DialogHeader>
 
           {detailLoading ? (
@@ -522,7 +585,7 @@ function History() {
                 <InfoItem label="Trạng thái" value={detailData.status} />
                 <InfoItem
                   label="Loại rác"
-                  value={detailData?.wasteType?.name || "-"}
+                  value={detailWasteTypeText}
                   icon={<Recycle className="size-4 text-green-600" />}
                 />
                 <InfoItem
@@ -585,6 +648,74 @@ function History() {
                 <div className="rounded-lg border p-3 text-sm text-muted-foreground min-h-16">
                   {detailData?.collectedRecord?.note || "Không có ghi chú"}
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-semibold">
+                  So sánh loại rác: người dân với người thu gom
+                </p>
+                {detailCompareRows.length > 0 ? (
+                  <div className="rounded-lg border overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Loại rác</TableHead>
+                          <TableHead className="text-right">
+                            người dân báo
+                          </TableHead>
+                          <TableHead className="text-right">
+                            thu gom thực tế
+                          </TableHead>
+                          <TableHead className="text-right">
+                            Chênh lệch
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {detailCompareRows.map((item) => {
+                          const diff =
+                            Number(item.collectorQuantity || 0) -
+                            Number(item.citizenQuantity || 0);
+
+                          return (
+                            <TableRow
+                              key={
+                                item.wasteTypeId ||
+                                `${item.wasteTypeId}-${item.wasteTypeName}`
+                              }
+                            >
+                              <TableCell>{item.wasteTypeName || "-"}</TableCell>
+                              <TableCell className="text-right">
+                                {item.citizenQuantity ?? "-"}{" "}
+                                {item.unitType || detailUnit}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {item.collectorQuantity ?? "-"}{" "}
+                                {item.unitType || detailUnit}
+                              </TableCell>
+                              <TableCell
+                                className={`text-right font-medium ${
+                                  diff < 0
+                                    ? "text-amber-600"
+                                    : diff > 0
+                                      ? "text-emerald-600"
+                                      : "text-muted-foreground"
+                                }`}
+                              >
+                                {diff > 0 ? "+" : ""}
+                                {diff} {item.unitType || detailUnit}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border p-3 text-sm text-muted-foreground">
+                    Chưa có dữ liệu để so sánh.
+                  </div>
+                )}
               </div>
 
               <div className="md:flex gap-6">

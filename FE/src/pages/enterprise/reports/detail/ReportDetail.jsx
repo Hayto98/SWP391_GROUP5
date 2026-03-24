@@ -379,12 +379,27 @@ export default function ReportDetail() {
 
   if (!data) return null;
 
-  const citizenImage =
-    data?.attachments?.[0]?.fileUri ||
-    data?.attachments?.[0]?.file_uri ||
-    data?.imageUrl ||
-    null;
-  const collectorImage = data?.collectorImages?.[0] || null;
+  const baseCitizenImages = [
+    ...(Array.isArray(data?.citizenImages) ? data.citizenImages : []),
+    ...(Array.isArray(data?.attachments)
+      ? data.attachments
+          .map((item) => item?.fileUri || item?.file_uri)
+          .filter(Boolean)
+      : []),
+  ].filter((value, index, self) => self.indexOf(value) === index);
+  const citizenImages =
+    baseCitizenImages.length > 0
+      ? baseCitizenImages
+      : data?.imageUrl
+        ? [data.imageUrl]
+        : [];
+  const collectorImages = Array.isArray(data?.collectorImages)
+    ? data.collectorImages
+    : [];
+  const wasteItems = Array.isArray(data?.items) ? data.items : [];
+  const wasteTypeValue = wasteItems.length
+    ? wasteItems.map((item) => item.wasteTypeName).join(", ")
+    : data.wasteType;
   const selectedFrom = location.state?.selectedFrom;
   const selectedFromText =
     selectedFrom === "pending-list"
@@ -687,14 +702,39 @@ export default function ReportDetail() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <ImageSection
-                title="Hình ảnh từ người dân"
-                image={citizenImage}
-              />
-              <ImageSection
-                title="Hình ảnh từ collector"
-                image={collectorImage}
-              />
+              <div className="space-y-3">
+                <p className="text-sm text-green-600 font-medium">
+                  Ảnh người dân
+                </p>
+                {citizenImages.length > 0 ? (
+                  citizenImages.map((image, index) => (
+                    <ImageSection key={`citizen-${index}`} image={image} />
+                  ))
+                ) : (
+                  <div className="w-full h-60 bg-gray-100 rounded-lg border flex items-center justify-center">
+                    <p className="text-sm text-muted-foreground">Chưa có ảnh</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <p className="text-sm text-green-600 font-medium">
+                  Ảnh collector
+                </p>
+                {collectorImages.length > 0 ? (
+                  collectorImages.map((image, index) => (
+                    <ImageSection key={`collector-${index}`} image={image} />
+                  ))
+                ) : (
+                  <div className="w-full h-60 bg-gray-100 rounded-lg border flex items-center justify-center">
+                    <p className="text-sm text-muted-foreground">
+                      {rawStatus === "COLLECTED"
+                        ? "Chưa có ảnh minh chứng"
+                        : "Đang chờ người thu gom"}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -731,7 +771,7 @@ export default function ReportDetail() {
             tone="green"
             icon={<Check className="size-4" />}
             label="LOẠI CHẤT THẢI"
-            value={data.wasteType}
+            value={wasteTypeValue || "Không rõ"}
           />
           <Stat
             tone="green"
@@ -757,6 +797,36 @@ export default function ReportDetail() {
           />
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Danh sách loại rác</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {wasteItems.length > 0 ? (
+            <div className="space-y-2">
+              {wasteItems.map((item) => (
+                <div
+                  key={
+                    item.wasteReportItemId ||
+                    `${item.wasteTypeId}-${item.wasteTypeName}`
+                  }
+                  className="flex items-center justify-between rounded-lg border bg-gray-50 px-3 py-2"
+                >
+                  <p className="font-medium">{item.wasteTypeName}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {item.quantity} {item.unitType || data.unitType || ""}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Không có dữ liệu loại rác.
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
         <div className="xl:col-span-7 space-y-4">

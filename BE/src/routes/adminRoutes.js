@@ -29,4 +29,8 @@ router.patch('/users/:id/status', adminController.changeUserStatus)
 // ==================== COMPLAINT OPERATIONS ====================
 router.put('/report-complaints/:complaintId/resolve', adminController.resolveComplaint)
 
+// ==================== ENTERPRISE OPERATIONS ====================
+router.post('/enterprises', adminController.createEnterprise)
+
 module.exports = router
+

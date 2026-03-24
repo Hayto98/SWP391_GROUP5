@@ -66,6 +66,68 @@ async function findRewardConfigByWasteType(connection, wasteTypeId) {
   return rows[0] || null
 }
 
+/**
+ * Fetch report code by report ID.
+ *
+ * @param {object} connection
+ * @param {string} wasteReportId
+ * @returns {string|null}
+ */
+async function findReportCodeById(connection, wasteReportId) {
+  const [rows] = await connection.execute('SELECT report_code FROM wastereport WHERE waste_report_id = ? LIMIT 1', [
+    wasteReportId
+  ])
+  return rows[0]?.report_code || null
+}
+
+/**
+ * Fetch waste type name by waste type ID.
+ *
+ * @param {object} connection
+ * @param {string|number} wasteTypeId
+ * @returns {string|null}
+ */
+async function findWasteTypeName(connection, wasteTypeId) {
+  const [rows] = await connection.execute('SELECT waste_type_name FROM wastetype WHERE waste_type_id = ? LIMIT 1', [
+    wasteTypeId
+  ])
+  return rows[0]?.waste_type_name || null
+}
+
+/**
+ * Fetch all items reported by citizen for a report (inside transaction).
+ *
+ * @param {object} connection
+ * @param {string} wasteReportId
+ * @returns {Array}
+ */
+async function findReportItems(connection, wasteReportId) {
+  const [rows] = await connection.execute(
+    `SELECT waste_type_id, quantity
+     FROM waste_report_item
+     WHERE waste_report_id = ?`,
+    [wasteReportId]
+  )
+  return rows
+}
+
+/**
+ * Fetch all actual items recorded by collector for a collected record (inside transaction).
+ *
+ * @param {object} connection
+ * @param {string} collectedRecordId
+ * @returns {Array}
+ */
+async function findCollectedItems(connection, collectedRecordId) {
+  const [rows] = await connection.execute(
+    `SELECT waste_type_id, actual_quantity
+     FROM collected_item
+     WHERE collected_record_id = ?`,
+    [collectedRecordId]
+  )
+  return rows
+}
+
 // ==================== WRITE ====================
 
 /**
@@ -74,7 +136,10 @@ async function findRewardConfigByWasteType(connection, wasteTypeId) {
  * @param {object} connection
  * @param {object} data
  */
-async function insertPointTransaction(connection, { pointTransactionId, citizenId, wasteReportId, pointsDelta, transactionReason, createdAt }) {
+async function insertPointTransaction(
+  connection,
+  { pointTransactionId, citizenId, wasteReportId, pointsDelta, transactionReason, createdAt }
+) {
   await connection.execute(
     `INSERT INTO pointtransaction
        (point_transaction_id, citizen_id, waste_report_id,
@@ -107,13 +172,11 @@ async function updateCitizenPoints(connection, citizenId, pointsDelta) {
  * @param {string} citizenId
  * @param {object} data
  */
-async function updateCitizenViolation(connection, citizenId, {
-  fakeViolationCount,
-  totalViolationCount,
-  lastViolationAt,
-  lastPenaltyLevel,
-  reportBlockedUntil
-}) {
+async function updateCitizenViolation(
+  connection,
+  citizenId,
+  { fakeViolationCount, totalViolationCount, lastViolationAt, lastPenaltyLevel, reportBlockedUntil }
+) {
   await connection.execute(
     `UPDATE citizen
      SET fake_violation_count  = ?,
@@ -122,14 +185,7 @@ async function updateCitizenViolation(connection, citizenId, {
          last_penalty_level    = ?,
          report_blocked_until  = ?
      WHERE citizen_id = ?`,
-    [
-      fakeViolationCount,
-      totalViolationCount,
-      lastViolationAt,
-      lastPenaltyLevel,
-      reportBlockedUntil ?? null,
-      citizenId
-    ]
+    [fakeViolationCount, totalViolationCount, lastViolationAt, lastPenaltyLevel, reportBlockedUntil ?? null, citizenId]
   )
 }
 
@@ -140,10 +196,7 @@ async function updateCitizenViolation(connection, citizenId, {
  * @param {string} userAccountId
  */
 async function lockUserAccount(connection, userAccountId) {
-  await connection.execute(
-    `UPDATE useraccount SET is_locked = 1 WHERE user_account_id = ?`,
-    [userAccountId]
-  )
+  await connection.execute(`UPDATE useraccount SET is_locked = 1 WHERE user_account_id = ?`, [userAccountId])
 }
 
 // ==================== SPAM DETECTION ====================
@@ -192,11 +245,11 @@ async function countReportsToday(connection, citizenId, currentTime) {
  * @param {string} citizenId
  * @param {object} data
  */
-async function updateCitizenSpamViolation(connection, citizenId, {
-  spamViolationCount,
-  totalViolationCount,
-  lastViolationAt
-}) {
+async function updateCitizenSpamViolation(
+  connection,
+  citizenId,
+  { spamViolationCount, totalViolationCount, lastViolationAt }
+) {
   await connection.execute(
     `UPDATE citizen
      SET spam_violation_count  = ?,
@@ -210,6 +263,10 @@ async function updateCitizenSpamViolation(connection, citizenId, {
 module.exports = {
   findCitizenForReward,
   findRewardConfigByWasteType,
+  findReportCodeById,
+  findWasteTypeName,
+  findReportItems,
+  findCollectedItems,
   insertPointTransaction,
   updateCitizenPoints,
   updateCitizenViolation,

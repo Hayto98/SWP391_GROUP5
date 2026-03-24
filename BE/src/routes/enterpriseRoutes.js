@@ -195,5 +195,25 @@ router.get('/vouchers/statistics', voucherRedemptionController.getVoucherStatist
  */
 router.get('/vouchers/:voucherId', voucherController.getVoucherById)
 
+// ==================== EMPLOYEE (COLLECTOR) ROUTES ====================
+
+/**
+ * GET /enterprise/employees - Lấy danh sách nhân viên (Collector)
+ * Query params: page, limit, keyword
+ */
+router.get('/employees', enterpriseController.getEmployees)
+router.get('/employees/statistics', enterpriseController.getEmployeeStatistics)
+router.get('/employees/:employeeId', enterpriseController.getEmployeeById)
+
+/**
+ * POST /enterprise/employees - Enterprise tạo nhân viên (Collector)
+ * Request body: { fullname, email, phone, password }
+ */
+router.post('/employees', enterpriseController.createEmployee)
+
+/**
+ * DELETE /enterprise/employees/:employeeId - Enterprise xóa nhân viên (soft delete)
+ */
+router.delete('/employees/:employeeId', enterpriseController.deleteEmployee)
 
 module.exports = router

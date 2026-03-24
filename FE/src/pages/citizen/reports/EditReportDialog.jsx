@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -20,7 +20,9 @@ import {
 } from "@/components/ui/select";
 import LocationSelection from "../trash-report/components/LocationSelection";
 import { reverseGeocode } from "@/services/geocodingService";
-import { TiGift } from "react-icons/ti";
+import { CircleAlert, Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import ImageSection from "@/components/ui/image-section";
 
 function EditReportDialog({
   open,
@@ -33,24 +35,41 @@ function EditReportDialog({
   const [gpsLat, setGpsLat] = useState("");
   const [gpsLng, setGpsLng] = useState("");
   const [description, setDescription] = useState("");
-  const [wasteTypeId, setWasteTypeId] = useState("");
-  const [weightKg, setWeightKg] = useState("");
+  const [selectedType, setSelectedType] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [selectedItems, setSelectedItems] = useState([]);
   const [marker, setMarker] = useState(null);
+  const [currentImage, setCurrentImage] = useState(null);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (open && report) {
       setGpsLat(String(report.latitude ?? ""));
       setGpsLng(String(report.longitude ?? ""));
       setDescription(report.description || "");
-      setWasteTypeId(String(report.wasteTypeId || ""));
 
-      const apiWeight = Number(report.weightKg);
-      if (Number.isFinite(apiWeight) && apiWeight > 0) {
-        setWeightKg(String(apiWeight));
+      const initialItems = (report.items || [])
+        .map((item) => ({
+          waste_type_id: Number(item.waste_type_id ?? item.wasteTypeId),
+          quantity: Number(item.quantity),
+        }))
+        .filter(
+          (item) =>
+            Number.isInteger(item.waste_type_id) &&
+            item.waste_type_id > 0 &&
+            Number.isFinite(item.quantity) &&
+            item.quantity > 0,
+        );
+
+      setSelectedItems(initialItems);
+      if (initialItems.length > 0) {
+        setSelectedType(String(initialItems[0].waste_type_id));
+        setQuantity(String(initialItems[0].quantity));
       } else {
-        const matchedWeight =
-          report.description?.match(/(\d+(?:\.\d+)?)\s*kg/i);
-        setWeightKg(matchedWeight ? matchedWeight[1] : "");
+        setSelectedType("");
+        setQuantity("");
       }
 
       if (
@@ -67,19 +86,136 @@ function EditReportDialog({
       } else {
         setMarker(null);
       }
+
+      setCurrentImage(
+        report?.citizenImages?.[0] || report?.images?.[0]?.file_uri || null,
+      );
+      setImageFile(null);
+      if (imagePreview) {
+        URL.revokeObjectURL(imagePreview);
+      }
+      setImagePreview(null);
     }
   }, [open, report]);
+
+  useEffect(() => {
+    return () => {
+      if (imagePreview) {
+        URL.revokeObjectURL(imagePreview);
+      }
+    };
+  }, [imagePreview]);
 
   if (!report) return null;
 
   const selectedWasteType = wasteTypes.find(
-    (item) => item.wasteTypeId === wasteTypeId,
+    (item) => String(item.wasteTypeId) === String(selectedType),
   );
-  const weightNum = Number(weightKg);
-  const estimatedPoints =
-    selectedWasteType && Number.isFinite(weightNum) && weightNum > 0
-      ? weightNum * selectedWasteType.pointsPerUnit
-      : 0;
+  const selectedItemsWithMeta = selectedItems
+    .map((item) => {
+      const wasteType = wasteTypes.find(
+        (type) => String(type.wasteTypeId) === String(item.waste_type_id),
+      );
+      return {
+        ...item,
+        wasteType,
+      };
+    })
+    .filter((item) => item.wasteType);
+
+  const totalEstimatedPoints = selectedItemsWithMeta.reduce((sum, item) => {
+    return (
+      sum + Number(item.quantity) * Number(item.wasteType.pointsPerUnit || 0)
+    );
+  }, 0);
+
+  const handleAddItem = () => {
+    if (!selectedWasteType) {
+      toast.warning("Vui lòng chọn loại rác trước khi thêm");
+      return;
+    }
+
+    const quantityNum = Number(quantity);
+    if (!quantity || Number.isNaN(quantityNum) || quantityNum <= 0) {
+      toast.warning("Vui lòng nhập khối lượng hợp lệ");
+      return;
+    }
+
+    const existingIndex = selectedItems.findIndex(
+      (item) =>
+        String(item.waste_type_id) === String(selectedWasteType.wasteTypeId),
+    );
+
+    if (existingIndex >= 0) {
+      const nextItems = [...selectedItems];
+      nextItems[existingIndex] = {
+        ...nextItems[existingIndex],
+        quantity: quantityNum,
+      };
+      setSelectedItems(nextItems);
+    } else {
+      setSelectedItems((prev) => [
+        ...prev,
+        {
+          waste_type_id: Number(selectedWasteType.wasteTypeId),
+          quantity: quantityNum,
+        },
+      ]);
+    }
+
+    setSelectedType("");
+    setQuantity("");
+  };
+
+  const handleRemoveItem = (wasteTypeId) => {
+    setSelectedItems((prev) =>
+      prev.filter((item) => String(item.waste_type_id) !== String(wasteTypeId)),
+    );
+  };
+
+  const handleOpenFilePicker = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/webp",
+      "image/gif",
+    ];
+    if (!validTypes.includes(file.type)) {
+      toast.warning("Chỉ chấp nhận ảnh JPG, PNG, WEBP hoặc GIF");
+      e.target.value = "";
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.warning("Ảnh vượt quá 5MB. Vui lòng chọn ảnh nhỏ hơn 5MB.");
+      e.target.value = "";
+      return;
+    }
+
+    if (imagePreview) {
+      URL.revokeObjectURL(imagePreview);
+    }
+
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+    e.target.value = "";
+  };
+
+  const handleRemoveNewImage = () => {
+    if (imagePreview) {
+      URL.revokeObjectURL(imagePreview);
+    }
+    setImagePreview(null);
+    setImageFile(null);
+  };
 
   const handleMapClick = async (latlng) => {
     const locationName = await reverseGeocode(latlng.lat, latlng.lng);
@@ -101,18 +237,29 @@ function EditReportDialog({
   const handleSave = () => {
     const lat = marker?.position?.[0] ?? Number(gpsLat);
     const lng = marker?.position?.[1] ?? Number(gpsLng);
-    const kg = Number(weightKg);
 
     if (Number.isNaN(lat) || Number.isNaN(lng)) {
+      toast.warning("Vui lòng chọn vị trí hợp lệ");
       return;
     }
 
+    if (selectedItems.length === 0) {
+      toast.warning("Vui lòng thêm ít nhất 1 loại rác");
+      return;
+    }
+
+    const totalWeight = selectedItems.reduce(
+      (sum, item) => sum + Number(item.quantity || 0),
+      0,
+    );
+
     onSubmit?.({
-      waste_type_id: wasteTypeId || undefined,
-      gps_lat: lat,
-      gps_lng: lng,
+      items: selectedItems,
+      gpsLat: lat,
+      gpsLng: lng,
       description: description?.trim() || "Cập nhật mô tả mới",
-      weight_kg: Number.isFinite(kg) && kg > 0 ? kg : undefined,
+      weight: totalWeight,
+      file: imageFile || undefined,
     });
   };
 
@@ -129,7 +276,7 @@ function EditReportDialog({
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="waste-type">Loại rác</Label>
-            <Select value={wasteTypeId} onValueChange={setWasteTypeId}>
+            <Select value={selectedType} onValueChange={setSelectedType}>
               <SelectTrigger className="min-w-full" id="waste-type">
                 <SelectValue placeholder="Chọn loại rác" />
               </SelectTrigger>
@@ -138,7 +285,7 @@ function EditReportDialog({
                   {wasteTypes.map((wasteType) => (
                     <SelectItem
                       key={wasteType.wasteTypeId}
-                      value={wasteType.wasteTypeId}
+                      value={String(wasteType.wasteTypeId)}
                     >
                       {wasteType.wasteTypeName}
                     </SelectItem>
@@ -150,21 +297,90 @@ function EditReportDialog({
 
           <div className="space-y-2">
             <Label htmlFor="weight-kg">Khối lượng (kg)</Label>
-            <Input
-              id="weight-kg"
-              type="number"
-              min="0"
-              step="0.1"
-              value={weightKg}
-              onChange={(e) => setWeightKg(e.target.value)}
-              placeholder="Ví dụ: 10"
+            <div className="flex gap-2">
+              <Input
+                id="weight-kg"
+                type="number"
+                min="0"
+                step="0.1"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                placeholder="Ví dụ: 10"
+              />
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            onClick={handleAddItem}
+            className="gap-1 w-full"
+          >
+            <Plus size={14} />
+            Thêm
+          </Button>
+          {selectedItemsWithMeta.length > 0 && (
+            <div className="rounded-md border bg-slate-50 p-3">
+              <ul className="space-y-2">
+                {selectedItemsWithMeta.map((item) => (
+                  <li
+                    key={item.waste_type_id}
+                    className="flex items-center justify-between rounded border bg-white px-3 py-2"
+                  >
+                    <p className="text-sm">
+                      {item.wasteType.wasteTypeName} - {item.quantity}{" "}
+                      {item.wasteType.unitType}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleRemoveItem(item.waste_type_id)}
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-3 flex items-center gap-2 text-sm font-semibold text-blue-600">
+                <CircleAlert size={14} />
+                Tổng điểm ước tính: {totalEstimatedPoints.toFixed(2)} điểm
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <Label>Ảnh báo cáo</Label>
+            <ImageSection
+              title={imageFile ? "Ảnh mới sẽ cập nhật" : "Ảnh hiện tại"}
+              image={imagePreview || currentImage}
             />
-            <p className="text-sm text-blue-500 flex items-center gap-2">
-              <TiGift size="16" />
-              {selectedWasteType
-                ? `Ước tính: ${estimatedPoints.toFixed(2)} điểm (${selectedWasteType.pointsPerUnit} điểm/${selectedWasteType.unitType})`
-                : "Chọn loại rác để xem điểm quy đổi"}
-            </p>
+
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleOpenFilePicker}
+              >
+                {imageFile ? "Thay đổi ảnh mới" : "Chọn ảnh mới"}
+              </Button>
+              {imageFile && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={handleRemoveNewImage}
+                >
+                  Bỏ ảnh mới
+                </Button>
+              )}
+            </div>
+
+            <Input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+              className="hidden"
+              onChange={handleImageChange}
+            />
           </div>
 
           <div className="space-y-2">

@@ -39,13 +39,18 @@ export function scheduleCollectorReport(reportId, scheduledCollectAt) {
 
 export function submitCollectorReportResult(reportId, payload) {
   const formData = new FormData();
-  formData.append("actualQuantity", String(payload.actualQuantity));
+  formData.append("actualItems", JSON.stringify(payload.actualItems || []));
   formData.append("quantityUnit", payload.quantityUnit || "KG");
-  formData.append("quantity_unit", payload.quantityUnit || "KG");
   formData.append("note", payload.note || "");
 
-  if (payload.file) {
-    formData.append("file", payload.file);
+  if (Array.isArray(payload.files)) {
+    payload.files.forEach((file) => {
+      if (file) {
+        formData.append("files", file);
+      }
+    });
+  } else if (payload.file) {
+    formData.append("files", payload.file);
   }
 
   return request(`/api/v1/collector/reports/${reportId}/complete`, {

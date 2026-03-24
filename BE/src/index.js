@@ -38,6 +38,7 @@ app.use('/api/v1/admin', adminRoutes)
 app.use('/api/v1/collector', require('./routes/collectorRoutes'))
 app.use('/api/v1/citizen', citizenRoutes)
 app.use('/api/v1/enterprise', enterpriseRoutes)
+app.use('/api/v1/ai', require('./routes/aiRoutes'))
 
 // Legacy or alternate prefixes (if needed by frontend)
 app.use('/api/reports', require('./routes/wasteReportRoutes'))

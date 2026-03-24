@@ -221,12 +221,13 @@ async function getReportById(userId, reportId) {
   // ✅ No status restriction — collector can view their report at any status
   // (ASSIGNED, IN_PROGRESS, COLLECTED). Ownership check above is sufficient.
 
-  // 5️⃣ Fetch citizen images + collected record.
+  // 5️⃣ Fetch citizen images + collected record + items.
   // Primary source: joined GROUP_CONCAT from findReportForCollector.
   // Fallback source: direct read from reportattachment table.
-  const [fallbackCitizenImages, collectedRecord] = await Promise.all([
+  const [fallbackCitizenImages, collectedRecord, reportItems] = await Promise.all([
     collectorReportRepository.findImagesByReportId(reportId),
-    collectorReportRepository.findCollectedRecord(reportId, userId)
+    collectorReportRepository.findCollectedRecord(reportId, userId),
+    wasteReportRepository.findWasteReportItems(reportId)
   ])
 
   const joinedUris = report.citizen_image_uris
@@ -249,13 +250,43 @@ async function getReportById(userId, reportId) {
 
   const citizenImages = [...new Set(allCitizenUris)].filter(Boolean).map((fileUri) => ({ file_uri: fileUri }))
 
+  // Lấy rewardPoint
+  const [ptRows] = await db.execute(
+    `SELECT point_transaction_id, points_delta, transaction_reason, created_at 
+     FROM pointtransaction 
+     WHERE waste_report_id = ? 
+     ORDER BY created_at DESC 
+     LIMIT 1`,
+    [reportId]
+  )
+  const rewardPoint =
+    ptRows.length > 0
+      ? {
+          pointTransactionId: ptRows[0].point_transaction_id,
+          pointsDelta: ptRows[0].points_delta,
+          transactionReason: ptRows[0].transaction_reason,
+          createdAt: ptRows[0].created_at
+        }
+      : null
+
+  // Calculate correct weight (fallback to sum of items if weight is 0)
+  const calculatedWeight = reportItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
+  const finalWeight =
+    report.weight !== null && Number(report.weight) > 0
+      ? Number(report.weight)
+      : calculatedWeight > 0
+        ? calculatedWeight
+        : null
+
+  const primaryItem = reportItems[0] || null
+  const collectedItems = Array.isArray(collectedRecord?.items) ? collectedRecord.items : []
+
   // 6️⃣ Map DTO (use alias names!)
   return {
     success: true,
     data: {
       reportId: report.waste_report_id,
       reportCode: report.reportCode || null,
-      wasteCode: report.reportCode || report.waste_report_id || null,
 
       citizen: {
         fullname: report.citizenFullname,
@@ -268,31 +299,35 @@ async function getReportById(userId, reportId) {
         phone: report.collectorPhone ?? null
       },
 
-      wasteType: {
-        id: report.wasteTypeId,
-        name: report.wasteTypeName
-      },
+      items: reportItems,
 
-      weight: report.weight !== null ? Number(report.weight) : null,
+      wasteType: primaryItem
+        ? {
+            id: primaryItem.wasteTypeId,
+            name: primaryItem.wasteTypeName
+          }
+        : null,
+
+      unitType: primaryItem?.unitType || collectedRecord?.quantity_unit || null,
+
+      weight: finalWeight,
 
       actualQuantity: collectedRecord ? Number(collectedRecord.actual_quantity_value) : null,
-
-      unitType: collectedRecord?.quantity_unit ?? report.unitType ?? null,
 
       location: {
         lat: report.lat !== null ? Number(report.lat) : null,
         lng: report.lng !== null ? Number(report.lng) : null
       },
 
-      // Backward-compatible key used by current FE pages.
-      images: citizenImages,
-
-      // Explicit alias to clarify these are original citizen report images.
       citizenImages,
+
+      images: citizenImages,
 
       collectorImages: collectedRecord
         ? [collectedRecord.file_uri, ...(collectedRecord.completion_images || [])].filter(Boolean)
         : [],
+
+      collectedItems,
 
       collectedRecord: collectedRecord
         ? {
@@ -304,11 +339,13 @@ async function getReportById(userId, reportId) {
             recordedAt: collectedRecord.recorded_at,
             fileUri: collectedRecord.file_uri,
             note: collectedRecord.note,
-            completionImages: collectedRecord.completion_images || []
+            completionImages: collectedRecord.completion_images || [],
+            items: collectedItems
           }
         : null,
 
-      status: report.status
+      status: report.status,
+      rewardPoint
     }
   }
 }
@@ -525,19 +562,31 @@ async function submitResult(collectorId, reportId, { actualQuantity, note, quant
  *
  * @param {string} collectorId
  * @param {string} reportId
- * @param {object} body  { actualQuantity, quantityUnit, note }
+ * @param {object} body  { actualItems, quantityUnit, note }
  * @param {Array}  files  multer file objects (req.files)
  */
-async function completeReport(collectorId, reportId, { actualQuantity, quantityUnit, note }, files) {
+async function completeReport(collectorId, reportId, { actualItems, quantityUnit, note }, files) {
   // 1. Account check
   const user = await userRepository.findById(collectorId)
   if (!user) throw new ApiError(404, 'User account not found')
   if (user.isLocked) throw new ApiError(403, 'Your account is locked. Please contact support.')
 
-  // 2. Validate actualQuantity
-  const qty = Number(actualQuantity)
-  if (!Number.isFinite(qty) || qty <= 0) {
-    throw new ApiError(400, 'actualQuantity must be a number greater than 0')
+  // 2. Validate actualItems
+  if (!Array.isArray(actualItems) || actualItems.length === 0) {
+    throw new ApiError(400, 'actualItems phải là một mảng và không được để trống')
+  }
+
+  let qty = 0
+  const normalizedItems = []
+  for (let i = 0; i < actualItems.length; i++) {
+    const item = actualItems[i]
+    const wId = Number(item.waste_type_id)
+    const q = Number(item.actual_quantity)
+    if (!Number.isInteger(wId) || wId <= 0 || !Number.isFinite(q) || q <= 0) {
+      throw new ApiError(400, `Item ${i + 1}: waste_type_id và actual_quantity phải hợp lệ (lớn hơn 0)`)
+    }
+    qty += q
+    normalizedItems.push({ waste_type_id: wId, actual_quantity: q })
   }
 
   // 3. Fetch report (with citizen_id and waste_type_id for points)
@@ -584,12 +633,15 @@ async function completeReport(collectorId, reportId, { actualQuantity, quantityU
       collectedRecordId,
       wasteReportId: reportId,
       collectorUserAccountId: collectorId,
-      actualQuantityValue: qty,
+      actualQuantityValue: qty, // Total quantity
       quantityUnit: quantityUnit || 'KG',
       note: note ?? null,
       fileUri: null,
       recordedAt
     })
+
+    // 7b2. Insert Collected Items
+    await collectorReportRepository.insertCollectedItems(connection, collectedRecordId, normalizedItems)
 
     // 7c. Insert CompletionAttachment for each uploaded image
     for (const url of uploadedUrls) {
@@ -613,16 +665,13 @@ async function completeReport(collectorId, reportId, { actualQuantity, quantityU
       recordedAt
     )
 
-    // 7f. Process reward (10-step: variance check, fake detection, penalties, etc.)
-    const citizenReportKg = report.weight !== null ? Number(report.weight) : qty
-    rewardResult = await rewardService.processReward(connection, {
+    // 7f. Process reward (multi-item logic)
+    rewardResult = await rewardService.processRewardMultiItems(connection, {
       citizenId: report.citizen_id,
       userAccountId: report.citizen_user_account_id,
       wasteReportId: reportId,
-      citizenReportKg,
-      collectorActualKg: qty,
-      currentTime: recordedAt,
-      wasteTypeId: report.waste_type_id
+      collectedRecordId,
+      currentTime: recordedAt
     })
     pointsAwarded = rewardResult.finalPoints
 

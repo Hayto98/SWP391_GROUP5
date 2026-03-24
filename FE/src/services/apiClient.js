@@ -23,6 +23,18 @@ const apiClient = axios.create({
   withCredentials: true,
 });
 
+// Intercept 401 responses: account deleted or locked — force re-login
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 401) {
+      localStorage.clear();
+      window.location.href = "/login";
+    }
+    return Promise.reject(error);
+  }
+);
+
 export async function request(path, options = {}) {
   const { method = "GET", headers, params, data, body, ...rest } = options;
   const requestData = data !== undefined ? data : body;

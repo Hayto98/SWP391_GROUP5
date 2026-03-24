@@ -2,6 +2,12 @@ const ApiError = require('../errors/ApiError')
 const wasteTypeRepository = require('../repositories/wasteTypeRepository')
 const rewardConfigRepository = require('../repositories/rewardConfigRepository')
 const enterpriseRepository = require('../repositories/enterpriseRepository')
+const bcrypt = require('bcryptjs')
+const { v4: uuidv4 } = require('uuid')
+const userRepository = require('../repositories/userRepository')
+const { ROLES } = require('../utils/constants')
+
+const DEFAULT_SALT_ROUNDS = 10
 
 // ==================== WASTE TYPE SERVICES ====================
 
@@ -687,6 +693,173 @@ async function getDashboardStatistics(fromDate, toDate, groupBy = 'day') {
   }
 }
 
+// ==================== EMPLOYEE (COLLECTOR) SERVICES ====================
+
+/**
+ * Enterprise tạo nhân viên (Collector)
+ * POST /enterprise/employees
+ *
+ * Business Rules:
+ * - Role cố định là ROLES.COLLECTOR (3)
+ * - Email và phone phải unique
+ * - Password bắt buộc
+ */
+async function createEmployee({ fullname, email, phone, password }) {
+  if (!fullname || !email || !phone || !password) {
+    throw new ApiError(400, 'fullname, email, phone và password là bắt buộc')
+  }
+
+  const existingByEmail = await userRepository.findByEmail(email)
+  if (existingByEmail) {
+    throw new ApiError(409, 'Email đã được đăng ký')
+  }
+
+  const existingByPhone = await userRepository.findByPhone(phone)
+  if (existingByPhone) {
+    throw new ApiError(409, 'Số điện thoại đã được đăng ký')
+  }
+
+  const userAccountId = uuidv4()
+  const saltRounds = Number(process.env.BCRYPT_SALT_ROUNDS || DEFAULT_SALT_ROUNDS)
+  const passwordHash = await bcrypt.hash(password, saltRounds)
+  const createdAt = new Date()
+
+  try {
+    await userRepository.createUser({
+      userAccountId,
+      fullname,
+      email,
+      phone,
+      passwordHash,
+      roleId: ROLES.COLLECTOR,
+      createdAt
+    })
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') {
+      throw new ApiError(409, 'Email hoặc số điện thoại đã tồn tại')
+    }
+    throw error
+  }
+
+  return {
+    userAccountId,
+    fullname,
+    email,
+    phone,
+    roleId: ROLES.COLLECTOR,
+    createdAt
+  }
+}
+
+/**
+ * Enterprise lấy nhân viên theo ID
+ * GET /enterprise/employees/:employeeId
+ */
+async function getEmployeeById(employeeId) {
+  const user = await userRepository.findById(employeeId)
+  if (!user) {
+    throw new ApiError(404, 'Nhân viên không tồn tại')
+  }
+  if (user.roleId !== ROLES.COLLECTOR) {
+    throw new ApiError(403, 'Không phải tài khoản nhân viên')
+  }
+  return user
+}
+
+/**
+ * Enterprise lấy danh sách nhân viên (Collector)
+ * GET /enterprise/employees
+ */
+async function getEmployees({ page = 1, limit = 20, keyword } = {}) {
+  const pageNum = Math.max(1, parseInt(page) || 1)
+  const limitNum = Math.max(1, Math.min(100, parseInt(limit) || 20))
+  const offset = (pageNum - 1) * limitNum
+
+  const employees = await userRepository.findAll({
+    limit: limitNum,
+    offset,
+    keyword: keyword?.trim() || undefined,
+    roleId: ROLES.COLLECTOR
+  })
+
+  const total = await userRepository.countAll({
+    keyword: keyword?.trim() || undefined,
+    roleId: ROLES.COLLECTOR
+  })
+
+  return {
+    data: employees,
+    total,
+    page: pageNum,
+    limit: limitNum,
+    totalPages: Math.ceil(total / limitNum)
+  }
+}
+
+/**
+ * Enterprise thống kê công việc của nhân viên (Collector)
+ * GET /enterprise/employees/statistics
+ */
+async function getEmployeeStatistics({ page = 1, limit = 20, month, year } = {}) {
+  const pageNum = Math.max(1, parseInt(page) || 1)
+  const limitNum = Math.max(1, Math.min(100, parseInt(limit) || 20))
+  const offset = (pageNum - 1) * limitNum
+
+  const result = await enterpriseRepository.getEmployeeStatistics({
+    limit: limitNum,
+    offset,
+    month,
+    year
+  })
+
+  // Format data
+  const formattedData = result.data.map(emp => ({
+    employeeId: emp.employeeId,
+    employeeName: emp.employeeName,
+    employeeEmail: emp.employeeEmail,
+    totalAssigned: Number(emp.totalAssigned) || 0,
+    totalCompleted: Number(emp.totalCompleted) || 0,
+    totalRejected: Number(emp.totalRejected) || 0,
+    completionRate: emp.totalAssigned > 0 
+      ? Math.round((Number(emp.totalCompleted) / Number(emp.totalAssigned)) * 100) 
+      : 0
+  }))
+
+  return {
+    data: formattedData,
+    total: result.total,
+    page: pageNum,
+    limit: limitNum,
+    totalPages: Math.ceil(result.total / limitNum)
+  }
+}
+
+/**
+ * Enterprise xóa nhân viên (Collector) — soft delete
+ * DELETE /enterprise/employees/:employeeId
+ *
+ * Business Rules:
+ * - Nhân viên phải tồn tại và có roleId = COLLECTOR
+ * - Dùng soft delete (is_locked = 1, ban_reason = 'Account deactivated')
+ */
+async function deleteEmployee(employeeId) {
+  const user = await userRepository.findById(employeeId)
+  if (!user) {
+    throw new ApiError(404, 'Nhân viên không tồn tại')
+  }
+
+  if (user.roleId !== ROLES.COLLECTOR) {
+    throw new ApiError(403, 'Chỉ có thể xóa tài khoản nhân viên (Collector)')
+  }
+
+  await userRepository.softDeleteUser(employeeId)
+
+  return {
+    success: true,
+    message: 'Nhân viên đã được xóa'
+  }
+}
+
 module.exports = {
   // WasteType
   createWasteType,
@@ -702,5 +875,12 @@ module.exports = {
   getAllRewardConfigs,
   getRewardConfigById,
   getRewardConfigByWasteTypeId,
-  getDashboardStatistics
+  getDashboardStatistics,
+
+  // Employee
+  createEmployee,
+  getEmployees,
+  getEmployeeById,
+  deleteEmployee,
+  getEmployeeStatistics
 }

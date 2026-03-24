@@ -13,6 +13,21 @@ export function createWasteReport(payload) {
   });
 }
 
+export async function processAIPredictWaste(file) {
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const data = await request("/api/v1/ai/predict-waste", {
+      method: "POST",
+      data: formData,
+    });
+    return data;
+  } catch (error) {
+    throw error;
+  }
+}
+
 export function getMyReports(params = {}) {
   return request("/api/reports/my", {
     method: "GET",

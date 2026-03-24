@@ -330,7 +330,8 @@ async function hasActiveReports(wasteTypeId) {
   const query = `
     SELECT COUNT(*) AS count
     FROM wastereport wr
-    WHERE wr.waste_type_id = ?
+    JOIN waste_report_item wri ON wr.waste_report_id = wri.waste_report_id
+    WHERE wri.waste_type_id = ?
       AND (
         SELECT rst.status_name
         FROM reportstatushistory rsh
@@ -353,7 +354,8 @@ async function countActiveReports(wasteTypeId) {
   const query = `
     SELECT COUNT(*) AS count
     FROM wastereport wr
-    WHERE wr.waste_type_id = ?
+    JOIN waste_report_item wri ON wr.waste_report_id = wri.waste_report_id
+    WHERE wri.waste_type_id = ?
       AND (
         (SELECT rst.status_name
          FROM reportstatushistory rsh

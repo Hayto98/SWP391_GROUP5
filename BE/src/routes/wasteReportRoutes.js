@@ -8,7 +8,7 @@ const router = express.Router()
 router.post('/', verifyToken, uploadSingle, wasteReportController.createReport)
 router.get('/my', verifyToken, wasteReportController.getMyReports)
 router.get('/:id', verifyToken, wasteReportController.getReportById)
-router.put('/:id', verifyToken, wasteReportController.updateReport)
+router.put('/:id', verifyToken, uploadSingle, wasteReportController.updateReport)
 router.delete('/:id', verifyToken, wasteReportController.deleteReport)
 
 module.exports = router
