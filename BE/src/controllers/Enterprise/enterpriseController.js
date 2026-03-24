@@ -190,6 +190,18 @@ async function createEmployee(req, res, next) {
 }
 
 /**
+ * GET /enterprise/employees - Lấy danh sách nhân viên
+ */
+async function getEmployees(req, res, next) {
+  try {
+    const result = await enterpriseService.getEmployees(req.query)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
  * DELETE /enterprise/employees/:employeeId - Enterprise xóa nhân viên
  */
 async function deleteEmployee(req, res, next) {
@@ -222,5 +234,6 @@ module.exports = {
 
   // Employee
   createEmployee,
+  getEmployees,
   deleteEmployee
 }

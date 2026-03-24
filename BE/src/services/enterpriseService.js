@@ -752,6 +752,36 @@ async function createEmployee({ fullname, email, phone, password }) {
 }
 
 /**
+ * Enterprise lấy danh sách nhân viên (Collector)
+ * GET /enterprise/employees
+ */
+async function getEmployees({ page = 1, limit = 20, keyword } = {}) {
+  const pageNum = Math.max(1, parseInt(page) || 1)
+  const limitNum = Math.max(1, Math.min(100, parseInt(limit) || 20))
+  const offset = (pageNum - 1) * limitNum
+
+  const employees = await userRepository.findAll({
+    limit: limitNum,
+    offset,
+    keyword: keyword?.trim() || undefined,
+    roleId: ROLES.COLLECTOR
+  })
+
+  const total = await userRepository.countAll({
+    keyword: keyword?.trim() || undefined,
+    roleId: ROLES.COLLECTOR
+  })
+
+  return {
+    data: employees,
+    total,
+    page: pageNum,
+    limit: limitNum,
+    totalPages: Math.ceil(total / limitNum)
+  }
+}
+
+/**
  * Enterprise xóa nhân viên (Collector) — soft delete
  * DELETE /enterprise/employees/:employeeId
  *
@@ -796,5 +826,6 @@ module.exports = {
 
   // Employee
   createEmployee,
+  getEmployees,
   deleteEmployee
 }
