@@ -1,3 +1,15 @@
+// CollectorAvatar: Hiển thị avatar chữ cái đầu của collector
+const CollectorAvatar = ({ name }) => {
+  const parts = String(name || "")
+    .split(" ")
+    .filter(Boolean);
+  const seed = (parts[0]?.[0] || "") + (parts[parts.length - 1]?.[0] || "");
+  return (
+    <div className="h-9 w-9 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-xs font-semibold">
+      {seed.toUpperCase()}
+    </div>
+  );
+};
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -89,6 +101,18 @@ const TimelineItem = ({ item }) => (
   </div>
 );
 
+import { useMap } from "react-leaflet";
+
+function MapUpdater({ center }) {
+  const map = useMap();
+  useEffect(() => {
+    if (center?.lat && center?.lng) {
+      map.setView([center.lat, center.lng], map.getZoom());
+    }
+  }, [center, map]);
+  return null;
+}
+
 function ReportMapCanvas({ center, location }) {
   return (
     <MapContainer
@@ -96,6 +120,7 @@ function ReportMapCanvas({ center, location }) {
       zoom={13}
       className="h-90 w-full rounded-lg z-0"
     >
+      <MapUpdater center={center} />
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -447,47 +472,49 @@ export default function ReportDetail() {
                 title="Gán collector cho báo cáo đã được chấp nhận"
                 onClick={openAssignPopup}
               >
-                Gán collector
+                Gán
               </Button>
             )}
-            {/* Chấp nhận */}
-            <Button
-              variant="outline"
-              className={
-                canAccept || rawStatus === "ACCEPTED"
-                  ? "bg-[#4CAF50] text-white border-[#4CAF50] shadow font-bold hover:bg-[#388E3C] hover:border-[#388E3C] hover:text-white focus:text-white active:text-white disabled:bg-[#4CAF50] disabled:text-white disabled:border-[#4CAF50]"
-                  : "text-[#4CAF50] border-[#A5D6A7] hover:bg-[#E8F5E9] hover:text-[#4CAF50] focus:text-[#4CAF50] active:text-[#4CAF50]"
-              }
-              type="button"
-              disabled={!canAccept || actionLoading !== ""}
-              title={
-                canAccept
-                  ? "Chấp nhận báo cáo"
-                  : "Chỉ có thể chấp nhận khi báo cáo đang PENDING"
-              }
-              onClick={() => handleAction("accept")}
-            >
-              {actionLoading === "accept" ? "..." : "Chấp nhận"}
-            </Button>
-            {/* Từ chối */}
-            <Button
-              variant="outline"
-              className={
-                canReject || rawStatus === "REJECTED"
-                  ? "bg-[#F44336] text-white border-[#F44336] shadow font-bold hover:bg-[#C62828] hover:border-[#C62828] hover:text-white focus:text-white active:text-white"
-                  : "text-[#F44336] border-[#FFCDD2] hover:bg-[#FFEBEE] hover:text-[#F44336] focus:text-[#F44336] active:text-[#F44336]"
-              }
-              type="button"
-              disabled={!canReject || actionLoading !== ""}
-              title={
-                canReject
-                  ? "Từ chối báo cáo"
-                  : "Chỉ có thể từ chối khi báo cáo đang PENDING"
-              }
-              onClick={openRejectPopup}
-            >
-              {actionLoading === "reject" ? "..." : "Từ chối"}
-            </Button>
+            {/* Chỉ hiển thị 2 nút khi trạng thái là PENDING */}
+            {rawStatus === "PENDING" && <>
+              <Button
+                variant="outline"
+                className={
+                  (canAccept || rawStatus === "ACCEPTED"
+                    ? "bg-[#4CAF50] text-white border-[#4CAF50] shadow font-bold hover:bg-[#388E3C] hover:border-[#388E3C] hover:text-white focus:text-white active:text-white disabled:bg-[#4CAF50] disabled:text-white disabled:border-[#4CAF50]"
+                    : "text-[#4CAF50] border-[#A5D6A7] hover:bg-[#E8F5E9] hover:text-[#4CAF50] focus:text-[#4CAF50] active:text-[#4CAF50]")
+                }
+                type="button"
+                disabled={!canAccept || actionLoading !== ""}
+                title={
+                  canAccept
+                    ? "Chấp nhận báo cáo"
+                    : "Chỉ có thể chấp nhận khi báo cáo đang PENDING"
+                }
+                onClick={() => handleAction("accept")}
+              >
+                {actionLoading === "accept" ? "..." : "Chấp nhận"}
+              </Button>
+              {/* Từ chối */}
+              <Button
+                variant="outline"
+                className={
+                  (canReject || rawStatus === "REJECTED"
+                    ? "bg-[#F44336] text-white border-[#F44336] shadow font-bold hover:bg-[#C62828] hover:border-[#C62828] hover:text-white focus:text-white active:text-white"
+                    : "text-[#F44336] border-[#FFCDD2] hover:bg-[#FFEBEE] hover:text-[#F44336] focus:text-[#F44336] active:text-[#F44336]")
+                }
+                type="button"
+                disabled={!canReject || actionLoading !== ""}
+                title={
+                  canReject
+                    ? "Từ chối báo cáo"
+                    : "Chỉ có thể từ chối khi báo cáo đang PENDING"
+                }
+                onClick={openRejectPopup}
+              >
+                {actionLoading === "reject" ? "..." : "Từ chối"}
+              </Button>
+            </>}
 
             {/* Quay về */}
             <Button
@@ -526,10 +553,10 @@ export default function ReportDetail() {
           }}
         >
           <div>
-            <div className="p-6 border-b">
+            <div className="flex items-start justify-between gap-4 p-6 border-b">
               <div>
                 <h2 className="text-xl font-semibold">
-                  Gán collector cho báo cáo {reportCodeText}
+                  Gán cho báo cáo {selectedReport?.reportCode || reportCodeText}
                 </h2>
                 <p className="text-sm text-muted-foreground mt-1">
                   Chọn collector.
@@ -548,49 +575,57 @@ export default function ReportDetail() {
 
             {!assignLoading && !assignError && selectedReport && (
               <>
-                <Card className="mx-6 mt-6">
-                  <CardContent className="p-4 space-y-2">
-                    <div className="font-medium">
-                      Báo cáo {reportCodeText} • {selectedReport.status}
-                    </div>
-                    <div className="text-sm text-muted-foreground flex items-center gap-2">
-                      <MapPin className="size-4" />
-                      <span>{selectedReport.address}</span>
-                    </div>
-                    <div className="text-sm text-muted-foreground flex items-center gap-2">
-                      <Clock3 className="size-4" />
-                      <span>{selectedReport.weightEstimate}</span>
-                    </div>
-                  </CardContent>
-                </Card>
+                <div className="mx-6 mt-6 rounded-lg border p-4 space-y-2">
+                  <div className="font-medium">
+                    Báo cáo {selectedReport?.reportCode || reportCodeText} • {selectedReport?.status || "-"}
+                  </div>
+                  <div className="text-sm text-muted-foreground flex items-center gap-2">
+                    <MapPin className="size-4" />
+                    <span>{resolvedAddress || "-"}</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground flex items-center gap-2">
+                    <span className="font-medium">Loại rác:</span>
+                    <span>{selectedReport?.wasteType || selectedReport?.waste || "-"}</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground flex items-center gap-2">
+                    <Clock3 className="size-4" />
+                    <span>
+                      {selectedReport?.createdAt
+                        ? new Date(selectedReport.createdAt).toLocaleString("vi-VN")
+                        : "Chưa cập nhật"}
+                    </span>
+                  </div>
+                </div>
 
                 {!collectors.length ? (
                   <div className="p-6 text-sm text-muted-foreground">
                     Hiện chưa có collector khả dụng.
                   </div>
                 ) : (
-                  <div className="p-6">
+                  <div className="p-6 pt-4">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>COLLECTOR</TableHead>
-                          <TableHead className="text-right">THAO TÁC</TableHead>
+                          <TableHead>Collector</TableHead>
+                          <TableHead className="text-right">Thao tác</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {collectors.map((collector) => (
                           <TableRow key={collector.id}>
                             <TableCell>
-                              <div>
-                                <div className="font-medium">
-                                  {collector.name}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {collector.status}
+                              <div className="flex items-center gap-3">
+                                <CollectorAvatar name={collector.name} />
+                                <div>
+                                  <div className="font-medium">
+                                    {collector.name}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {collector.status}
+                                  </div>
                                 </div>
                               </div>
                             </TableCell>
-
                             <TableCell className="text-right">
                               <Button
                                 type="button"
