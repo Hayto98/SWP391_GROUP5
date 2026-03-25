@@ -95,6 +95,7 @@ async function getPointHistory(userAccountId, { fromDate, toDate, type, page, li
     success: true,
     data: rows.map(r => ({
       transactionId: r.transactionId,
+      wasteReportId: r.wasteReportId || null,
       type: r.type,
       points: Number(r.points),
       reason: r.reason,
