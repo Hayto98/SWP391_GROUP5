@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { getEnterpriseOverview } from "../services/enterpriseOverview.service";
 
-export function useEnterpriseOverview(range) {
+export function useEnterpriseOverview(params) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -10,14 +10,14 @@ export function useEnterpriseOverview(range) {
     setLoading(true);
     setError("");
     try {
-      const res = await getEnterpriseOverview(range);
+      const res = await getEnterpriseOverview(params);
       setData(res);
     } catch (e) {
       setError(e?.message || "Có lỗi xảy ra");
     } finally {
       setLoading(false);
     }
-  }, [range]);
+  }, [params]);
 
   useEffect(() => {
     fetchData();

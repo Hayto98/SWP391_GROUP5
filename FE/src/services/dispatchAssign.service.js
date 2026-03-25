@@ -32,6 +32,7 @@ function mapReportToSelectedReport(report, fallbackReportId) {
       : "Chưa có tọa độ",
     weightEstimate: formatWeightEstimate(report?.weight),
     location: hasLocation ? { lat, lng } : { ...DEFAULT_LOCATION },
+    createdAt: report?.createdAt || report?.created_at || null,
   };
 }
 
