@@ -711,7 +711,7 @@ async function completeReport(collectorId, reportId, { actualItems, quantityUnit
           notificationType: NOTIFICATION_TYPES.REPORT_COMPLETED,
           recipientUserAccountId: ent.userAccountId,
           wasteReportId: reportId,
-          message: `Báo cáo rác thải (${report.report_code || reportId}) đã được hoàn thành bởi người thu gom.`
+          message: `Báo cáo rác tái chế (${report.report_code || reportId}) đã được hoàn thành bởi người thu gom.`
         },
         connection
       )
