@@ -36,6 +36,7 @@ router.delete('/report-complaints/:complaintId', complaintController.deleteCompl
 
 // --- NOTIFICATIONS ---
 router.get('/notifications', notificationController.getNotifications)
+router.patch('/notifications/read-all', notificationController.markAllAsRead)
 router.patch('/notifications/:notificationId/read', notificationController.markAsRead)
 
 // --- CITIZEN INFO ---
