@@ -179,8 +179,9 @@ async function createReport(
 /**
  * Tạo attachment cho WasteReport (lưu vào bảng ReportAttachment)
  */
-async function createReportAttachment({ reportAttachmentId, wasteReportId, fileUri, uploadedAt }) {
-  await db.execute(
+async function createReportAttachment({ reportAttachmentId, wasteReportId, fileUri, uploadedAt }, connection = null) {
+  const conn = connection || db
+  await conn.execute(
     `INSERT INTO reportattachment
       (report_attachment_id, waste_report_id, file_uri, uploaded_at)
      VALUES (?, ?, ?, ?)`,
@@ -671,7 +672,8 @@ async function findReportById(reportId) {
  * Cập nhật thông tin báo cáo rác thải
  * Chỉ dùng để cập nhật các trường cơ bản (không ảnh hưởng Status)
  */
-async function updateReportById(reportId, updateData) {
+async function updateReportById(reportId, updateData, connection = null) {
+  const conn = connection || db
   const fields = []
   const values = []
 
@@ -702,7 +704,7 @@ async function updateReportById(reportId, updateData) {
   const query = `UPDATE wastereport SET ${fields.join(', ')} WHERE waste_report_id = ?`
   values.push(reportId)
 
-  const [result] = await db.execute(query, values)
+  const [result] = await conn.execute(query, values)
   return result.affectedRows > 0
 }
 

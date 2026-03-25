@@ -13,8 +13,12 @@ async function createReport(req, res, next) {
   try {
     const userAccountId = req.user.sub
     const { gpsLat, gpsLng, description, weight, fileUri } = req.body
-    const fileBuffer = req.file ? req.file.buffer : null
-    const fileMimetype = req.file ? req.file.mimetype : null
+    const files = req.files || []
+
+    if (files.length > 5) {
+      throw new ApiError(400, 'Bạn chỉ được phép tải lên tối đa 5 ảnh.')
+    }
+
     const parsedWeight =
       weight !== undefined && weight !== null && String(weight).trim() !== '' ? parseFloat(weight) : null
 
@@ -35,8 +39,7 @@ async function createReport(req, res, next) {
       gpsLng: parseFloat(gpsLng),
       description,
       weight: parsedWeight,
-      fileBuffer,
-      fileMimetype,
+      files,
       fileUriFromBody: fileUri || null
     })
 
@@ -54,7 +57,7 @@ async function createReport(req, res, next) {
         gpsLat: report.gpsLat,
         gpsLng: report.gpsLng,
         weight: totalWeight,
-        fileUrl: report.attachments?.[0]?.fileUri || report.images?.[0]?.file_uri || null,
+        images: report.images || [],
         status: report.status,
         createdAt: report.createdAt,
         isSpam: report.isSpam,
@@ -132,10 +135,11 @@ async function updateReport(req, res, next) {
     }
 
     // Hỗ trợ file upload (multipart)
-    if (req.file) {
-      updateData.fileBuffer = req.file.buffer
-      updateData.fileMimetype = req.file.mimetype
+    const files = req.files || []
+    if (files.length > 5) {
+      throw new ApiError(400, 'Bạn chỉ được phép tải lên tối đa 5 ảnh.')
     }
+    updateData.files = files
 
     const result = await wasteReportService.updateReport(reportId, userAccountId, updateData)
 

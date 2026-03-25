@@ -105,17 +105,7 @@ function validateItems(items) {
  * Validate và tạo mới một WasteReport — supports multipart/form-data with image upload.
  * Hỗ trợ nhiều loại rác thông qua items array.
  */
-async function createReport({
-  userAccountId,
-  items,
-  gpsLat,
-  gpsLng,
-  description,
-  weight,
-  fileBuffer,
-  fileMimetype,
-  fileUriFromBody
-}) {
+async function createReport({ userAccountId, items, gpsLat, gpsLng, description, weight, files, fileUriFromBody }) {
   // ── Validation ──────────────────────────────────────────────
   const errors = []
 
@@ -163,19 +153,29 @@ async function createReport({
     ])
   }
 
+  // ── Upload limit validation ────────────────────────────────
+  const filesToUpload = files || []
+  if (filesToUpload.length > 5) {
+    throw new ApiError(400, 'Bạn chỉ được phép tải lên tối đa 5 ảnh.')
+  }
+
   // ── Resolve citizenId from userAccountId ─────────────────────
   const citizenId = await wasteReportRepository.ensureCitizenIdByUserAccountId(userAccountId)
   if (!citizenId) {
     throw new ApiError(403, 'Chỉ Citizen mới được tạo báo cáo rác thải.')
   }
 
-  // ── Upload image to Cloudinary (if file uploaded) or use URL from body ──
-  let imageUrl = null
-  if (fileBuffer) {
-    imageUrl = await uploadBufferToCloudinary(fileBuffer, fileMimetype || 'image/jpeg')
+  // ── Upload images to Cloudinary (if files uploaded) or use URL from body ──
+  let imageUrls = []
+  if (filesToUpload.length > 0) {
+    const uploadPromises = filesToUpload.map((file) =>
+      uploadBufferToCloudinary(file.buffer, file.mimetype || 'image/jpeg')
+    )
+    imageUrls = await Promise.all(uploadPromises)
   } else if (fileUriFromBody) {
-    imageUrl = fileUriFromBody
+    imageUrls = [fileUriFromBody]
   }
+  const primaryImageUrl = imageUrls.length > 0 ? imageUrls[0] : null
 
   // ── Generate unique Code and Persist using transaction ────
   let created = null
@@ -205,7 +205,7 @@ async function createReport({
       gpsLat,
       gpsLng,
       description: description.trim(),
-      fileUri: imageUrl || null,
+      fileUri: primaryImageUrl || null,
       currentTime
     })
 
@@ -228,11 +228,27 @@ async function createReport({
         gpsLng,
         description: description.trim(),
         weight: normalizedWeight,
-        fileUri: imageUrl || null,
+        fileUri: primaryImageUrl || null,
         isDuplicate: duplicateResult.isDuplicate
       },
       connection
     )
+
+    // Lọc ảnh đầu tiên (đã lưu ở file_uri của wastereport) và lưu các ảnh còn lại vào reportattachment (hoặc lưu tất cả)
+    // Tùy theo thiết kế, ta lưu tất cả các ảnh vào reportattachment để dễ truy xuất
+    if (imageUrls.length > 0) {
+      for (const url of imageUrls) {
+        await wasteReportRepository.createReportAttachment(
+          {
+            reportAttachmentId: uuidv4(),
+            wasteReportId: created.wasteReportId,
+            fileUri: url,
+            uploadedAt: new Date()
+          },
+          connection
+        )
+      }
+    }
 
     await connection.commit()
     isTransactionCommitted = true
@@ -278,7 +294,7 @@ async function createReport({
     gpsLng,
     description: description.trim(),
     weight: normalizedWeight,
-    images: imageUrl ? [{ file_uri: imageUrl }] : [],
+    images: imageUrls.length > 0 ? imageUrls.map((url) => ({ file_uri: url })) : [],
     status: 'PENDING',
     isSpam: spamResult?.isSpam || false,
     spamMessage: spamResult?.isSpam ? spamResult.message : undefined,
@@ -449,12 +465,18 @@ async function updateReport(reportId, userAccountId, updateData) {
     normalizedData.weight = parsedWeightKg
   }
 
-  // Upload file to Cloudinary if provided
-  const fileBuffer = updateData?.fileBuffer
-  const fileMimetype = updateData?.fileMimetype
-  if (fileBuffer) {
-    const imageUrl = await uploadBufferToCloudinary(fileBuffer, fileMimetype || 'image/jpeg')
-    normalizedData.file_uri = imageUrl
+  // Upload files to Cloudinary if provided
+  const filesToUpload = updateData?.files || []
+  let imageUrls = []
+
+  if (filesToUpload.length > 0) {
+    const uploadPromises = filesToUpload.map((file) =>
+      uploadBufferToCloudinary(file.buffer, file.mimetype || 'image/jpeg')
+    )
+    imageUrls = await Promise.all(uploadPromises)
+    if (imageUrls.length > 0) {
+      normalizedData.file_uri = imageUrls[0]
+    }
   }
 
   const fileUri = updateData?.file_uri ?? updateData?.fileUri ?? updateData?.attachments?.[0]?.fileUri
@@ -465,19 +487,35 @@ async function updateReport(reportId, userAccountId, updateData) {
   // Check if there's anything to update
   const hasFieldUpdates = Object.keys(normalizedData).length > 0
   const hasItemUpdates = normalizedItems !== null
+  const hasAttachmentUpdates = imageUrls.length > 0
 
-  if (!hasFieldUpdates && !hasItemUpdates) {
+  if (!hasFieldUpdates && !hasItemUpdates && !hasAttachmentUpdates) {
     throw new ApiError(400, 'Không có trường hợp lệ nào để cập nhật.')
   }
 
-  // 5. Use transaction for REPLACE strategy on items
+  // 5. Use transaction for REPLACE strategy on items + attachments
   const connection = await db.getConnection()
   try {
     await connection.beginTransaction()
 
     // Update basic fields on wastereport table
     if (hasFieldUpdates) {
-      await wasteReportRepository.updateReportById(reportId, normalizedData)
+      await wasteReportRepository.updateReportById(reportId, normalizedData, connection)
+    }
+
+    // Insert new attachments if any
+    if (hasAttachmentUpdates) {
+      for (const url of imageUrls) {
+        await wasteReportRepository.createReportAttachment(
+          {
+            reportAttachmentId: uuidv4(),
+            wasteReportId: reportId,
+            fileUri: url,
+            uploadedAt: new Date()
+          },
+          connection
+        )
+      }
     }
 
     // REPLACE strategy: DELETE old items → INSERT new items
