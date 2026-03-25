@@ -59,8 +59,21 @@ function WasteRing({ percent, totalText, totalSubText }) {
 
   return (
     <div className="relative size-40">
-      <svg className="size-40 -rotate-90" viewBox="0 0 128 128" role="img" aria-label="Waste ring chart">
-        <circle cx="64" cy="64" r={radius} fill="none" stroke="currentColor" strokeWidth="10" className="text-slate-200" />
+      <svg
+        className="size-40 -rotate-90"
+        viewBox="0 0 128 128"
+        role="img"
+        aria-label="Waste ring chart"
+      >
+        <circle
+          cx="64"
+          cy="64"
+          r={radius}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="10"
+          className="text-slate-200"
+        />
         <circle
           cx="64"
           cy="64"
@@ -77,7 +90,9 @@ function WasteRing({ percent, totalText, totalSubText }) {
 
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
         <p className="text-2xl font-black tracking-tight">{totalText || "-"}</p>
-        <p className="text-[11px] font-semibold text-muted-foreground">{totalSubText || "TỔNG CỘNG"}</p>
+        <p className="text-[11px] font-semibold text-muted-foreground">
+          {totalSubText || "TỔNG CỘNG"}
+        </p>
       </div>
     </div>
   );
@@ -87,13 +102,13 @@ export default function EnterpriseOverview() {
   // State cho filter dashboard
   const [fromDate, setFromDate] = useState(() => {
     const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01 00:00:00`;
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01 00:00:00`;
   });
   const [toDate, setToDate] = useState(() => {
     const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-31 23:59:59`;
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-31 23:59:59`;
   });
-  const [groupBy, setGroupBy] = useState('month');
+  const [groupBy, setGroupBy] = useState("month");
 
   // State filter thực tế dùng cho API
   const [filter, setFilter] = useState({ fromDate, toDate, groupBy });
@@ -167,15 +182,21 @@ export default function EnterpriseOverview() {
   return (
     <div className="space-y-6">
       <div className="mb-6">
-        <h1 className="text-lg font-bold tracking-tight lg:text-2xl">Dashboard tổng quan doanh nghiệp</h1>
-        <p className="mt-1 text-sm text-green-600">Theo dõi hiệu suất thu gom, chất lượng phân loại và nguy cơ SLA.</p>
+        <h1 className="text-lg font-bold tracking-tight lg:text-2xl">
+          Dashboard tổng quan doanh nghiệp
+        </h1>
+        <p className="mt-1 text-sm text-green-600">
+          Theo dõi hiệu suất thu gom, chất lượng phân loại và nguy cơ SLA.
+        </p>
       </div>
 
       <Card>
         <CardContent className="flex flex-col gap-3 py-4 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm font-semibold">RecycleCorp</p>
-            <p className="text-xs text-muted-foreground">Quản trị doanh nghiệp</p>
+            <p className="text-xs text-muted-foreground">
+              Quản trị doanh nghiệp
+            </p>
           </div>
 
           <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto items-center">
@@ -183,7 +204,7 @@ export default function EnterpriseOverview() {
             <input
               type="date"
               value={fromDate.slice(0, 10)}
-              onChange={e => setFromDate(`${e.target.value} 00:00:00`)}
+              onChange={(e) => setFromDate(`${e.target.value} 00:00:00`)}
               className="border rounded px-2 py-1 text-sm"
               style={{ minWidth: 120 }}
             />
@@ -191,13 +212,13 @@ export default function EnterpriseOverview() {
             <input
               type="date"
               value={toDate.slice(0, 10)}
-              onChange={e => setToDate(`${e.target.value} 23:59:59`)}
+              onChange={(e) => setToDate(`${e.target.value} 23:59:59`)}
               className="border rounded px-2 py-1 text-sm"
               style={{ minWidth: 120 }}
             />
             <select
               value={groupBy}
-              onChange={e => setGroupBy(e.target.value)}
+              onChange={(e) => setGroupBy(e.target.value)}
               className="border rounded px-2 py-1 text-sm ml-2"
             >
               <option value="day">Theo ngày</option>
@@ -219,32 +240,14 @@ export default function EnterpriseOverview() {
         </CardContent>
       </Card>
 
-      <Card className="border-red-200 bg-red-50/70">
-        <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 rounded-lg border border-red-200 bg-white p-2 text-red-600">
-              <AlertTriangle className="size-4" />
-            </div>
-            <div>
-              <p className="font-semibold text-red-800">Cảnh báo SLA sắp vi phạm</p>
-              <p className="text-sm text-red-700">
-                Có <b>{data.summary?.slaWarning ?? 0}</b> đơn hàng sắp vượt quá thời gian cam kết xử lý.
-              </p>
-            </div>
-          </div>
-
-          <Button variant="destructive" size="sm">
-            Kiểm tra ngay
-          </Button>
-        </CardContent>
-      </Card>
-
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((item) => (
           <Card key={item.title}>
             <CardContent className="space-y-3 py-4">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{item.title}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {item.title}
+                </p>
                 <span
                   className={[
                     "flex size-8 items-center justify-center rounded-md border",
@@ -254,7 +257,9 @@ export default function EnterpriseOverview() {
                   {item.icon}
                 </span>
               </div>
-              <p className="text-3xl font-black leading-none tracking-tight">{item.value}</p>
+              <p className="text-3xl font-black leading-none tracking-tight">
+                {item.value}
+              </p>
               {/* Đã xoá sub */}
             </CardContent>
           </Card>
@@ -266,7 +271,9 @@ export default function EnterpriseOverview() {
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle className="text-base">Sản lượng thu gom</CardTitle>
-              <CardDescription>So sánh xu hướng theo từng chu kỳ vận hành.</CardDescription>
+              <CardDescription>
+                So sánh xu hướng theo từng chu kỳ vận hành.
+              </CardDescription>
             </div>
 
             {/* Range buttons removed: API does not support range switching */}
@@ -276,13 +283,21 @@ export default function EnterpriseOverview() {
             {activeChart ? (
               <div className="flex h-64 items-end gap-3 rounded-lg border bg-slate-50 px-3 py-4">
                 {activeChart.values.map((value, index) => {
-                  const height = Math.max(8, Math.round((value / maxChartValue) * 100));
+                  const height = Math.max(
+                    8,
+                    Math.round((value / maxChartValue) * 100),
+                  );
                   const label = activeChart.labels[index];
                   const isHighlight = value === highlightValue;
 
                   return (
-                    <div key={`${label}-${index}`} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
-                      <span className="text-[11px] font-semibold text-slate-600">{value}</span>
+                    <div
+                      key={`${label}-${index}`}
+                      className="flex h-full flex-1 flex-col items-center justify-end gap-2"
+                    >
+                      <span className="text-[11px] font-semibold text-slate-600">
+                        {value}
+                      </span>
                       <div
                         className={[
                           "w-full max-w-12 rounded-md border transition-all",
@@ -292,13 +307,17 @@ export default function EnterpriseOverview() {
                         ].join(" ")}
                         style={{ height: `${height}%` }}
                       />
-                      <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
+                      <span className="text-[11px] font-medium text-muted-foreground">
+                        {label}
+                      </span>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">Không có dữ liệu chart.</p>
+              <p className="text-sm text-muted-foreground">
+                Không có dữ liệu chart.
+              </p>
             )}
           </CardContent>
         </Card>
@@ -306,7 +325,9 @@ export default function EnterpriseOverview() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Phân loại rác thải</CardTitle>
-            <CardDescription>Tổng hợp tỉ lệ theo nhóm vật liệu thu gom.</CardDescription>
+            <CardDescription>
+              Tổng hợp tỉ lệ theo nhóm vật liệu thu gom.
+            </CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-4">
@@ -333,7 +354,9 @@ export default function EnterpriseOverview() {
                     />
                     <span className="text-sm font-medium">{item.label}</span>
                   </div>
-                  <span className="text-sm font-semibold text-muted-foreground">{item.percent}%</span>
+                  <span className="text-sm font-semibold text-muted-foreground">
+                    {item.percent}%
+                  </span>
                 </div>
               ))}
             </div>
@@ -345,7 +368,9 @@ export default function EnterpriseOverview() {
         <CardHeader className="flex flex-row items-center justify-between gap-3">
           <div>
             <CardTitle className="text-base">Hoạt động gần đây</CardTitle>
-            <CardDescription>Cập nhật tiến độ đơn hàng và trạng thái xử lý.</CardDescription>
+            <CardDescription>
+              Cập nhật tiến độ đơn hàng và trạng thái xử lý.
+            </CardDescription>
           </div>
           <Button variant="ghost" size="sm">
             Xem tất cả
@@ -364,10 +389,12 @@ export default function EnterpriseOverview() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-
                 {activities.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
+                    <TableCell
+                      colSpan={4}
+                      className="py-6 text-center text-muted-foreground"
+                    >
                       Không có dữ liệu hoạt động.
                     </TableCell>
                   </TableRow>
@@ -375,13 +402,17 @@ export default function EnterpriseOverview() {
 
                 {activities.map((activity) => (
                   <TableRow key={activity.code}>
-                    <TableCell className="font-mono text-xs font-semibold">{activity.code}</TableCell>
+                    <TableCell className="font-mono text-xs font-semibold">
+                      {activity.code}
+                    </TableCell>
                     <TableCell>{activity.type}</TableCell>
                     <TableCell>{activity.time}</TableCell>
                     <TableCell>
                       <Badge
                         variant="outline"
-                        className={activityTone[activity.badge] || activityTone.default}
+                        className={
+                          activityTone[activity.badge] || activityTone.default
+                        }
                       >
                         {activity.status}
                       </Badge>

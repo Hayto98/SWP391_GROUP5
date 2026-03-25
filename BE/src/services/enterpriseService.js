@@ -199,15 +199,15 @@ async function getAllWasteTypes({ isActive, unitType, includeInactiveReward } = 
     // createdAt intentionally omitted per API spec
     rewardConfig: wt.rewardConfig
       ? {
-        rewardConfigId: wt.rewardConfig.rewardConfigId,
-        pointsPerUnit: wt.rewardConfig.pointsPerUnit,
-        description: wt.rewardConfig.description,
-        allowedVariancePercent: wt.rewardConfig.allowedVariancePercent,
-        minKgRequired: wt.rewardConfig.minKgRequired,
-        maxKgRequired: wt.rewardConfig.maxKgRequired,
-        penaltyPercent: wt.rewardConfig.penaltyPercent,
-        isActive: wt.rewardConfig.isActive
-      }
+          rewardConfigId: wt.rewardConfig.rewardConfigId,
+          pointsPerUnit: wt.rewardConfig.pointsPerUnit,
+          description: wt.rewardConfig.description,
+          allowedVariancePercent: wt.rewardConfig.allowedVariancePercent,
+          minKgRequired: wt.rewardConfig.minKgRequired,
+          maxKgRequired: wt.rewardConfig.maxKgRequired,
+          penaltyPercent: wt.rewardConfig.penaltyPercent,
+          isActive: wt.rewardConfig.isActive
+        }
       : null
   }))
 
@@ -241,15 +241,15 @@ async function getWasteTypeById(wasteTypeId) {
       isActive: wasteType.isActive,
       rewardConfig: wasteType.rewardConfig
         ? {
-          rewardConfigId: wasteType.rewardConfig.rewardConfigId,
-          pointsPerUnit: wasteType.rewardConfig.pointsPerUnit,
-          description: wasteType.rewardConfig.description,
-          allowedVariancePercent: wasteType.rewardConfig.allowedVariancePercent,
-          minKgRequired: wasteType.rewardConfig.minKgRequired,
-          maxKgRequired: wasteType.rewardConfig.maxKgRequired,
-          penaltyPercent: wasteType.rewardConfig.penaltyPercent,
-          isActive: wasteType.rewardConfig.isActive
-        }
+            rewardConfigId: wasteType.rewardConfig.rewardConfigId,
+            pointsPerUnit: wasteType.rewardConfig.pointsPerUnit,
+            description: wasteType.rewardConfig.description,
+            allowedVariancePercent: wasteType.rewardConfig.allowedVariancePercent,
+            minKgRequired: wasteType.rewardConfig.minKgRequired,
+            maxKgRequired: wasteType.rewardConfig.maxKgRequired,
+            penaltyPercent: wasteType.rewardConfig.penaltyPercent,
+            isActive: wasteType.rewardConfig.isActive
+          }
         : null
     }
   }
@@ -317,9 +317,7 @@ async function createRewardConfig({
   }
 
   const variance =
-    allowedVariancePercent !== undefined && allowedVariancePercent !== null
-      ? Number(allowedVariancePercent)
-      : 10
+    allowedVariancePercent !== undefined && allowedVariancePercent !== null ? Number(allowedVariancePercent) : 10
   if (isNaN(variance) || variance < 0) {
     throw new ApiError(400, 'allowedVariancePercent phải >= 0')
   }
@@ -464,8 +462,10 @@ async function updateRewardConfig(
     updateData.maxKgRequired = val
   }
 
-  const effectiveMin = updateData.minKgRequired !== undefined ? updateData.minKgRequired : Number(existingConfig.minKgRequired)
-  const effectiveMax = updateData.maxKgRequired !== undefined ? updateData.maxKgRequired : Number(existingConfig.maxKgRequired)
+  const effectiveMin =
+    updateData.minKgRequired !== undefined ? updateData.minKgRequired : Number(existingConfig.minKgRequired)
+  const effectiveMax =
+    updateData.maxKgRequired !== undefined ? updateData.maxKgRequired : Number(existingConfig.maxKgRequired)
 
   if (effectiveMax < effectiveMin) {
     throw new ApiError(400, 'maxKgRequired phải lớn hơn hoặc bằng minKgRequired')
@@ -616,14 +616,6 @@ async function getDashboardStatistics(fromDate, toDate, groupBy = 'day') {
     throw new ApiError(400, 'fromDate phải nhỏ hơn toDate')
   }
 
-  const maxAllowedDate = new Date(now.getTime() + 24 * 60 * 60 * 1000)
-  if (startDate > now || endDate > maxAllowedDate) {
-    throw new ApiError(400, 'Không thể truy vấn dữ liệu trong tương lai')
-  }
-
-
-
-
   const formatDate = (date) => {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
   }
@@ -673,11 +665,11 @@ async function getDashboardStatistics(fromDate, toDate, groupBy = 'day') {
     totalReports: Number(statusStats?.totalReports) || 0,
     pendingReports: Number(statusStats?.pendingReports) || 0,
     inProgressReports: Number(statusStats?.inProgressReports) || 0,
-    wasteByType: wasteByType.map(w => ({
+    wasteByType: wasteByType.map((w) => ({
       wasteType: w?.wasteType || '',
       quantity: Number(w?.quantity) || 0
     })),
-    reportsByTime: reportsByTime.map(r => ({
+    reportsByTime: reportsByTime.map((r) => ({
       time: r?.time || '',
       reports: Number(r?.reports) || 0
     })),
@@ -813,16 +805,15 @@ async function getEmployeeStatistics({ page = 1, limit = 20, month, year } = {})
   })
 
   // Format data
-  const formattedData = result.data.map(emp => ({
+  const formattedData = result.data.map((emp) => ({
     employeeId: emp.employeeId,
     employeeName: emp.employeeName,
     employeeEmail: emp.employeeEmail,
     totalAssigned: Number(emp.totalAssigned) || 0,
     totalCompleted: Number(emp.totalCompleted) || 0,
     totalRejected: Number(emp.totalRejected) || 0,
-    completionRate: emp.totalAssigned > 0 
-      ? Math.round((Number(emp.totalCompleted) / Number(emp.totalAssigned)) * 100) 
-      : 0
+    completionRate:
+      emp.totalAssigned > 0 ? Math.round((Number(emp.totalCompleted) / Number(emp.totalAssigned)) * 100) : 0
   }))
 
   return {

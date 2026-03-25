@@ -42,6 +42,7 @@ router.patch('/reports/:reportId/schedule', collectorReportController.scheduleCo
 
 // --- NOTIFICATIONS ---
 router.get('/notifications', notificationController.getNotifications)
+router.patch('/notifications/read-all', notificationController.markAllAsRead)
 router.patch('/notifications/:notificationId/read', notificationController.markAsRead)
 
 module.exports = router

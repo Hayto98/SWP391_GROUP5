@@ -1,260 +1,376 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom"; // Nhớ cài đặt: npm install react-router-dom
-import { Calendar, AlertTriangle, CheckSquare } from "lucide-react"; // Nhớ cài đặt: npm install lucide-react
+import { Link } from "react-router-dom";
+import {
+  Calendar,
+  CheckSquare,
+  MapPin,
+  TrendingUp,
+  CheckCircle2,
+  Scale,
+} from "lucide-react";
 import { toast } from "sonner";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+
+import { useAuthStore } from "@/stores/authStore";
 import {
   getCollectorWorkingStatus,
   updateCollectorWorkingStatus,
-} from "../../../services/collectorWorkingStatus.service";
+} from "@/services/collectorWorkingStatus.service";
+import { getCollectorDashboardStatistics } from "@/services/collectorDashboard.service";
 
-// Component Toggle
-const Toggle = ({ checked, onChange, disabled = false }) => {
-  return (
-    <button
-      type="button"
-      onClick={onChange}
-      disabled={disabled}
-      className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"} ${
-        checked ? "bg-green-500" : "bg-gray-200"
-      }`}
-    >
-      <span
-        aria-hidden="true"
-        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-          checked ? "translate-x-5" : "translate-x-0"
-        }`}
-      />
-    </button>
-  );
-};
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
-function Dashboard() {
+export default function Dashboard() {
+  const { user } = useAuthStore();
   const [isAvailable, setIsAvailable] = useState(false);
   const [isLoadingStatus, setIsLoadingStatus] = useState(true);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
+  const [stats, setStats] = useState(null);
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
+  const [groupBy, setGroupBy] = useState("day");
+
   useEffect(() => {
-    const loadWorkingStatus = async () => {
+    const loadStatus = async () => {
       try {
-        const response = await getCollectorWorkingStatus();
-        setIsAvailable(Boolean(response?.isWorking));
+        const statusRes = await getCollectorWorkingStatus();
+        setIsAvailable(Boolean(statusRes?.isWorking));
       } catch (error) {
         toast.error(error?.message || "Không tải được trạng thái làm việc");
       } finally {
         setIsLoadingStatus(false);
       }
     };
-
-    loadWorkingStatus();
+    loadStatus();
   }, []);
 
-  const handleToggleWorkingStatus = async () => {
+  useEffect(() => {
+    const loadStats = async () => {
+      setIsLoadingStats(true);
+      try {
+        const statsRes = await getCollectorDashboardStatistics({ groupBy });
+        if (statsRes?.data) {
+          setStats(statsRes.data);
+        }
+      } catch (error) {
+        toast.error(error?.message || "Không tải được dữ liệu thống kê");
+      } finally {
+        setIsLoadingStats(false);
+      }
+    };
+    loadStats();
+  }, [groupBy]);
+
+  const handleToggleWorkingStatus = async (checked) => {
     if (isLoadingStatus || isUpdatingStatus) return;
 
-    const nextStatus = !isAvailable;
-    setIsAvailable(nextStatus);
+    setIsAvailable(checked);
     setIsUpdatingStatus(true);
 
     try {
-      const response = await updateCollectorWorkingStatus(nextStatus);
+      const response = await updateCollectorWorkingStatus(checked);
       setIsAvailable(Boolean(response?.isWorking));
+      toast.success(
+        checked ? "Đã bật trạng thái làm việc" : "Đã tắt trạng thái làm việc",
+      );
     } catch (error) {
-      setIsAvailable(!nextStatus);
+      setIsAvailable(!checked);
       toast.error(error?.message || "Cập nhật trạng thái làm việc thất bại");
     } finally {
       setIsUpdatingStatus(false);
     }
   };
 
+  const displayName = user?.fullname || user?.fullName || "Nhân viên thu gom";
+  const avatarInitials =
+    displayName
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "NV";
+
   return (
-    <div className="bg-gray-50 min-h-screen font-sans pb-10">
-      {/* Container responsive cho cả Mobile và PC */}
-      <main className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
-          {/* --- KHU VỰC 1: PROFILE & TRẠNG THÁI --- */}
-          <div className="lg:col-span-4 flex flex-col gap-4 lg:gap-6">
-            {/* Profile Card */}
-            <div className="flex items-center gap-4 bg-white p-4 lg:p-6 rounded-xl shadow-sm border border-gray-100 transition-all hover:shadow-md">
-              <div className="flex-shrink-0">
-                <div className="w-16 h-16 lg:w-20 lg:h-20 rounded-full overflow-hidden border-2 border-gray-100 bg-gray-50">
-                  <svg viewBox="0 0 80 80" className="w-full h-full block">
-                    <rect width="80" height="80" fill="#CBD5E1" />
-                    <circle cx="40" cy="30" r="14" fill="#94A3B8" />
-                    <path
-                      d="M10 70c0-16.569 13.431-30 30-30s30 13.431 30 30"
-                      fill="#94A3B8"
-                    />
-                    <rect
-                      x="26"
-                      y="16"
-                      width="28"
-                      height="5"
-                      rx="2.5"
-                      fill="#64748B"
-                    />
-                    <path
-                      d="M22 70c0-10 8-18 18-18s18 8 18 18"
-                      fill="#EAB308"
-                    />
-                  </svg>
-                </div>
+    <div className="bg-muted/30 min-h-screen font-sans pb-10">
+      <main className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
+        {/* ROW 1: USER PROFILE & WORKING STATUS */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <Card className="lg:col-span-2 border-green-100 shadow-sm">
+            <CardContent className="p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <Avatar className="w-16 h-16 border-2 border-primary/10 h-auto">
+                <AvatarImage
+                  src={user?.avatar}
+                  alt={displayName}
+                  className="aspect-square object-cover"
+                />
+                <AvatarFallback className="bg-primary/10 text-primary font-bold text-xl h-16 w-16 flex items-center justify-center">
+                  {avatarInitials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 space-y-1">
+                <h2 className="text-xl font-bold tracking-tight">
+                  Chào buổi sáng, {displayName}
+                </h2>
+                <p className="text-muted-foreground text-sm flex items-center gap-1">
+                  <MapPin className="w-4 h-4 text-primary" />{" "}
+                  {user?.area || "Khu vực phụ trách"}
+                </p>
+              </div>
+              <div className="sm:ml-auto w-full sm:w-auto">
+                <Button
+                  asChild
+                  className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <Link to="/collector/tasks">
+                    <CheckSquare className="w-4 h-4 mr-2" />
+                    Xem nhiệm vụ
+                  </Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-sm">
+            <CardContent className="p-6 flex items-center gap-4 h-full">
+              <div
+                className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 transition-colors ${isAvailable ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-500"}`}
+              >
+                <TrendingUp className="w-6 h-6" />
               </div>
               <div className="flex-1 min-w-0">
-                <h2 className="font-bold text-gray-900 text-base lg:text-xl leading-tight truncate">
-                  Chào buổi sáng, Nguyễn Văn A
-                </h2>
-                <p className="text-green-600 text-sm lg:text-base mt-1 truncate">
-                  Nhân viên thu gom cấp cao • Quận 1
-                </p>
-              </div>
-            </div>
-
-            {/* Ready Toggle */}
-            <div className="bg-white rounded-xl p-4 lg:p-6 flex items-center gap-3 lg:gap-4 shadow-sm border border-gray-100 transition-all hover:shadow-md">
-              <div className="w-11 h-11 lg:w-14 lg:h-14 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-                <svg
-                  viewBox="0 0 24 24"
-                  className="w-6 h-6 lg:w-7 lg:h-7 text-green-600"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <circle cx="7" cy="17" r="2" />
-                  <circle cx="17" cy="17" r="2" />
-                  <path d="M5 17H3V10l3-5h6l2 3h3l2 4H5" />
-                  <path d="M13 8h5" />
-                </svg>
-              </div>
-              <div className="flex-1">
-                <p className="font-semibold text-gray-800 text-sm lg:text-base">
+                <p className="font-semibold text-gray-900 truncate">
                   Sẵn sàng làm việc
                 </p>
-                <p className="text-gray-500 text-xs lg:text-sm mt-1 leading-relaxed">
-                  Bật để nhận nhiệm vụ mới trong khu vực
+                <p className="text-sm text-muted-foreground truncate">
+                  {isAvailable ? "Sẵn sàng nhận nhiệm vụ" : "Đang nghỉ ngơi"}
                 </p>
               </div>
-              <Toggle
+              <Switch
                 checked={isAvailable}
-                onChange={handleToggleWorkingStatus}
+                onCheckedChange={handleToggleWorkingStatus}
                 disabled={isLoadingStatus || isUpdatingStatus}
+                className="data-[state=checked]:bg-green-500"
               />
-            </div>
-          </div>
+            </CardContent>
+          </Card>
+        </div>
 
-          {/* --- KHU VỰC 2: TỔNG QUAN NHIỆM VỤ --- */}
-          <div className="lg:col-span-8 flex flex-col gap-4 lg:gap-6 mt-2 lg:mt-0">
-            <h3 className="font-bold text-gray-900 text-lg lg:text-2xl px-1">
-              Tổng quan nhiệm vụ
-            </h3>
-
-            {/* Task Stats & CTA Row */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6">
-              <div className="md:col-span-2 grid grid-cols-2 gap-4 lg:gap-6">
-                {/* Pending Tasks */}
-                <div className="bg-white rounded-2xl p-4 lg:p-6 shadow-sm border border-gray-100 flex flex-col justify-between transition-all hover:shadow-md hover:border-green-100">
-                  <div className="flex items-center justify-between mb-4 lg:mb-6">
-                    <span className="text-gray-500 text-xs lg:text-sm font-medium">
-                      Đang chờ
-                    </span>
-                    <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-lg bg-green-50 flex items-center justify-center">
-                      <Calendar className="w-4 h-4 lg:w-5 lg:h-5 text-green-600" />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex items-end gap-2">
-                      <span className="text-4xl lg:text-5xl font-bold text-gray-900">
-                        12
-                      </span>
-                    </div>
-                    <p className="text-green-600 text-xs lg:text-sm font-medium mt-2">
-                      +2 nhiệm vụ mới
-                    </p>
-                  </div>
-                </div>
-
-                {/* Overdue Tasks */}
-                <div className="bg-red-50 rounded-2xl p-4 lg:p-6 shadow-sm border border-red-100 flex flex-col justify-between transition-all hover:shadow-md">
-                  <div className="flex items-center justify-between mb-4 lg:mb-6">
-                    <span className="text-red-600 text-xs lg:text-sm font-medium">
-                      Sắp quá hạn
-                    </span>
-                    <AlertTriangle className="w-5 h-5 lg:w-6 lg:h-6 text-red-500" />
-                  </div>
-                  <div>
-                    <div className="flex items-end gap-2">
-                      <span className="text-4xl lg:text-5xl font-bold text-red-600">
-                        3
-                      </span>
-                    </div>
-                    <button className="text-red-600 text-xs lg:text-sm font-semibold underline mt-2 hover:text-red-700 transition-colors">
-                      SLA Cảnh báo
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* CTA Banner */}
-              <Link
-                to="/collector/tasks"
-                className="md:col-span-1 block bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 transition-all rounded-2xl p-6 text-center shadow-md flex flex-col items-center justify-center h-full min-h-[160px] group"
-              >
-                <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
-                  <CheckSquare className="w-7 h-7 text-white" />
-                </div>
-                <h4 className="text-white font-extrabold text-lg lg:text-xl tracking-wide uppercase mb-2">
-                  Xem Danh Sách
-                </h4>
-                <p className="text-white/90 text-sm">
-                  Bạn có 12 điểm dừng thu gom dự kiến
-                </p>
-              </Link>
-            </div>
-          </div>
-
-          {/* --- MAP KHU VỰC LÀM VIỆC (FULL WIDTH) --- */}
-          <div className="lg:col-span-12 mt-4 lg:mt-2">
-            <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex-grow flex flex-col">
-              <div className="flex items-center justify-between px-4 lg:px-6 py-3 lg:py-4 border-b border-gray-50">
-                <div className="flex items-center gap-2 lg:gap-3">
-                  <div className="w-6 h-6 lg:w-8 lg:h-8 rounded bg-green-100 flex items-center justify-center">
-                    <svg
-                      viewBox="0 0 24 24"
-                      className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-green-600"
-                      fill="currentColor"
-                    >
-                      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
-                    </svg>
-                  </div>
-                  <span className="font-semibold text-gray-800 text-sm lg:text-base">
-                    Khu vực làm việc
+        {/* ROW 2: STATISTICS */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="shadow-sm">
+            <CardHeader className="pb-2">
+              <CardDescription>Tổng lượng rác thu gom</CardDescription>
+              {isLoadingStats ? (
+                <Skeleton className="h-8 w-24 mt-1" />
+              ) : (
+                <CardTitle className="text-3xl text-primary flex items-center gap-2">
+                  {stats?.totalCollectedQuantity?.toLocaleString() || 0}{" "}
+                  <span className="text-sm text-muted-foreground font-normal">
+                    kg
                   </span>
-                </div>
-                <span className="bg-gray-100 text-gray-600 text-xs lg:text-sm font-medium px-3 lg:px-4 py-1.5 rounded-full">
-                  Quận 1, HCM
-                </span>
+                </CardTitle>
+              )}
+            </CardHeader>
+            <CardContent>
+              <div className="text-xs text-muted-foreground flex items-center gap-1">
+                <Scale className="w-4 h-4" /> Tổng khối lượng đã ghi nhận
               </div>
+            </CardContent>
+          </Card>
 
-              {/* Map Embed */}
-              <div className="w-full h-52 lg:h-[400px] xl:h-[500px] relative bg-gray-200">
-                <iframe
-                  title="Khu vực làm việc"
-                  className="w-full h-full border-0"
-                  src="https://www.openstreetmap.org/export/embed.html?bbox=106.68,10.76,106.73,10.80&layer=mapnik&marker=10.7769,106.7009"
-                  loading="lazy"
-                />
-                {/* Location label overlay */}
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur-sm text-gray-700 text-xs lg:text-sm font-medium px-4 lg:px-6 py-2 rounded-full shadow-md border border-gray-100">
-                  Vị trí của bạn
+          <Card className="shadow-sm">
+            <CardHeader className="pb-2">
+              <CardDescription>Tổng nhiệm vụ hoàn thành</CardDescription>
+              {isLoadingStats ? (
+                <Skeleton className="h-8 w-24 mt-1" />
+              ) : (
+                <CardTitle className="text-3xl text-blue-600">
+                  {stats?.totalCompletedTasks?.toLocaleString() || 0}
+                </CardTitle>
+              )}
+            </CardHeader>
+            <CardContent>
+              <div className="text-xs text-muted-foreground flex items-center gap-1">
+                <CheckCircle2 className="w-4 h-4" /> Báo cáo thu gom thành công
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-sm sm:col-span-2 relative overflow-hidden bg-gradient-to-br from-green-500 to-emerald-600 text-white border-0">
+            <div className="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+            <CardHeader className="pb-2 relative z-10 text-white/90">
+              <CardTitle className="text-white">Lịch trình hôm nay</CardTitle>
+            </CardHeader>
+            <CardContent className="relative z-10">
+              <p className="text-white/80 mb-4 text-sm">
+                Kiểm tra thông tin chi tiết trên danh sách nhiệm vụ được giao để
+                cập nhật tuyến đường thu gom mới nhất.
+              </p>
+              <Button
+                asChild
+                variant="secondary"
+                className="w-fit text-green-700 font-semibold bg-white hover:bg-green-50"
+              >
+                <Link to="/collector/tasks">Tới danh sách nhiệm vụ</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ROW 3: CHARTS & MAP */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Card className="lg:col-span-2 shadow-sm flex flex-col">
+            <CardHeader className="flex flex-row items-start justify-between pb-2">
+              <div>
+                <CardTitle>Biểu đồ thu gom (Kg)</CardTitle>
+                <CardDescription>Thống kê khối lượng thu gom</CardDescription>
+              </div>
+              <div className="w-32">
+                <Select value={groupBy} onValueChange={setGroupBy}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Lọc theo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="day">Theo ngày</SelectItem>
+                      <SelectItem value="month">Theo tháng</SelectItem>
+                      <SelectItem value="year">Theo năm</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardHeader>
+            <CardContent className="flex-1 min-h-[300px]">
+              {isLoadingStats ? (
+                <div className="w-full h-full flex items-center justify-center">
+                  <Skeleton className="w-full h-[250px] rounded-lg" />
                 </div>
+              ) : stats?.grouped?.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart
+                    data={stats.grouped}
+                    margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      vertical={false}
+                      opacity={0.5}
+                    />
+                    <XAxis
+                      dataKey="period"
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 12 }}
+                      tickFormatter={(val) => {
+                        if (groupBy === "day") {
+                          const date = new Date(val);
+                          return !isNaN(date)
+                            ? date.toLocaleDateString("vi-VN", {
+                                day: "2-digit",
+                                month: "2-digit",
+                              })
+                            : val;
+                        }
+                        if (groupBy === "month") {
+                          // val is "YYYY-MM"
+                          const [year, month] = val.split("-");
+                          return `${month}/${year}`;
+                        }
+                        // year: "YYYY"
+                        return val;
+                      }}
+                    />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 12 }}
+                    />
+                    <RechartsTooltip
+                      cursor={{ fill: "rgba(0, 0, 0, 0.05)" }}
+                      contentStyle={{
+                        borderRadius: "8px",
+                        border: "none",
+                        boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                      }}
+                      labelFormatter={(val) => {
+                        if (groupBy === "day") {
+                          const date = new Date(val);
+                          return !isNaN(date)
+                            ? date.toLocaleDateString("vi-VN")
+                            : val;
+                        }
+                        if (groupBy === "month") {
+                          const [year, month] = val.split("-");
+                          return `Tháng ${month}/${year}`;
+                        }
+                        return `Năm ${val}`;
+                      }}
+                    />
+                    <Bar
+                      dataKey="total"
+                      fill="#22c55e"
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={40}
+                      name="Khối lượng (kg)"
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground gap-2 pt-10">
+                  <TrendingUp className="w-8 h-8 opacity-20" />
+                  <p>Chưa có dữ liệu thống kê thu gom</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-sm flex flex-col overflow-hidden">
+            <CardHeader className="border-b bg-muted/20 pb-4">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-primary" />
+                <CardTitle className="text-base">Bản đồ (Mô phỏng)</CardTitle>
+              </div>
+            </CardHeader>
+            <div className="flex-1 w-full bg-gray-200 min-h-[300px] relative pointer-events-none">
+              <iframe
+                title="Khu vực làm việc"
+                className="w-full h-full absolute inset-0 border-0"
+                src="https://www.openstreetmap.org/export/embed.html?bbox=106.68,10.76,106.73,10.80&layer=mapnik&marker=10.7769,106.7009"
+                loading="lazy"
+              />
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur shadow-md text-sm font-medium px-4 py-2 rounded-full border">
+                Vị trí của bạn
               </div>
             </div>
-          </div>
+          </Card>
         </div>
       </main>
     </div>
   );
 }
-
-export default Dashboard;

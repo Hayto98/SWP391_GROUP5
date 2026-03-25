@@ -10,7 +10,6 @@ async function getNotifications(req, res, next) {
     const queryParams = req.query
 
     const result = await notificationService.getNotifications(userId, queryParams)
-
     res.status(200).json(result)
   } catch (error) {
     next(error)
@@ -34,7 +33,22 @@ async function markAsRead(req, res, next) {
   }
 }
 
+/**
+ * PATCH /citizen/notifications/read-all
+ * Đánh dấu tất cả thông báo là đã đọc
+ */
+async function markAllAsRead(req, res, next) {
+  try {
+    const userId = req.user.sub
+    const result = await notificationService.markAllAsRead(userId)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
 module.exports = {
   getNotifications,
-  markAsRead
+  markAsRead,
+  markAllAsRead
 }
