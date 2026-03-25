@@ -64,6 +64,41 @@ function mapApiData(apiData) {
   const reportId = apiData?.reportId || "";
   const reportCode = apiData?.reportCode || apiData?.wasteCode || reportId;
 
+  const firstCitizenImage = Array.isArray(apiData?.citizenImages)
+    ? apiData.citizenImages.find((item) => item?.file_uri || item?.fileUri)
+    : null;
+
+  const fallbackImage = Array.isArray(apiData?.images)
+    ? apiData.images.find((item) => item?.file_uri || item?.fileUri)
+    : null;
+
+  const normalizedFirstImage = firstCitizenImage || fallbackImage || null;
+  const items = Array.isArray(apiData?.items) ? apiData.items : [];
+  const normalizedItems = items
+    .map((item) => ({
+      waste_type_id: Number(item?.wasteTypeId ?? item?.waste_type_id),
+      wasteTypeName: item?.wasteTypeName || "Không rõ",
+      unitType: item?.unitType || apiData?.unitType || "KG",
+      quantity: Number(item?.quantity || 0),
+    }))
+    .filter(
+      (item) =>
+        Number.isInteger(item.waste_type_id) &&
+        item.waste_type_id > 0 &&
+        Number.isFinite(item.quantity),
+    );
+
+  const wasteTypeSummary = normalizedItems.length
+    ? normalizedItems
+        .map((item) => {
+          const name = item?.wasteTypeName || "Không rõ";
+          const quantity = item?.quantity ?? "-";
+          const unit = item?.unitType || apiData?.unitType || "KG";
+          return `${name} (${quantity} ${unit})`;
+        })
+        .join(", ")
+    : `${apiData?.wasteType?.name || "-"} (ID: ${apiData?.wasteType?.id ?? "-"})`;
+
   return {
     reportId,
     reportCode,
@@ -75,6 +110,8 @@ function mapApiData(apiData) {
       id: apiData?.wasteType?.id ?? null,
       name: apiData?.wasteType?.name || "-",
     },
+    wasteTypeSummary,
+    items: normalizedItems,
     weight: apiData?.weight ?? null,
     actualQuantity: apiData?.actualQuantity ?? null,
     unitType: apiData?.unitType || "KG",
@@ -85,7 +122,7 @@ function mapApiData(apiData) {
             lng,
           }
         : null,
-    images: Array.isArray(apiData?.images) ? apiData.images : [],
+    images: normalizedFirstImage ? [normalizedFirstImage] : [],
     status: apiData?.status || "ASSIGNED",
     areaName: "Không rõ vị trí",
   };
@@ -134,7 +171,7 @@ function TaskDetail() {
   const [fakeNote, setFakeNote] = useState("");
   const [fakeFile, setFakeFile] = useState(null);
   const [fakeFilePreview, setFakeFilePreview] = useState("");
-  const [actualQuantity, setActualQuantity] = useState("");
+  const [actualItems, setActualItems] = useState([]);
   const [note, setNote] = useState("");
   const [resultFile, setResultFile] = useState(null);
   const [resultFilePreview, setResultFilePreview] = useState("");
@@ -199,7 +236,17 @@ function TaskDetail() {
     }
 
     if (task.status === "IN_PROGRESS") {
-      setActualQuantity(task.actualQuantity ?? "");
+      const draftItems = (task.items || []).map((item) => ({
+        waste_type_id: item.waste_type_id,
+        wasteTypeName: item.wasteTypeName,
+        unitType: item.unitType || task.unitType || "KG",
+        estimatedQuantity: item.quantity,
+        actual_quantity:
+          Number.isFinite(Number(item.quantity)) && Number(item.quantity) > 0
+            ? String(item.quantity)
+            : "",
+      }));
+      setActualItems(draftItems);
       setNote("");
       setResultFile(null);
       setSubmitDialogOpen(true);
@@ -231,23 +278,44 @@ function TaskDetail() {
       return;
     }
 
-    const quantity = Number(actualQuantity);
-    if (!Number.isFinite(quantity) || quantity <= 0) {
-      toast.warning("Vui lòng nhập khối lượng thực tế hợp lệ");
+    if (!Array.isArray(actualItems) || actualItems.length === 0) {
+      toast.warning("Không có dữ liệu loại rác để cập nhật");
       return;
+    }
+
+    const normalizedActualItems = [];
+    for (let i = 0; i < actualItems.length; i += 1) {
+      const item = actualItems[i];
+      const quantity = Number(item.actual_quantity);
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        toast.warning(
+          `Vui lòng nhập khối lượng thực tế hợp lệ cho ${item.wasteTypeName}`,
+        );
+        return;
+      }
+
+      normalizedActualItems.push({
+        waste_type_id: Number(item.waste_type_id),
+        actual_quantity: quantity,
+      });
     }
 
     setSubmitSaving(true);
     try {
       const submitUnit = task.unitType || "KG";
       const response = await submitCollectorReportResult(task.reportId, {
-        actualQuantity: quantity,
+        actualItems: normalizedActualItems,
         quantityUnit: submitUnit,
         note,
-        file: resultFile,
+        files: resultFile ? [resultFile] : [],
       });
 
-      const submittedQuantity = response?.data?.actualQuantity ?? quantity;
+      const submittedQuantity =
+        response?.data?.actualQuantity ??
+        normalizedActualItems.reduce(
+          (sum, item) => sum + Number(item.actual_quantity || 0),
+          0,
+        );
       const completedReportId = response?.data?.reportId || task.reportId;
 
       setTask((prev) => ({
@@ -427,15 +495,7 @@ function TaskDetail() {
               </div>
 
               {task.images.length > 0 ? (
-                <div className="grid grid-cols-2 gap-3">
-                  {task.images.map((image, index) => (
-                    <ImageSection
-                      key={`${image.file_uri}-${index}`}
-                      title={`Hình hiện trường ${index + 1}`}
-                      image={image}
-                    />
-                  ))}
-                </div>
+                <ImageSection title="Hình hiện trường" image={task.images[0]} />
               ) : (
                 <div className="h-40 rounded-xl border border-dashed border-gray-200 flex items-center justify-center text-sm text-gray-500">
                   Chưa có ảnh hiện trường
@@ -448,10 +508,7 @@ function TaskDetail() {
             <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm space-y-3">
               <InfoRow label="Mã báo cáo" value={task.reportCode} />
               <InfoRow label="Trạng thái" value={task.status} />
-              <InfoRow
-                label="Loại rác"
-                value={`${task.wasteType.name} (ID: ${task.wasteType.id ?? "-"})`}
-              />
+              <InfoRow label="Loại rác" value={task.wasteTypeSummary} />
               <InfoRow
                 label="Khối lượng ước tính"
                 value={`${task.weight ?? "-"} ${task.unitType || ""}`}
@@ -664,26 +721,46 @@ function TaskDetail() {
 
           <div className="space-y-4">
             <div>
-              <p className="text-sm font-medium mb-1">Khối lượng thực tế</p>
-              <Input
-                type="number"
-                min="0"
-                step="0.1"
-                value={actualQuantity}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (value === "") {
-                    setActualQuantity("");
-                    return;
-                  }
-
-                  const parsed = Number(value);
-                  if (Number.isNaN(parsed) || parsed < 0) return;
-
-                  setActualQuantity(value);
-                }}
-                placeholder="Ví dụ: 4"
-              />
+              <p className="text-sm font-medium mb-2">
+                Khối lượng thực tế theo loại rác
+              </p>
+              <div className="space-y-2">
+                {actualItems.map((item, index) => (
+                  <div
+                    key={`${item.waste_type_id}-${index}`}
+                    className="rounded-md border border-gray-200 p-3"
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <p className="text-sm font-semibold text-gray-800">
+                        {item.wasteTypeName}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Ước tính: {item.estimatedQuantity} {item.unitType}
+                      </p>
+                    </div>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={item.actual_quantity}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setActualItems((prev) =>
+                          prev.map((current, currentIndex) =>
+                            currentIndex === index
+                              ? {
+                                  ...current,
+                                  actual_quantity: value,
+                                }
+                              : current,
+                          ),
+                        );
+                      }}
+                      placeholder={`Nhập khối lượng thực tế (${item.unitType})`}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div>

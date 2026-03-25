@@ -200,6 +200,26 @@ function extractReportList(response) {
 
 function mapApiReportToDetail(rawReport, fallbackReportId) {
   const location = normalizeLocation(rawReport?.location);
+  const normalizedItems = Array.isArray(rawReport?.items)
+    ? rawReport.items
+        .map((item) => ({
+          wasteReportItemId: item?.wasteReportItemId,
+          wasteTypeId: item?.wasteTypeId,
+          wasteTypeName: item?.wasteTypeName || "Không rõ",
+          unitType: item?.unitType || rawReport?.unitType || "",
+          quantity: Number(item?.quantity || 0),
+        }))
+        .filter((item) => Number.isFinite(item.quantity) && item.quantity > 0)
+    : [];
+
+  const citizenImages = Array.isArray(rawReport?.citizenImages)
+    ? rawReport.citizenImages
+        .map((item) =>
+          typeof item === "string" ? item : item?.file_uri || item?.fileUri,
+        )
+        .filter(Boolean)
+    : [];
+
   const attachments = Array.isArray(rawReport?.attachments)
     ? rawReport.attachments
     : Array.isArray(rawReport?.images)
@@ -211,9 +231,15 @@ function mapApiReportToDetail(rawReport, fallbackReportId) {
 
   const wasteTypeName = rawReport?.wasteType?.name || "Không rõ";
   const unitType = rawReport?.wasteType?.unitType || "";
-  const wasteTypeLabel = unitType
-    ? `${wasteTypeName} (${unitType})`
-    : wasteTypeName;
+  const wasteTypeLabel = normalizedItems.length
+    ? normalizedItems
+        .map(
+          (item) => `${item.wasteTypeName} (${item.quantity} ${item.unitType})`,
+        )
+        .join(", ")
+    : unitType
+      ? `${wasteTypeName} (${unitType})`
+      : wasteTypeName;
   const normalizedStatus = String(rawReport?.status || "PENDING").toUpperCase();
 
   return {
@@ -228,6 +254,8 @@ function mapApiReportToDetail(rawReport, fallbackReportId) {
       firstAttachment?.file_uri ||
       rawReport?.imageUrl ||
       DEFAULT_IMAGE_URL,
+    items: normalizedItems,
+    citizenImages,
     wasteType: wasteTypeLabel,
     weightEstimate: formatWeightEstimate(rawReport?.weight),
     reporter: {

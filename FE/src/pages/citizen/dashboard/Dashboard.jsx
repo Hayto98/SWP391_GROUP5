@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ChartContainer,
@@ -8,6 +8,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { FileText, Trophy, CheckCircle2, XCircle } from "lucide-react";
+import { getCitizenDashboardStatistics } from "@/services/citizenDashboard.service";
 import {
   CartesianGrid,
   Line,
@@ -18,26 +19,7 @@ import {
   YAxis,
 } from "recharts";
 
-const fakeDashboardResponse = {
-  success: true,
-  data: {
-    totalReports: 12,
-    totalPoints: 85,
-    completedReports: 8,
-    rejectedReports: 2,
-    completionRate: 0.67,
-    reportsByDay: [
-      {
-        date: "2026-03-01",
-        reports: 2,
-      },
-      {
-        date: "2026-03-02",
-        reports: 3,
-      },
-    ],
-  },
-};
+
 
 const chartConfig = {
   completed: {
@@ -55,7 +37,27 @@ const chartConfig = {
 };
 
 function Dashboard() {
-  const stats = fakeDashboardResponse.data;
+  const [stats, setStats] = useState({});
+  const today = new Date();
+  const [month, setMonth] = useState(today.getMonth() + 1);
+  const [year, setYear] = useState(today.getFullYear());
+  const [loading, setLoading] = useState(false);
+
+  const fetchStats = () => {
+    setLoading(true);
+    getCitizenDashboardStatistics({ month, year }).then((res) => {
+      if (res?.success && res.data) {
+        setStats(res.data);
+      }
+      setLoading(false);
+    });
+  };
+
+  // Only fetch on mount (optional: or remove this to require manual filter always)
+  useEffect(() => {
+    fetchStats();
+    // eslint-disable-next-line
+  }, []);
 
   const summaryCards = useMemo(() => {
     return [
@@ -82,18 +84,22 @@ function Dashboard() {
     ];
   }, [stats]);
 
+  // Pie chart should reflect completion rate and rejection rate as proportions
   const completionData = useMemo(() => {
+    const completionRate = typeof stats?.completionRate === 'number' ? stats.completionRate : 0;
+    // Ensure value is between 0 and 1
+    const safeCompletion = Math.max(0, Math.min(1, completionRate));
     return [
       {
         key: "completed",
         name: "Báo cáo hoàn thành",
-        value: stats?.completedReports ?? 0,
+        value: safeCompletion,
         fill: "var(--color-completed)",
       },
       {
         key: "rejected",
         name: "Báo cáo bị từ chối",
-        value: stats?.rejectedReports ?? 0,
+        value: 1 - safeCompletion,
         fill: "var(--color-rejected)",
       },
     ];
@@ -113,6 +119,41 @@ function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Filter section */}
+      <div className="flex flex-wrap gap-4 items-end">
+        <div className="flex flex-col" style={{ minWidth: 120 }}>
+          <label className="block text-sm font-medium mb-1">Tháng</label>
+          <select
+            className="border rounded px-3 py-2 h-10 min-w-[100px]"
+            value={month}
+            onChange={e => setMonth(Number(e.target.value))}
+          >
+            {[...Array(12)].map((_, i) => (
+              <option key={i + 1} value={i + 1}>{i + 1}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col" style={{ minWidth: 120 }}>
+          <label className="block text-sm font-medium mb-1">Năm</label>
+          <input
+            type="number"
+            className="border rounded px-3 py-2 h-10 min-w-[100px]"
+            value={year}
+            min={2000}
+            max={2100}
+            onChange={e => setYear(Number(e.target.value))}
+          />
+        </div>
+        <button
+          className="bg-primary text-white px-4 py-2 rounded h-10 min-w-[80px]"
+          style={{ marginTop: 24 }}
+          onClick={fetchStats}
+          disabled={loading}
+        >
+          {loading ? "Đang tải..." : "Lọc"}
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {summaryCards.map((item) => (
           <Card key={item.title}>

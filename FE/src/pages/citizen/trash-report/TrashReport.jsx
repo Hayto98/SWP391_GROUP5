@@ -14,16 +14,32 @@ function TrashReport() {
   const [wasteTypes, setWasteTypes] = useState([]);
   const [loadingWasteTypes, setLoadingWasteTypes] = useState(true);
   const [selectedType, setSelectedType] = useState("");
-  const [weight, setWeight] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [selectedItems, setSelectedItems] = useState([]);
   const [description, setDescription] = useState("");
   const [files, setFiles] = useState([]);
   const [selectedMarker, setSelectedMarker] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
-  const selectedWasteType = useMemo(
-    () => wasteTypes.find((item) => item.wasteTypeId === selectedType),
-    [wasteTypes, selectedType],
-  );
+  const selectedWasteType = useMemo(() => {
+    return wasteTypes.find(
+      (item) => String(item.wasteTypeId) === String(selectedType),
+    );
+  }, [wasteTypes, selectedType]);
+
+  const selectedItemsWithMeta = useMemo(() => {
+    return selectedItems
+      .map((item) => {
+        const wasteType = wasteTypes.find(
+          (type) => String(type.wasteTypeId) === String(item.waste_type_id),
+        );
+        return {
+          ...item,
+          wasteType,
+        };
+      })
+      .filter((item) => item.wasteType);
+  }, [selectedItems, wasteTypes]);
 
   useEffect(() => {
     const fetchWasteTypes = async () => {
@@ -54,15 +70,82 @@ function TrashReport() {
     setSelectedMarker(null);
   };
 
-  const handleSendReport = async () => {
-    if (!selectedType) {
-      toast.warning("Vui lòng chọn 1 loại rác");
+  const handleAddItem = () => {
+    if (!selectedWasteType) {
+      toast.warning("Vui lòng chọn loại rác trước khi thêm");
       return;
     }
 
-    const weightNum = Number(weight);
-    if (!weight || Number.isNaN(weightNum) || weightNum <= 0) {
+    const quantityNum = Number(quantity);
+    if (!quantity || Number.isNaN(quantityNum) || quantityNum <= 0) {
       toast.warning("Vui lòng nhập khối lượng hợp lệ");
+      return;
+    }
+
+    const minKgRequired = Number(selectedWasteType.minKgRequired ?? 0);
+    const rawMaxKgRequired = selectedWasteType.maxKgRequired;
+    const hasMaxKgLimit =
+      rawMaxKgRequired !== null &&
+      rawMaxKgRequired !== undefined &&
+      Number(rawMaxKgRequired) > 0;
+    const maxKgRequired = hasMaxKgLimit ? Number(rawMaxKgRequired) : null;
+
+    if (quantityNum < minKgRequired) {
+      toast.warning(
+        `Khối lượng phải từ ${minKgRequired} ${selectedWasteType.unitType}`,
+      );
+      return;
+    }
+
+    if (hasMaxKgLimit && quantityNum > maxKgRequired) {
+      toast.warning(
+        `Khối lượng tối đa là ${maxKgRequired} ${selectedWasteType.unitType}`,
+      );
+      return;
+    }
+
+    const existingIndex = selectedItems.findIndex(
+      (item) =>
+        String(item.waste_type_id) === String(selectedWasteType.wasteTypeId),
+    );
+
+    if (selectedItems.length >= 5 && existingIndex < 0) {
+      toast.warning("Một báo cáo chỉ được thêm tối đa 5 loại rác");
+      return;
+    }
+
+    if (existingIndex >= 0) {
+      const nextItems = [...selectedItems];
+      nextItems[existingIndex] = {
+        ...nextItems[existingIndex],
+        quantity: quantityNum,
+      };
+      setSelectedItems(nextItems);
+      toast.success("Đã cập nhật khối lượng cho loại rác đã chọn");
+    } else {
+      setSelectedItems((prev) => [
+        ...prev,
+        {
+          waste_type_id: Number(selectedWasteType.wasteTypeId),
+          quantity: quantityNum,
+        },
+      ]);
+      toast.success("Đã thêm loại rác vào báo cáo");
+    }
+
+    setSelectedType("");
+    setQuantity("");
+  };
+
+  const handleRemoveItem = (wasteTypeId) => {
+    setSelectedItems((prev) =>
+      prev.filter((item) => String(item.waste_type_id) !== String(wasteTypeId)),
+    );
+  };
+
+  const handleSendReport = async () => {
+    if (selectedItems.length === 0) {
+      toast.warning("Vui lòng thêm ít nhất 1 loại rác vào báo cáo");
       return;
     }
 
@@ -71,8 +154,11 @@ function TrashReport() {
       return;
     }
 
-    const finalDescription =
-      description?.trim() || selectedWasteType?.wasteTypeName || "";
+    const fallbackDescription = selectedItemsWithMeta
+      .map((item) => `${item.wasteType.wasteTypeName} (${item.quantity})`)
+      .join(", ");
+
+    const finalDescription = description?.trim() || fallbackDescription || "";
 
     if (!finalDescription) {
       toast.warning("Vui lòng nhập mô tả báo cáo");
@@ -85,11 +171,19 @@ function TrashReport() {
     }
 
     const reportPayload = new FormData();
-    reportPayload.append("wasteTypeId", String(selectedType));
+    reportPayload.append("items", JSON.stringify(selectedItems));
     reportPayload.append("gpsLat", String(selectedMarker.position[0]));
     reportPayload.append("gpsLng", String(selectedMarker.position[1]));
     reportPayload.append("description", finalDescription);
-    reportPayload.append("weight", String(weightNum));
+    reportPayload.append(
+      "weight",
+      String(
+        selectedItems.reduce(
+          (sum, item) => sum + Number(item.quantity || 0),
+          0,
+        ),
+      ),
+    );
     reportPayload.append("file", files[0].file);
 
     setSubmitting(true);
@@ -98,7 +192,8 @@ function TrashReport() {
       toast.success("Gửi báo cáo thành công");
 
       setSelectedType("");
-      setWeight("");
+      setQuantity("");
+      setSelectedItems([]);
       setDescription("");
       setFiles([]);
       setSelectedMarker(null);
@@ -112,6 +207,40 @@ function TrashReport() {
     }
   };
 
+  const handleAIPrediction = (analysis) => {
+    if (!analysis || analysis.length === 0) {
+      toast.info("AI không nhận diện được loại rác nào rõ ràng trong ảnh.");
+      return;
+    }
+
+    const descriptionElements = analysis.map((item, index) => {
+      if (item.isSupported) {
+        return (
+          <div key={index} className="flex items-start gap-2 mt-1.5 text-sm">
+            <span className="text-green-600 font-bold mt-0.5">✓</span>
+            <span>
+              <span className="font-semibold">{item.originalName}</span>: Có hỗ trợ ({item.matchedWasteTypeName})
+            </span>
+          </div>
+        );
+      } else {
+        return (
+          <div key={index} className="flex items-start gap-2 mt-1.5 text-sm">
+            <span className="text-destructive font-bold mt-0.5">✕</span>
+            <span className="text-muted-foreground">
+              <span className="font-semibold">{item.originalName}</span>: Hệ thống chưa hỗ trợ thu gom
+            </span>
+          </div>
+        );
+      }
+    });
+
+    toast("Kết quả AI phân tích rác:", {
+      description: <div>{descriptionElements}</div>,
+      duration: 8000,
+    });
+  };
+
   return (
     <Card className="space-y-4">
       <CardContent>
@@ -120,8 +249,11 @@ function TrashReport() {
           loadingWasteTypes={loadingWasteTypes}
           selectedType={selectedType}
           setSelectedType={setSelectedType}
-          weight={weight}
-          setWeight={setWeight}
+          quantity={quantity}
+          setQuantity={setQuantity}
+          selectedItems={selectedItems}
+          onAddItem={handleAddItem}
+          onRemoveItem={handleRemoveItem}
         />
 
         <Separator className="my-4" />
@@ -141,6 +273,7 @@ function TrashReport() {
           setFiles={setFiles}
           onSubmit={handleSendReport}
           submitting={submitting}
+          onAIPrediction={handleAIPrediction}
         />
       </CardContent>
     </Card>

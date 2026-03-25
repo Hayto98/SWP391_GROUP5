@@ -175,6 +175,69 @@ async function getDashboardStatistics(req, res, next) {
   }
 }
 
+// ==================== EMPLOYEE CONTROLLERS ====================
+
+/**
+ * POST /enterprise/employees - Enterprise tạo nhân viên (Collector)
+ */
+async function createEmployee(req, res, next) {
+  try {
+    const result = await enterpriseService.createEmployee(req.body)
+    res.status(201).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * GET /enterprise/employees/statistics - Enterprise thống kê công việc nhân viên (Collector)
+ * Query params: page, limit, month, year
+ */
+async function getEmployeeStatistics(req, res, next) {
+  try {
+    const result = await enterpriseService.getEmployeeStatistics(req.query)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * GET /enterprise/employees/:employeeId - Lấy chi tiết nhân viên
+ */
+async function getEmployeeById(req, res, next) {
+  try {
+    const result = await enterpriseService.getEmployeeById(req.params.employeeId)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * GET /enterprise/employees - Lấy danh sách nhân viên
+ */
+async function getEmployees(req, res, next) {
+  try {
+    const result = await enterpriseService.getEmployees(req.query)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * DELETE /enterprise/employees/:employeeId - Enterprise xóa nhân viên
+ */
+async function deleteEmployee(req, res, next) {
+  try {
+    const result = await enterpriseService.deleteEmployee(req.params.employeeId)
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
 module.exports = {
   // WasteType
   createWasteType,
@@ -192,5 +255,12 @@ module.exports = {
   updateRewardConfig,
 
   // Dashboard
-  getDashboardStatistics
+  getDashboardStatistics,
+
+  // Employee
+  createEmployee,
+  getEmployees,
+  getEmployeeStatistics,
+  getEmployeeById,
+  deleteEmployee
 }
