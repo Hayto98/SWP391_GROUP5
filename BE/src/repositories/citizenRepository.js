@@ -65,6 +65,7 @@ async function findPointTransactions(citizenId, { fromDate, toDate, type, page =
 
   const sql = `SELECT
       pt.point_transaction_id AS transactionId,
+      pt.waste_report_id AS wasteReportId,
       CASE WHEN pt.points_delta > 0 THEN 'EARN' ELSE 'REDEEM' END AS type,
       pt.points_delta AS points,
       CASE
