@@ -571,6 +571,7 @@ async function findReportForComplete(reportId, collectorId) {
   const [rows] = await db.execute(
     `SELECT
        wr.waste_report_id,
+       wr.report_code,
        wr.assigned_collector_id,
        first_item.waste_type_id,
        wr.citizen_id,

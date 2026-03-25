@@ -213,13 +213,23 @@ function TrashReport() {
       return;
     }
 
+    // Tự động chọn loại rác đầu tiên được hỗ trợ
+    const supportedMatch = analysis.find((item) => item.isSupported);
+    if (supportedMatch && supportedMatch.matchedWasteTypeId) {
+      setSelectedType(String(supportedMatch.matchedWasteTypeId));
+      toast.success(
+        `Đã tự động chọn loại rác: ${supportedMatch.matchedWasteTypeName}`,
+      );
+    }
+
     const descriptionElements = analysis.map((item, index) => {
       if (item.isSupported) {
         return (
           <div key={index} className="flex items-start gap-2 mt-1.5 text-sm">
             <span className="text-green-600 font-bold mt-0.5">✓</span>
             <span>
-              <span className="font-semibold">{item.originalName}</span>: Có hỗ trợ ({item.matchedWasteTypeName})
+              <span className="font-semibold">{item.originalName}</span>: Có hỗ
+              trợ ({item.matchedWasteTypeName})
             </span>
           </div>
         );
@@ -228,7 +238,8 @@ function TrashReport() {
           <div key={index} className="flex items-start gap-2 mt-1.5 text-sm">
             <span className="text-destructive font-bold mt-0.5">✕</span>
             <span className="text-muted-foreground">
-              <span className="font-semibold">{item.originalName}</span>: Hệ thống chưa hỗ trợ thu gom
+              <span className="font-semibold">{item.originalName}</span>: Hệ
+              thống chưa hỗ trợ thu gom
             </span>
           </div>
         );
