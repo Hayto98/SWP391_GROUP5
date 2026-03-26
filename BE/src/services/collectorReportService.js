@@ -91,6 +91,7 @@ module.exports = {
   getAssignedReports,
   getReportById,
   acceptAssignedReport,
+  rejectAssignedReport,
   submitResult,
   completeReport,
   markReportAsFake,
@@ -441,6 +442,111 @@ async function acceptAssignedReport(collectorId, reportId) {
   }
 }
 
+// ==================== REJECT REPORT ====================
+
+/**
+ * Reject an assigned report — transitions it to REJECTED.
+ *
+ * Business rules:
+ *   - Collector must not be locked.
+ *   - Reason is required.
+ *   - Report must exist and be ASSIGNED to this collector.
+ *
+ * @param {string} collectorId - user_account_id of the collector
+ * @param {string} reportId    - waste_report_id to reject
+ * @param {string} reason      - Reason for rejection
+ * @returns {object} Standardized response
+ */
+async function rejectAssignedReport(collectorId, reportId, reason = '') {
+  // 2. Check collector account
+  const user = await userRepository.findById(collectorId)
+  if (!user) throw new ApiError(404, 'Không tìm thấy tài khoản.')
+  if (user.isLocked) throw new ApiError(403, 'Tài khoản của bạn đã bị khóa.')
+
+  // 3. Fetch report
+  const reportFull = await wasteReportRepository.findReportById(reportId)
+  if (!reportFull) throw new ApiError(404, 'Không tìm thấy báo cáo rác tái chế.')
+
+  // Check assignment
+  // reportFull doesn't have `collector_user_account_id` mapped at root, it has `assignedCollector` (or `collector`)
+  // with a property `userAccountId` inside it object. We should also check if it's assigned.
+  if (!reportFull.assignedCollector || reportFull.assignedCollector.userAccountId !== collectorId) {
+    throw new ApiError(403, 'Bạn không thể từ chối báo cáo không được giao cho mình.')
+  }
+
+  // Check status (only ASSIGNED is allowed to be rejected cleanly, maybe IN_PROGRESS as well, but usually ASSIGNED)
+  if (!['ASSIGNED', 'IN_PROGRESS'].includes(reportFull.status)) {
+    throw new ApiError(400, `Không thể từ chối báo cáo đang ở trạng thái ${reportFull.status}`)
+  }
+
+  const connection = await db.getConnection()
+  try {
+    await connection.beginTransaction()
+
+    const acceptedStatusId = await collectorReportRepository.findStatusTypeIdByName(connection, 'ACCEPTED')
+    if (!acceptedStatusId) throw new ApiError(500, 'Không tìm thấy trạng thái ACCEPTED')
+
+    // 1. Cập nhật trạng thái về ACCEPTED và gỡ người thu gom
+    await connection.execute(
+      'UPDATE wastereport SET report_status_type_id = ?, assigned_collector_id = NULL, scheduled_collect_at = NULL WHERE waste_report_id = ?',
+      [acceptedStatusId, reportId]
+    )
+
+    // 2. Ghi vào ReportStatusHistory
+    const historyId = uuidv4()
+    await connection.execute(
+      `INSERT INTO reportstatushistory 
+       (report_status_history_id, waste_report_id, report_status_type_id, changed_by_user_account_id, changed_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [historyId, reportId, acceptedStatusId, collectorId, new Date()]
+    )
+
+    await connection.commit()
+  } catch (error) {
+    await connection.rollback()
+    throw error
+  } finally {
+    connection.release()
+  }
+
+  // 4. Notify Citizen
+  try {
+    const citizenUserAccountId = await notificationRepository.findCitizenUserAccountIdByReportId(reportId)
+    if (citizenUserAccountId) {
+      await notificationService.createNotification({
+        notificationType: NOTIFICATION_TYPES.REPORT_REJECTED,
+        recipientUserAccountId: citizenUserAccountId,
+        wasteReportId: reportId,
+        message: `Mã báo cáo ${reportFull.reportCode || ''} vừa bị từ chối. Mã báo cáo của bạn đang được phân công lại.`
+      })
+    }
+  } catch (notifError) {
+    console.error('Failed to notify citizen of rejection:', notifError.message)
+  }
+
+  // 5. Notify Enterprises
+  try {
+    const enterprises = await userRepository.findAll({ roleId: ROLES.ENTERPRISE })
+    for (const ent of enterprises) {
+      await notificationService.createNotification({
+        notificationType: NOTIFICATION_TYPES.REPORT_REJECTED_BY_COLLECTOR,
+        recipientUserAccountId: ent.userAccountId || ent.user_account_id,
+        wasteReportId: reportId,
+        message: `Mã báo cáo ${reportFull.reportCode || ''} bị từ chối bởi người thu gom ${user.fullname || 'Người thu gom'}.`
+      })
+    }
+  } catch (entNotifError) {
+    console.error('Failed to notify enterprises of rejection:', entNotifError.message)
+  }
+
+  return {
+    success: true,
+    data: {
+      reportId,
+      status: 'ACCEPTED'
+    }
+  }
+}
 // ==================== SUBMIT RESULT ====================
 
 /**
@@ -604,12 +710,10 @@ async function completeReport(collectorId, reportId, { actualItems, quantityUnit
   }
 
   // 6. Upload images to Cloudinary (before transaction — avoid holding DB locks during HTTP calls)
-  const uploadedUrls = []
+  let uploadedUrls = []
   if (files && files.length > 0) {
-    for (const file of files) {
-      const url = await uploadBufferToCloudinary(file.buffer, file.mimetype)
-      uploadedUrls.push(url)
-    }
+    const uploadPromises = files.map((file) => uploadBufferToCloudinary(file.buffer))
+    uploadedUrls = await Promise.all(uploadPromises)
   }
 
   // 7. Transaction
@@ -776,12 +880,10 @@ async function markReportAsFake(collectorId, reportId, { quantityUnit, note }, f
     throw new ApiError(403, 'You are not the assigned collector for this report')
   }
 
-  const uploadedUrls = []
+  let uploadedUrls = []
   if (files && files.length > 0) {
-    for (const file of files) {
-      const url = await uploadBufferToCloudinary(file.buffer, file.mimetype)
-      uploadedUrls.push(url)
-    }
+    const uploadPromises = files.map((file) => uploadBufferToCloudinary(file.buffer))
+    uploadedUrls = await Promise.all(uploadPromises)
   }
 
   const recordedAt = new Date()

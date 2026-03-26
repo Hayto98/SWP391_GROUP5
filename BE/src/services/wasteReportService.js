@@ -503,8 +503,12 @@ async function updateReport(reportId, userAccountId, updateData) {
       await wasteReportRepository.updateReportById(reportId, normalizedData, connection)
     }
 
-    // Insert new attachments if any
+    // Replace new attachments if any
     if (hasAttachmentUpdates) {
+      // Đầu tiên xóa toàn bộ ảnh cũ
+      await wasteReportRepository.deleteReportAttachments(reportId, connection)
+
+      // Chèn lại ảnh mới
       for (const url of imageUrls) {
         await wasteReportRepository.createReportAttachment(
           {

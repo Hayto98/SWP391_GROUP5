@@ -48,6 +48,16 @@ async function deleteWasteReportItems(wasteReportId, connection) {
 }
 
 /**
+ * Xóa tất cả các file ảnh đính kèm (ReportAttachment) của báo cáo
+ * @param {string} wasteReportId
+ * @param {object} connection - transaction connection
+ */
+async function deleteReportAttachments(wasteReportId, connection) {
+  const conn = connection || db
+  await conn.execute('DELETE FROM reportattachment WHERE waste_report_id = ?', [wasteReportId])
+}
+
+/**
  * Lấy danh sách items của 1 report kèm thông tin wastetype.
  * @param {string} wasteReportId
  * @returns {Promise<Array>}
@@ -960,5 +970,6 @@ module.exports = {
   validateWasteTypeIds,
   insertWasteReportItems,
   deleteWasteReportItems,
-  findWasteReportItems
+  findWasteReportItems,
+  deleteReportAttachments
 }
