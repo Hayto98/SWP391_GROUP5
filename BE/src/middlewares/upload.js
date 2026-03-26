@@ -13,7 +13,7 @@ const fileFilter = (req, file, cb) => {
   if (ALLOWED_TYPES.includes(file.mimetype)) {
     cb(null, true)
   } else {
-    cb(new ApiError(400, 'Chỉ chấp nhận file ảnh (jpeg, png, webp, gif)'))
+    cb(new ApiError(400, 'Chỉ chấp nhận file ảnh định dạng (jpeg, jpg, png, webp, gif).'))
   }
 }
 
@@ -32,16 +32,16 @@ function wrapMulter(multerFn) {
       if (!err) return next()
 
       if (err.code === 'LIMIT_FILE_SIZE') {
-        return next(new ApiError(400, `File too large. Maximum allowed size is ${MAX_FILE_SIZE_MB} MB per file.`))
+        return next(new ApiError(400, `Kích thước file quá lớn. Tối đa cho phép là ${MAX_FILE_SIZE_MB} MB mỗi file.`))
       }
       if (err.code === 'LIMIT_UNEXPECTED_FILE') {
-        return next(new ApiError(400, `Unexpected field name. Received invalid file field name.`))
+        return next(new ApiError(400, `Tên trường upload không hợp lệ hoặc vượt quá số lượng file cho phép.`))
       }
       if (err.code === 'LIMIT_FILE_COUNT') {
-        return next(new ApiError(400, 'Too many files. Maximum 5 files allowed.'))
+        return next(new ApiError(400, 'Vượt quá số lượng file cho phép. Tối đa 5 file.'))
       }
       // Generic multer or fileFilter error
-      return next(new ApiError(400, err.message || 'File upload error'))
+      return next(new ApiError(400, err.message || 'Lỗi upload file.'))
     })
   }
 }

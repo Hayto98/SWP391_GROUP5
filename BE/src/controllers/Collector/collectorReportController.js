@@ -52,6 +52,23 @@ async function acceptReport(req, res, next) {
 }
 
 /**
+ * PATCH /collector/reports/:reportId/reject
+ * Reject an assigned report.
+ */
+async function rejectReport(req, res, next) {
+  try {
+    const collectorId = req.user.sub
+    const { reportId } = req.params
+    const { reason } = req.body
+
+    const result = await collectorReportService.rejectAssignedReport(collectorId, reportId, reason)
+
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+/**
  * POST /collector/reports/:reportId/result
  * Collector submits actual quantity result — compares against estimated weight.
  * Body: multipart/form-data OR application/json  { actualQuantity, note, quantity_unit, file }
@@ -170,6 +187,7 @@ module.exports = {
   getAssignedReports,
   getReportById,
   acceptReport,
+  rejectReport,
   submitResult,
   completeReport,
   markReportAsFake,
