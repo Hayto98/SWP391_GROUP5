@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/card";
 import { GrGroup } from "react-icons/gr";
 import { RiUserFollowLine, RiUserForbidLine } from "react-icons/ri";
 
-export function UserStatsCards() {
+export function UserStatsCards({ stats = { total: 0, active: 0, locked: 0 } }) {
   return (
     <div className="flex gap-4 w-full">
       <Card className="shadow p-4 flex-1 flex flex-row items-center gap-4">
@@ -12,7 +12,9 @@ export function UserStatsCards() {
 
         <div className="flex flex-col">
           <span className="text-slate-500 font-semibold">Tổng người dùng</span>
-          <h1 className="text-xl font-bold text-primary-foreground">1.500</h1>
+          <h1 className="text-xl font-bold text-primary-foreground">
+            {stats.total.toLocaleString("vi-VN")}
+          </h1>
         </div>
       </Card>
       <Card className="shadow p-4 flex-1 flex flex-row items-center gap-4">
@@ -22,7 +24,9 @@ export function UserStatsCards() {
 
         <div className="flex flex-col">
           <span className="text-slate-500 font-semibold">Đang hoạt động</span>
-          <h1 className="text-xl font-bold text-primary-foreground">1.500</h1>
+          <h1 className="text-xl font-bold text-primary-foreground">
+            {stats.active.toLocaleString("vi-VN")}
+          </h1>
         </div>
       </Card>
       <Card className="shadow p-4 flex-1 flex flex-row items-center gap-4">
@@ -32,7 +36,9 @@ export function UserStatsCards() {
 
         <div className="flex flex-col">
           <span className="text-slate-500 font-semibold">Bị khoá</span>
-          <h1 className="text-xl font-bold text-primary-foreground">2</h1>
+          <h1 className="text-xl font-bold text-primary-foreground">
+            {stats.locked.toLocaleString("vi-VN")}
+          </h1>
         </div>
       </Card>
     </div>

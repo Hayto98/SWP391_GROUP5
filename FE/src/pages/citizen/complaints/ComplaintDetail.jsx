@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Calendar, Gift, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -79,8 +79,14 @@ function ComplaintDetail() {
                 {complaint.reportComplaintId}
               </p>
             </div>
-            <Badge variant={isOpen ? "default" : "secondary"}>
-              {isOpen ? "Đang xử lý" : "Đã giải quyết"}
+            <Badge variant={
+              complaint.complaintStatus === "OPEN" ? "default" : 
+              complaint.complaintStatus === "REJECTED" ? "destructive" : 
+              "secondary"
+            }>
+              {complaint.complaintStatus === "OPEN" ? "Đang xử lý" :
+               complaint.complaintStatus === "REJECTED" ? "Từ chối" :
+               "Đã giải quyết"}
             </Badge>
           </div>
         </CardHeader>
@@ -171,10 +177,16 @@ function ComplaintDetail() {
                 </span>
               </div>
               <div>
-                <span className="text-muted-foreground block">Trạng thái</span>
-                <span className="font-medium">
-                  {complaint.complaintStatus || "-"}
-                </span>
+                <span className="text-muted-foreground block mb-1">Trạng thái</span>
+                <Badge variant={
+                  complaint.complaintStatus === "OPEN" ? "default" : 
+                  complaint.complaintStatus === "REJECTED" ? "destructive" : 
+                  "secondary"
+                }>
+                  {complaint.complaintStatus === "OPEN" ? "Đang xử lý" :
+                   complaint.complaintStatus === "REJECTED" ? "Từ chối" :
+                   "Đã giải quyết"}
+                </Badge>
               </div>
               <div>
                 <span className="text-muted-foreground block">Resolved at</span>

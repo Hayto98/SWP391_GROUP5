@@ -15,8 +15,8 @@ async function getAllUsers({ page = 1, limit = 20, keyword, role } = {}) {
   const roleId = role !== undefined && role !== '' ? Number(role) : undefined
   const filter = { keyword: keyword?.trim() || undefined, roleId }
   const users = await userRepository.findAll({ limit, offset, ...filter })
-  const total = await userRepository.countAll(filter)
-  return { users, total, page, limit }
+  const stats = await userRepository.getUserStats(filter)
+  return { users, ...stats, page, limit }
 }
 
 /**

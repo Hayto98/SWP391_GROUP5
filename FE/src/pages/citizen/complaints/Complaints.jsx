@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Eye, ChevronLeft, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -92,8 +92,9 @@ export default function Complaints() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">Tất cả</SelectItem>
-              <SelectItem value="OPEN">Mở</SelectItem>
+              <SelectItem value="OPEN">Đang xử lý</SelectItem>
               <SelectItem value="RESOLVED">Đã giải quyết</SelectItem>
+              <SelectItem value="REJECTED">Từ chối</SelectItem>
             </SelectContent>
           </Select>
         </Field>
@@ -142,10 +143,14 @@ export default function Complaints() {
                 <TableCell>
                   <Badge
                     variant={
-                      c.complaintStatus === "OPEN" ? "default" : "secondary"
+                      c.complaintStatus === "OPEN" ? "default" : 
+                      c.complaintStatus === "REJECTED" ? "destructive" : 
+                      "secondary"
                     }
                   >
-                    {c.complaintStatus === "OPEN" ? "Mở" : "Đã giải quyết"}
+                    {c.complaintStatus === "OPEN" ? "Đang chờ xử lý" : 
+                     c.complaintStatus === "REJECTED" ? "Từ chối" : 
+                     "Đã giải quyết"}
                   </Badge>
                 </TableCell>
                 <TableCell>
