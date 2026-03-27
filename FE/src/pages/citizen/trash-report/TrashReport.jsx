@@ -165,7 +165,7 @@ function TrashReport() {
       return;
     }
 
-    if (!files[0]?.file) {
+    if (files.length === 0) {
       toast.warning("Vui lòng tải lên ít nhất 1 ảnh");
       return;
     }
@@ -184,7 +184,11 @@ function TrashReport() {
         ),
       ),
     );
-    reportPayload.append("file", files[0].file);
+    files.forEach((image) => {
+      if (image?.file) {
+        reportPayload.append("file", image.file);
+      }
+    });
 
     setSubmitting(true);
     try {

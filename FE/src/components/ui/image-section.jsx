@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 
-function ImageSection({ title, image, className }) {
+function ImageSection({ title, image, className, imageClassName }) {
   const [preview, setPreview] = useState(null);
 
   const src = typeof image === "string" ? image : image?.file_uri;
 
   return (
-    <div className={`space-y-3 w-full ${className || ""}`}>
-      <p className="text-base font-semibold">{title}</p>
+    <div className={`w-full ${title ? "space-y-3" : ""} ${className || ""}`}>
+      {title ? <p className="text-base font-semibold">{title}</p> : null}
 
       {!src ? (
         <div className=" rounded-lg border border-dashed p-6 text-sm text-muted-foreground text-center">
@@ -17,9 +17,9 @@ function ImageSection({ title, image, className }) {
       ) : (
         <img
           src={src}
-          alt={title}
+          alt={title || "image"}
           onClick={() => setPreview(src)}
-          className="w-full h-60 object-cover rounded-xl border cursor-pointer transition"
+          className={`w-full h-60 object-cover rounded-xl border cursor-pointer transition ${imageClassName || ""}`}
         />
       )}
 

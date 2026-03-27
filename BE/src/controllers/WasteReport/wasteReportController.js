@@ -134,6 +134,14 @@ async function updateReport(req, res, next) {
       }
     }
 
+    if (typeof updateData.retainedImageUris === 'string') {
+      try {
+        updateData.retainedImageUris = JSON.parse(updateData.retainedImageUris)
+      } catch {
+        throw new ApiError(400, 'retainedImageUris phải là một mảng JSON hợp lệ.')
+      }
+    }
+
     // Hỗ trợ file upload (multipart)
     const files = req.files || []
     if (files.length > 5) {

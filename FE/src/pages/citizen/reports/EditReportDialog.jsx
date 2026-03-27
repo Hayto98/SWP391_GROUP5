@@ -20,9 +20,12 @@ import {
 } from "@/components/ui/select";
 import LocationSelection from "../trash-report/components/LocationSelection";
 import { reverseGeocode } from "@/services/geocodingService";
-import { CircleAlert, Plus, Trash2 } from "lucide-react";
+import { CircleAlert, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import ImageSection from "@/components/ui/image-section";
+
+const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_IMAGES = 5;
 
 function EditReportDialog({
   open,
@@ -39,9 +42,8 @@ function EditReportDialog({
   const [quantity, setQuantity] = useState("");
   const [selectedItems, setSelectedItems] = useState([]);
   const [marker, setMarker] = useState(null);
-  const [currentImage, setCurrentImage] = useState(null);
-  const [imageFile, setImageFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
+  const [currentImages, setCurrentImages] = useState([]);
+  const [newImages, setNewImages] = useState([]);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -87,24 +89,61 @@ function EditReportDialog({
         setMarker(null);
       }
 
-      setCurrentImage(
-        report?.citizenImages?.[0] || report?.images?.[0]?.file_uri || null,
-      );
-      setImageFile(null);
-      if (imagePreview) {
-        URL.revokeObjectURL(imagePreview);
-      }
-      setImagePreview(null);
+      const existingFromCitizenImages = Array.isArray(report?.citizenImages)
+        ? report.citizenImages
+            .filter((uri) => typeof uri === "string" && uri.trim() !== "")
+            .map((uri, index) => ({
+              id: `current-${index}`,
+              uri,
+            }))
+        : [];
+
+      const existingFromImages = Array.isArray(report?.images)
+        ? report.images
+            .map((img, index) => {
+              const uri = img?.file_uri || img?.fileUri || null;
+              if (!uri || typeof uri !== "string") return null;
+              return {
+                id: `current-image-${index}`,
+                uri,
+              };
+            })
+            .filter(Boolean)
+        : [];
+
+      const mergedCurrentImages = [
+        ...existingFromCitizenImages,
+        ...existingFromImages,
+      ]
+        .filter((img) => typeof img?.uri === "string" && img.uri.trim() !== "")
+        .reduce((acc, img) => {
+          const exists = acc.some((item) => item.uri === img.uri);
+          if (!exists) acc.push(img);
+          return acc;
+        }, [])
+        .slice(0, MAX_IMAGES);
+
+      setCurrentImages(mergedCurrentImages);
+      setNewImages((prev) => {
+        prev.forEach((img) => {
+          if (img?.preview) {
+            URL.revokeObjectURL(img.preview);
+          }
+        });
+        return [];
+      });
     }
   }, [open, report]);
 
   useEffect(() => {
     return () => {
-      if (imagePreview) {
-        URL.revokeObjectURL(imagePreview);
-      }
+      newImages.forEach((img) => {
+        if (img?.preview) {
+          URL.revokeObjectURL(img.preview);
+        }
+      });
     };
-  }, [imagePreview]);
+  }, [newImages]);
 
   if (!report) return null;
 
@@ -178,8 +217,8 @@ function EditReportDialog({
   };
 
   const handleImageChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const selectedFiles = Array.from(e.target.files || []);
+    if (selectedFiles.length === 0) return;
 
     const validTypes = [
       "image/jpeg",
@@ -188,33 +227,67 @@ function EditReportDialog({
       "image/webp",
       "image/gif",
     ];
-    if (!validTypes.includes(file.type)) {
+
+    const invalidType = selectedFiles.some(
+      (file) => !validTypes.includes(file.type),
+    );
+    if (invalidType) {
       toast.warning("Chỉ chấp nhận ảnh JPG, PNG, WEBP hoặc GIF");
-      e.target.value = "";
-      return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
+    const oversized = selectedFiles.some(
+      (file) => file.size > MAX_FILE_SIZE_BYTES,
+    );
+    if (oversized) {
       toast.warning("Ảnh vượt quá 5MB. Vui lòng chọn ảnh nhỏ hơn 5MB.");
+    }
+
+    const validFiles = selectedFiles.filter(
+      (file) =>
+        validTypes.includes(file.type) && file.size <= MAX_FILE_SIZE_BYTES,
+    );
+
+    if (validFiles.length === 0) {
       e.target.value = "";
       return;
     }
 
-    if (imagePreview) {
-      URL.revokeObjectURL(imagePreview);
-    }
+    setNewImages((prev) => {
+      const currentTotal = currentImages.length + prev.length;
+      const remainingSlots = Math.max(0, MAX_IMAGES - currentTotal);
+      if (remainingSlots === 0) {
+        toast.warning("Bạn chỉ có thể có tối đa 5 ảnh cho báo cáo.");
+        return prev;
+      }
 
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
+      if (validFiles.length > remainingSlots) {
+        toast.warning("Số ảnh vượt giới hạn, chỉ thêm được tối đa 5 ảnh.");
+      }
+
+      const incoming = validFiles.slice(0, remainingSlots).map((file) => ({
+        id: Date.now() + Math.random(),
+        file,
+        preview: URL.createObjectURL(file),
+      }));
+
+      return [...prev, ...incoming];
+    });
+
     e.target.value = "";
   };
 
-  const handleRemoveNewImage = () => {
-    if (imagePreview) {
-      URL.revokeObjectURL(imagePreview);
-    }
-    setImagePreview(null);
-    setImageFile(null);
+  const handleRemoveNewImage = (id) => {
+    setNewImages((prev) => {
+      const target = prev.find((img) => img.id === id);
+      if (target?.preview) {
+        URL.revokeObjectURL(target.preview);
+      }
+      return prev.filter((img) => img.id !== id);
+    });
+  };
+
+  const handleRemoveCurrentImage = (id) => {
+    setCurrentImages((prev) => prev.filter((img) => img.id !== id));
   };
 
   const handleMapClick = async (latlng) => {
@@ -259,12 +332,13 @@ function EditReportDialog({
       gpsLng: lng,
       description: description?.trim() || "Cập nhật mô tả mới",
       weight: totalWeight,
-      file: imageFile || undefined,
+      retainedImageUris: currentImages.map((img) => img.uri).filter(Boolean),
+      files: newImages.map((img) => img.file).filter(Boolean),
     });
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog className=" w-[80vw]" open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Chỉnh sửa báo cáo</DialogTitle>
@@ -350,10 +424,71 @@ function EditReportDialog({
 
           <div className="space-y-3">
             <Label>Ảnh báo cáo</Label>
-            <ImageSection
-              title={imageFile ? "Ảnh mới sẽ cập nhật" : "Ảnh hiện tại"}
-              image={imagePreview || currentImage}
-            />
+            {currentImages.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Ảnh hiện tại (bấm X để bỏ ảnh không muốn giữ)
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {currentImages.map((img) => (
+                    <div
+                      key={img.id}
+                      className="relative overflow-hidden rounded-lg border bg-muted aspect-square"
+                    >
+                      <ImageSection
+                        image={img.uri}
+                        className="h-full"
+                        imageClassName="h-full w-full rounded-none border-0"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCurrentImage(img.id)}
+                        className="absolute top-1 right-1 inline-flex items-center justify-center size-6 rounded-full bg-black/70 text-white hover:bg-black/85"
+                        aria-label="Bỏ ảnh cũ"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {newImages.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Ảnh mới sẽ cập nhật
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {newImages.map((img) => (
+                    <div
+                      key={img.id}
+                      className="relative overflow-hidden rounded-lg border bg-muted aspect-square"
+                    >
+                      <ImageSection
+                        image={img.preview}
+                        className="h-full"
+                        imageClassName="h-full w-full rounded-none border-0"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveNewImage(img.id)}
+                        className="absolute top-1 right-1 inline-flex items-center justify-center size-6 rounded-full bg-black/70 text-white hover:bg-black/85"
+                        aria-label="Xóa ảnh"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {currentImages.length === 0 && newImages.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                Chưa có ảnh báo cáo
+              </p>
+            )}
 
             <div className="flex gap-2">
               <Button
@@ -361,23 +496,37 @@ function EditReportDialog({
                 variant="outline"
                 onClick={handleOpenFilePicker}
               >
-                {imageFile ? "Thay đổi ảnh mới" : "Chọn ảnh mới"}
+                {newImages.length > 0 ? "Thêm ảnh mới" : "Chọn ảnh mới"}
               </Button>
-              {imageFile && (
+              {newImages.length > 0 && (
                 <Button
                   type="button"
                   variant="ghost"
-                  onClick={handleRemoveNewImage}
+                  onClick={() => {
+                    newImages.forEach((img) => {
+                      if (img?.preview) {
+                        URL.revokeObjectURL(img.preview);
+                      }
+                    });
+                    setNewImages([]);
+                  }}
                 >
-                  Bỏ ảnh mới
+                  Bỏ tất cả ảnh mới
                 </Button>
               )}
             </div>
+
+            <p className="text-xs text-muted-foreground">
+              Đang giữ {currentImages.length} ảnh cũ, thêm {newImages.length}{" "}
+              ảnh mới. Tổng {currentImages.length + newImages.length}/
+              {MAX_IMAGES} ảnh. Tối đa 5MB mỗi ảnh.
+            </p>
 
             <Input
               ref={fileInputRef}
               type="file"
               accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+              multiple
               className="hidden"
               onChange={handleImageChange}
             />

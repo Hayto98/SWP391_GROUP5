@@ -484,10 +484,46 @@ async function updateReport(reportId, userAccountId, updateData) {
     normalizedData.file_uri = fileUri
   }
 
+  const retainedImageUrisInput =
+    updateData?.retainedImageUris ?? updateData?.keepImageUris ?? updateData?.existingImageUris
+  const hasRetainedImageInput = retainedImageUrisInput !== undefined
+
+  const existingImageUris = Array.isArray(report?.images)
+    ? report.images
+        .map((item) => item?.file_uri || item?.fileUri || null)
+        .filter((uri) => typeof uri === 'string' && uri.trim() !== '')
+    : []
+
+  let retainedImageUris = []
+  if (hasRetainedImageInput) {
+    if (!Array.isArray(retainedImageUrisInput)) {
+      throw new ApiError(400, 'retainedImageUris phải là một mảng hợp lệ.')
+    }
+
+    retainedImageUris = retainedImageUrisInput.map((uri) => (typeof uri === 'string' ? uri.trim() : '')).filter(Boolean)
+
+    const existingSet = new Set(existingImageUris)
+    const invalidRetained = retainedImageUris.filter((uri) => !existingSet.has(uri))
+    if (invalidRetained.length > 0) {
+      throw new ApiError(400, 'Có ảnh cũ không hợp lệ trong danh sách retainedImageUris.')
+    }
+  }
+
+  const shouldRebuildAttachments = hasRetainedImageInput || imageUrls.length > 0
+  let finalImageUris = []
+  if (shouldRebuildAttachments) {
+    const baseUris = hasRetainedImageInput ? retainedImageUris : []
+    finalImageUris = [...new Set([...baseUris, ...imageUrls])]
+    if (finalImageUris.length > 5) {
+      throw new ApiError(400, 'Bạn chỉ được phép tải lên tối đa 5 ảnh.')
+    }
+    normalizedData.file_uri = finalImageUris[0] || null
+  }
+
   // Check if there's anything to update
   const hasFieldUpdates = Object.keys(normalizedData).length > 0
   const hasItemUpdates = normalizedItems !== null
-  const hasAttachmentUpdates = imageUrls.length > 0
+  const hasAttachmentUpdates = shouldRebuildAttachments
 
   if (!hasFieldUpdates && !hasItemUpdates && !hasAttachmentUpdates) {
     throw new ApiError(400, 'Không có trường hợp lệ nào để cập nhật.')
@@ -505,11 +541,10 @@ async function updateReport(reportId, userAccountId, updateData) {
 
     // Replace new attachments if any
     if (hasAttachmentUpdates) {
-      // Đầu tiên xóa toàn bộ ảnh cũ
+      // Xóa toàn bộ attachment cũ rồi ghi lại ảnh đã giữ + ảnh mới
       await wasteReportRepository.deleteReportAttachments(reportId, connection)
 
-      // Chèn lại ảnh mới
-      for (const url of imageUrls) {
+      for (const url of finalImageUris) {
         await wasteReportRepository.createReportAttachment(
           {
             reportAttachmentId: uuidv4(),

@@ -19,6 +19,16 @@ import { Separator } from "@/components/ui/separator";
 import { Calculator, CircleAlert, Info, Plus, Trash2 } from "lucide-react";
 import { TiGift } from "react-icons/ti";
 
+const EXAMPLE_WASTE_TYPE = {
+  wasteTypeName: "Rác tái chế (ví dụ)",
+  unitType: "KG",
+  pointsPerUnit: 8,
+  allowedVariancePercent: 15,
+  penaltyPercent: 20,
+  description:
+    "Đây là dữ liệu mẫu để minh họa cách tính điểm. Mỗi loại rác thực tế có công thức và mức phạt riêng.",
+};
+
 function TrashSelection({
   wasteTypes,
   loadingWasteTypes,
@@ -33,40 +43,42 @@ function TrashSelection({
   const selectedWasteType = wasteTypes.find(
     (item) => String(item.wasteTypeId) === String(selectedType),
   );
+  const displayWasteType = selectedWasteType || EXAMPLE_WASTE_TYPE;
+  const isUsingExampleData = !selectedWasteType;
   const quantityNum = Number(quantity) || 0;
-  const minKgRequired = Number(selectedWasteType?.minKgRequired ?? 0);
-  const maxKgRequiredRaw = selectedWasteType?.maxKgRequired;
+  const minKgRequired = Number(displayWasteType?.minKgRequired ?? 0);
+  const maxKgRequiredRaw = displayWasteType?.maxKgRequired;
   const hasMaxKgLimit =
     maxKgRequiredRaw !== null &&
     maxKgRequiredRaw !== undefined &&
     Number(maxKgRequiredRaw) > 0;
   const maxKgRequired = hasMaxKgLimit ? Number(maxKgRequiredRaw) : null;
   const effectiveQuantity =
-    selectedWasteType && quantityNum > 0
+    displayWasteType && quantityNum > 0
       ? hasMaxKgLimit
         ? Math.min(quantityNum, maxKgRequired)
         : quantityNum
       : 0;
   const estimatedPoints =
-    selectedWasteType && quantityNum > 0
-      ? effectiveQuantity * selectedWasteType.pointsPerUnit
+    displayWasteType && quantityNum > 0
+      ? effectiveQuantity * displayWasteType.pointsPerUnit
       : 0;
 
   const dynamicVarianceExample =
-    selectedWasteType && quantityNum > 0
+    displayWasteType && quantityNum > 0
       ? (() => {
-          const percent = Number(selectedWasteType.allowedVariancePercent ?? 0);
+          const percent = Number(displayWasteType.allowedVariancePercent ?? 0);
           const variance = (quantityNum * percent) / 100;
           const minAllowed = Math.max(0, quantityNum - variance);
           const maxAllowed = quantityNum + variance;
-          return `${minAllowed.toFixed(2)} - ${maxAllowed.toFixed(2)} ${selectedWasteType.unitType}`;
+          return `${minAllowed.toFixed(2)} ${displayWasteType.unitType}`;
         })()
       : null;
 
   const dynamicPenaltyExample =
-    selectedWasteType && estimatedPoints > 0
+    displayWasteType && estimatedPoints > 0
       ? (() => {
-          const penaltyPercent = Number(selectedWasteType.penaltyPercent ?? 0);
+          const penaltyPercent = Number(displayWasteType.penaltyPercent ?? 0);
           const penaltyPoints = (estimatedPoints * penaltyPercent) / 100;
           const remainingPoints = estimatedPoints - penaltyPoints;
           return {
@@ -237,6 +249,13 @@ function TrashSelection({
                             <Calculator size={10} strokeWidth={3} />+
                             {itemPoints.toFixed(2)} điểm
                           </span>
+                          <span className="text-[11px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
+                            Sai lệch -
+                            {item.wasteType.allowedVariancePercent ?? "-"}%
+                          </span>
+                          <span className="text-[11px] font-medium text-red-700 bg-red-50 px-1.5 py-0.5 rounded">
+                            Phạt {item.wasteType.penaltyPercent ?? "-"}%
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -277,52 +296,64 @@ function TrashSelection({
         </div>
       )}
 
-      {selectedWasteType && (
-        <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm">
+      <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm">
+        {isUsingExampleData && (
+          <div className="mb-2 flex items-start gap-2 rounded-md border border-blue-200 bg-white/80 p-2 text-xs text-blue-900">
+            <Info size={14} className="mt-0.5 shrink-0" />
+            <p>
+              Chưa chọn loại rác. Hệ thống đang hiển thị ví dụ minh họa để bạn
+              dễ hiểu cách tính điểm. Mỗi loại rác sẽ có công thức và mức trừ
+              điểm riêng.
+            </p>
+          </div>
+        )}
+
+        <div className="mb-1 flex items-center justify-between gap-2">
           <p className="text-xs font-medium text-muted-foreground mb-1">
             Mô tả loại rác:
           </p>
-
-          <FieldDescription className="text-sm leading-relaxed text-foreground/90">
-            {selectedWasteType.description || "Chưa có mô tả cho loại rác này."}
-          </FieldDescription>
-          <p className="font-semibold text-blue-800 mb-2">
-            Hướng dẫn tính điểm
-          </p>
-
-          <ul className="space-y-1 text-blue-900 leading-6">
-            <li>
-              Công thức cơ bản: Điểm = Khối lượng hợp lệ x{" "}
-              {selectedWasteType.pointsPerUnit} điểm/
-              {selectedWasteType.unitType}
-            </li>
-
-            <li>
-              Sai lệch cho phép giữa báo cáo và thực tế: ±
-              {selectedWasteType.allowedVariancePercent ?? "-"}%
-            </li>
-            <li className="text-blue-700/90 text-xs pl-4">
-              {dynamicVarianceExample
-                ? `Ví dụ theo số lượng đã nhập ${quantityNum.toFixed(2)} ${selectedWasteType.unitType}: thực tế trong khoảng ${dynamicVarianceExample} vẫn được xem là trong ngưỡng.`
-                : "Nhập khối lượng để xem ví dụ sai lệch theo dữ liệu thực tế."}
-            </li>
-            <li>
-              Mức phạt nếu báo cáo không chính xác:{" "}
-              {selectedWasteType.penaltyPercent ?? "-"}%
-            </li>
-            <li className="text-blue-700/90 text-xs pl-4">
-              {dynamicPenaltyExample
-                ? `Ví dụ theo dữ liệu hiện tại: ${estimatedPoints.toFixed(2)} điểm với mức phạt ${selectedWasteType.penaltyPercent ?? 0}% sẽ bị trừ ${dynamicPenaltyExample.penaltyPoints.toFixed(2)} điểm, còn ${dynamicPenaltyExample.remainingPoints.toFixed(2)} điểm.`
-                : "Thêm khối lượng để xem ví dụ mức phạt theo dữ liệu hiện tại."}
-            </li>
-            <li>
-              Ước tính hiện tại: {effectiveQuantity.toFixed(2)}{" "}
-              {selectedWasteType.unitType} x {selectedWasteType.pointsPerUnit} ={" "}
-              {estimatedPoints.toFixed(2)} điểm
-            </li>
-          </ul>
+          <span className="text-[11px] font-semibold text-blue-700">
+            {displayWasteType.wasteTypeName}
+          </span>
         </div>
-      )}
+
+        <FieldDescription className="text-sm leading-relaxed text-foreground/90">
+          {displayWasteType.description || "Chưa có mô tả cho loại rác này."}
+        </FieldDescription>
+        <p className="font-semibold text-blue-800 mb-2">Hướng dẫn tính điểm</p>
+
+        <ul className="space-y-1 text-blue-900 leading-6">
+          <li>
+            Công thức cơ bản: Điểm = Khối lượng hợp lệ x{" "}
+            {displayWasteType.pointsPerUnit} điểm/
+            {displayWasteType.unitType}
+          </li>
+
+          <li>
+            Sai lệch cho phép giữa báo cáo và thực tế: -
+            {displayWasteType.allowedVariancePercent ?? "-"}%
+          </li>
+          <li className="text-blue-700/90 text-xs pl-4">
+            {dynamicVarianceExample
+              ? `Ví dụ theo số lượng đã nhập ${quantityNum.toFixed(2)} ${displayWasteType.unitType}: thực tế trong khoảng ${dynamicVarianceExample} vẫn được xem là trong ngưỡng.`
+              : "Nhập khối lượng để xem ví dụ sai lệch theo dữ liệu thực tế."}
+          </li>
+          <li>
+            Mức phạt nếu báo cáo không chính xác:{" "}
+            {displayWasteType.penaltyPercent ?? "-"}%
+          </li>
+          <li className="text-blue-700/90 text-xs pl-4">
+            {dynamicPenaltyExample
+              ? `Ví dụ theo dữ liệu hiện tại: ${estimatedPoints.toFixed(2)} điểm với mức phạt ${displayWasteType.penaltyPercent ?? 0}% sẽ bị trừ ${dynamicPenaltyExample.penaltyPoints.toFixed(2)} điểm, còn ${dynamicPenaltyExample.remainingPoints.toFixed(2)} điểm.`
+              : "Thêm khối lượng để xem ví dụ mức phạt theo dữ liệu hiện tại."}
+          </li>
+          <li>
+            Ước tính hiện tại: {effectiveQuantity.toFixed(2)}{" "}
+            {displayWasteType.unitType} x {displayWasteType.pointsPerUnit} ={" "}
+            {estimatedPoints.toFixed(2)} điểm
+          </li>
+        </ul>
+      </div>
     </div>
   );
 }
