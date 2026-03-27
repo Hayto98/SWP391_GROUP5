@@ -1,7 +1,10 @@
 ﻿import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
+  AlertTriangle,
+  Ban,
   Calendar,
+  CheckCircle2,
   Loader2,
   MapPin,
   Phone,
@@ -12,6 +15,7 @@ import {
 import {
   acceptCollectorReport,
   getCollectorReportById,
+  rejectCollectorReport,
   markCollectorReportAsFake,
   scheduleCollectorReport,
   submitCollectorReportResult,
@@ -175,6 +179,8 @@ function TaskDetail() {
     toTimeHHmm(getDefaultScheduleDateTime()),
   );
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
   const [submitSaving, setSubmitSaving] = useState(false);
   const [markingFake, setMarkingFake] = useState(false);
@@ -386,6 +392,28 @@ function TaskDetail() {
     }
   };
 
+  const handleRejectTask = async () => {
+    if (
+      !task ||
+      rejecting ||
+      (task.status !== "ASSIGNED" && task.status !== "IN_PROGRESS")
+    ) {
+      return;
+    }
+
+    setRejecting(true);
+    try {
+      await rejectCollectorReport(task.reportId);
+      toast.success("Đã từ chối nhiệm vụ");
+      setRejectDialogOpen(false);
+      navigate("/collector/tasks");
+    } catch (error) {
+      toast.error(error.message || "Từ chối nhiệm vụ thất bại");
+    } finally {
+      setRejecting(false);
+    }
+  };
+
   const handleOpenMarkAsFakeDialog = () => {
     if (!task || task.status !== "IN_PROGRESS") {
       return;
@@ -555,7 +583,7 @@ function TaskDetail() {
               />
             </div>
 
-            <button
+            <Button
               onClick={() => {
                 if (task.status === "ASSIGNED") {
                   const defaultDate = getDefaultScheduleDateTime();
@@ -572,25 +600,66 @@ function TaskDetail() {
                 markingFake ||
                 task.status === "COLLECTED"
               }
-              className="w-full rounded-xl bg-green-500 text-white py-3 font-semibold hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full h-12 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
             >
-              {accepting
-                ? "Đang nhận..."
-                : task.status === "IN_PROGRESS"
-                  ? "Cập nhật kết quả thu gom"
-                  : "Nhận nhiệm vụ"}
-            </button>
+              {accepting ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Đang nhận...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="size-4" />
+                  {task.status === "IN_PROGRESS"
+                    ? "Cập nhật kết quả thu gom"
+                    : "Nhận nhiệm vụ"}
+                </>
+              )}
+            </Button>
+
+            {(task.status === "ASSIGNED" || task.status === "IN_PROGRESS") && (
+              <Button
+                onClick={() => setRejectDialogOpen(true)}
+                disabled={accepting || scheduleSaving || rejecting}
+                className="w-full h-12 rounded-xl bg-amber-500 text-white hover:bg-amber-600"
+              >
+                {rejecting ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Đang xử lý...
+                  </>
+                ) : (
+                  <>
+                    <Ban className="size-4" />
+                    {task.status === "IN_PROGRESS"
+                      ? "Hủy nhiệm vụ"
+                      : "Từ chối nhiệm vụ"}
+                  </>
+                )}
+              </Button>
+            )}
 
             {task.status === "IN_PROGRESS" && (
-              <button
+              <Button
                 onClick={handleOpenMarkAsFakeDialog}
                 disabled={
                   markingFake || submitSaving || accepting || scheduleSaving
                 }
-                className="w-full rounded-xl bg-red-500 text-white py-3 font-semibold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                variant="destructive"
+                className="w-full h-12 rounded-xl"
               >
-                {markingFake ? "Đang xử lý..." : "Báo cáo giả"}
-              </button>
+                {markingFake ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Đang xử lý...
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle className="size-4" />
+                    Báo cáo giả
+                  </>
+                )}
+              </Button>
             )}
           </div>
         </div>
@@ -673,6 +742,43 @@ function TaskDetail() {
           </DialogHeader>
           <DialogFooter>
             <Button onClick={() => setSuccessDialogOpen(false)}>Đóng</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {task.status === "IN_PROGRESS"
+                ? "Xác nhận hủy nhiệm vụ"
+                : "Xác nhận từ chối nhiệm vụ"}
+            </DialogTitle>
+            <DialogDescription>
+              {task.status === "IN_PROGRESS"
+                ? "Bạn có chắc chắn muốn hủy nhiệm vụ đang xử lý không?"
+                : "Bạn có chắc chắn muốn từ chối nhiệm vụ này không?"}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setRejectDialogOpen(false)}
+              disabled={rejecting}
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleRejectTask}
+              disabled={rejecting}
+            >
+              {rejecting
+                ? "Đang xử lý..."
+                : task.status === "IN_PROGRESS"
+                  ? "Xác nhận hủy"
+                  : "Xác nhận từ chối"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

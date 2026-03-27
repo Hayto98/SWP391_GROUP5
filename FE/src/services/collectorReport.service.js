@@ -27,6 +27,14 @@ export function acceptCollectorReport(reportId) {
   });
 }
 
+export function rejectCollectorReport(reportId) {
+  return request(`/api/v1/collector/reports/${reportId}/reject`, {
+    method: "PATCH",
+    data: {},
+    headers: getAuthHeaders(),
+  });
+}
+
 export function scheduleCollectorReport(reportId, scheduledCollectAt) {
   return request(`/api/v1/collector/reports/${reportId}/schedule`, {
     method: "PATCH",
