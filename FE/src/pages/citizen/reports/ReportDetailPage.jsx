@@ -615,53 +615,68 @@ function ReportDetailPage() {
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Minh chứng thu gom</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm text-green-600 font-medium mb-2">
+      <div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-6">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm font-semibold text-emerald-700">
                 Ảnh người dân
               </p>
-              {report.citizenImages && report.citizenImages.length > 0 ? (
-                <ImageSection
-                  image={report.citizenImages?.[0]}
-                  className="flex-1"
-                />
-              ) : (
-                <div className="w-full h-60 bg-gray-100 rounded-lg border flex items-center justify-center">
-                  <p className="text-sm text-muted-foreground">Chưa có ảnh</p>
-                </div>
-              )}
+              <span className="text-xs text-emerald-700/80">
+                {report.citizenImages?.length || 0} ảnh
+              </span>
             </div>
 
-            <div>
-              <p className="text-sm text-green-600 font-medium mb-2">
-                Ảnh thu gom
-              </p>
-              {report.collectorImages && report.collectorImages.length > 0 ? (
-                <ImageSection
-                  image={report.collectorImages[0]}
-                  className="flex-1"
-                />
-              ) : (
-                <div className="w-full h-60 bg-gray-100 rounded-lg border flex items-center justify-center">
-                  <div className="text-center">
-                    <AlertCircle className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">
-                      {report.status === "COLLECTED"
-                        ? "Chưa có ảnh minh chứng"
-                        : "Đang chờ người thu gom"}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
+            {report.citizenImages && report.citizenImages.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {report.citizenImages.map((image, index) => (
+                  <ImageSection
+                    key={`citizen-${index}`}
+                    image={image}
+                    className="flex-1"
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="w-full h-60 bg-white rounded-lg border flex items-center justify-center">
+                <p className="text-sm text-muted-foreground">Chưa có ảnh</p>
+              </div>
+            )}
           </div>
-        </CardContent>
-      </Card>
+
+          <div className="rounded-xl border border-sky-200 bg-sky-50/40 p-6">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm font-semibold text-sky-700">Ảnh thu gom</p>
+              <span className="text-xs text-sky-700/80">
+                {report.collectorImages?.length || 0} ảnh
+              </span>
+            </div>
+
+            {report.collectorImages && report.collectorImages.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {report.collectorImages.map((image, index) => (
+                  <ImageSection
+                    key={`collector-${index}`}
+                    image={image}
+                    className="flex-1"
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="w-full h-60 bg-white rounded-lg border flex items-center justify-center ">
+                <div className="text-center">
+                  <AlertCircle className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    {report.status === "COLLECTED"
+                      ? "Chưa có ảnh minh chứng"
+                      : "Đang chờ người thu gom"}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
       {report.status === "REJECTED" && (
         <Card>

@@ -2,9 +2,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Camera, X, Sparkles } from "lucide-react";
 import { useRef, useState } from "react";
-import ImageSection from "@/components/ui/image-section";
 import { toast } from "sonner";
 import { processAIPredictWaste } from "@/services/wasteReportService";
+import ImageSection from "@/components/ui/image-section";
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 
@@ -24,9 +24,47 @@ function ReportSummary({
     fileInputRef.current?.click();
   };
 
+  const mergeValidImages = (incomingFiles) => {
+    const oversizedFiles = incomingFiles.filter(
+      (file) => file.size > MAX_FILE_SIZE_BYTES,
+    );
+
+    if (oversizedFiles.length > 0) {
+      toast.warning("Ảnh vượt quá 5MB. Vui lòng chọn ảnh dưới 5MB.");
+    }
+
+    const validFiles = incomingFiles.filter((file) => {
+      const isValidType = ["image/jpeg", "image/png", "image/jpg"].includes(
+        file.type,
+      );
+      const isValidSize = file.size <= MAX_FILE_SIZE_BYTES;
+      return isValidType && isValidSize;
+    });
+
+    if (validFiles.length === 0) return [];
+
+    const remainingSlots = Math.max(0, 5 - files.length);
+    if (remainingSlots === 0) {
+      toast.warning("Bạn chỉ có thể tải lên tối đa 5 ảnh.");
+      return [];
+    }
+
+    if (validFiles.length > remainingSlots) {
+      toast.warning("Chỉ thêm được tối đa 5 ảnh cho mỗi báo cáo.");
+    }
+
+    const filesToAdd = validFiles.slice(0, remainingSlots);
+
+    return filesToAdd.map((file) => ({
+      id: Date.now() + Math.random(),
+      file,
+      preview: URL.createObjectURL(file),
+    }));
+  };
+
   const processFileAI = async (file) => {
     if (!onAIPrediction) return;
-    
+
     setIsPredicting(true);
     try {
       const response = await processAIPredictWaste(file);
@@ -35,7 +73,10 @@ function ReportSummary({
       }
     } catch (error) {
       console.error("AI Error:", error);
-      toast.error("Không thể phân tích ảnh bằng AI: " + (error.message || "Lỗi không xác định"));
+      toast.error(
+        "Không thể phân tích ảnh bằng AI: " +
+          (error.message || "Lỗi không xác định"),
+      );
     } finally {
       setIsPredicting(false);
     }
@@ -43,31 +84,10 @@ function ReportSummary({
 
   const handleFileChange = async (e) => {
     const selectedFiles = Array.from(e.target.files || []);
-    const oversizedFiles = selectedFiles.filter(
-      (file) => file.size > MAX_FILE_SIZE_BYTES,
-    );
+    const newImages = mergeValidImages(selectedFiles);
 
-    if (oversizedFiles.length > 0) {
-      toast.warning("Ảnh vượt quá 5MB. Vui lòng chọn ảnh dưới 5MB.");
-    }
-
-    const validFiles = selectedFiles.filter((file) => {
-      const isValidType = ["image/jpeg", "image/png", "image/jpg"].includes(
-        file.type,
-      );
-      const isValidSize = file.size <= MAX_FILE_SIZE_BYTES;
-      return isValidType && isValidSize;
-    });
-
-    const newImages = validFiles.map((file) => ({
-      id: Date.now() + Math.random(),
-      file,
-      preview: URL.createObjectURL(file),
-    }));
-
-    // Backend currently accepts one file field named `file`.
-    if (newImages[0]) {
-      setFiles([newImages[0]]);
+    if (newImages.length > 0) {
+      setFiles((prev) => [...prev, ...newImages]);
       await processFileAI(newImages[0].file);
     }
 
@@ -77,30 +97,10 @@ function ReportSummary({
   const handleDrop = async (e) => {
     e.preventDefault();
     const droppedFiles = Array.from(e.dataTransfer.files || []);
-    const oversizedFiles = droppedFiles.filter(
-      (file) => file.size > MAX_FILE_SIZE_BYTES,
-    );
+    const newImages = mergeValidImages(droppedFiles);
 
-    if (oversizedFiles.length > 0) {
-      toast.warning("Ảnh vượt quá 5MB. Vui lòng chọn ảnh dưới 5MB.");
-    }
-
-    const validFiles = droppedFiles.filter((file) => {
-      const isValidType = ["image/jpeg", "image/png", "image/jpg"].includes(
-        file.type,
-      );
-      const isValidSize = file.size <= MAX_FILE_SIZE_BYTES;
-      return isValidType && isValidSize;
-    });
-
-    const newImages = validFiles.map((file) => ({
-      id: Date.now() + Math.random(),
-      file,
-      preview: URL.createObjectURL(file),
-    }));
-
-    if (newImages[0]) {
-      setFiles([newImages[0]]);
+    if (newImages.length > 0) {
+      setFiles((prev) => [...prev, ...newImages]);
       await processFileAI(newImages[0].file);
     }
   };
@@ -114,7 +114,7 @@ function ReportSummary({
     if (target?.preview) {
       URL.revokeObjectURL(target.preview);
     }
-    setFiles(files.filter((img) => img.id !== id));
+    setFiles((prev) => prev.filter((img) => img.id !== id));
   };
 
   return (
@@ -161,33 +161,49 @@ function ReportSummary({
               AI sẽ tự động nhận diện loại rác
             </p>
             <p className="text-xs text-green-500 mt-1">
-              Hỗ trợ JPG, PNG (Tối đa 5MB)
+              Hỗ trợ JPG, PNG (Tối đa 5MB mỗi ảnh và 5 ảnh mỗi báo cáo.)
             </p>
           </div>
         ) : (
-          <div className="relative rounded-lg border p-3">
-            <ImageSection title="Ảnh đã chọn" image={files[0]?.preview} />
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+              {files.map((img) => (
+                <div
+                  key={img.id}
+                  className="relative overflow-hidden rounded-lg border bg-muted aspect-square"
+                >
+                  <ImageSection
+                    image={img.preview}
+                    className="h-full"
+                    imageClassName="h-full w-full rounded-none border-0"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(img.id)}
+                    className="absolute top-1 right-1 inline-flex items-center justify-center size-6 rounded-full bg-black/70 text-white hover:bg-black/85"
+                    aria-label="Xóa ảnh"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+              ))}
 
-            <div className="absolute top-14 right-6 flex gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                onClick={openFilePicker}
-              >
-                Thay đổi ảnh
-              </Button>
+              {files.length < 5 && (
+                <button
+                  type="button"
+                  onClick={openFilePicker}
+                  onDrop={handleDrop}
+                  onDragOver={handleDragOver}
+                  className="aspect-square border-2 border-dashed border-gray-300 rounded-lg text-xs text-gray-600 hover:border-green-400 hover:bg-green-50/30 transition-colors p-2"
+                >
+                  + Thêm ảnh
+                </button>
+              )}
+            </div>
 
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                className="gap-1"
-                onClick={() => removeImage(files[0]?.id)}
-              >
-                <X className="size-3" />
-                Xóa ảnh
-              </Button>
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>Đã chọn {files.length}/5 ảnh</span>
+              <span>Tối đa 5MB mỗi ảnh</span>
             </div>
           </div>
         )}
@@ -196,6 +212,7 @@ function ReportSummary({
           ref={fileInputRef}
           type="file"
           accept="image/jpeg,image/png,image/jpg"
+          multiple
           onChange={handleFileChange}
           className="hidden"
         />
@@ -203,7 +220,11 @@ function ReportSummary({
 
       {/* Submit Button */}
       <div className="flex justify-end mt-6">
-        <Button onClick={onSubmit} size="lg" disabled={submitting || isPredicting}>
+        <Button
+          onClick={onSubmit}
+          size="lg"
+          disabled={submitting || isPredicting}
+        >
           {submitting ? "Đang gửi..." : "Gửi báo cáo thu gom"}
         </Button>
       </div>
@@ -212,4 +233,3 @@ function ReportSummary({
 }
 
 export default ReportSummary;
-

@@ -476,45 +476,47 @@ export default function ReportDetail() {
               </Button>
             )}
             {/* Chỉ hiển thị 2 nút khi trạng thái là PENDING */}
-            {rawStatus === "PENDING" && <>
-              <Button
-                variant="outline"
-                className={
-                  (canAccept || rawStatus === "ACCEPTED"
-                    ? "bg-[#4CAF50] text-white border-[#4CAF50] shadow font-bold hover:bg-[#388E3C] hover:border-[#388E3C] hover:text-white focus:text-white active:text-white disabled:bg-[#4CAF50] disabled:text-white disabled:border-[#4CAF50]"
-                    : "text-[#4CAF50] border-[#A5D6A7] hover:bg-[#E8F5E9] hover:text-[#4CAF50] focus:text-[#4CAF50] active:text-[#4CAF50]")
-                }
-                type="button"
-                disabled={!canAccept || actionLoading !== ""}
-                title={
-                  canAccept
-                    ? "Chấp nhận báo cáo"
-                    : "Chỉ có thể chấp nhận khi báo cáo đang PENDING"
-                }
-                onClick={() => handleAction("accept")}
-              >
-                {actionLoading === "accept" ? "..." : "Chấp nhận"}
-              </Button>
-              {/* Từ chối */}
-              <Button
-                variant="outline"
-                className={
-                  (canReject || rawStatus === "REJECTED"
-                    ? "bg-[#F44336] text-white border-[#F44336] shadow font-bold hover:bg-[#C62828] hover:border-[#C62828] hover:text-white focus:text-white active:text-white"
-                    : "text-[#F44336] border-[#FFCDD2] hover:bg-[#FFEBEE] hover:text-[#F44336] focus:text-[#F44336] active:text-[#F44336]")
-                }
-                type="button"
-                disabled={!canReject || actionLoading !== ""}
-                title={
-                  canReject
-                    ? "Từ chối báo cáo"
-                    : "Chỉ có thể từ chối khi báo cáo đang PENDING"
-                }
-                onClick={openRejectPopup}
-              >
-                {actionLoading === "reject" ? "..." : "Từ chối"}
-              </Button>
-            </>}
+            {rawStatus === "PENDING" && (
+              <>
+                <Button
+                  variant="outline"
+                  className={
+                    canAccept || rawStatus === "ACCEPTED"
+                      ? "bg-[#4CAF50] text-white border-[#4CAF50] shadow font-bold hover:bg-[#388E3C] hover:border-[#388E3C] hover:text-white focus:text-white active:text-white disabled:bg-[#4CAF50] disabled:text-white disabled:border-[#4CAF50]"
+                      : "text-[#4CAF50] border-[#A5D6A7] hover:bg-[#E8F5E9] hover:text-[#4CAF50] focus:text-[#4CAF50] active:text-[#4CAF50]"
+                  }
+                  type="button"
+                  disabled={!canAccept || actionLoading !== ""}
+                  title={
+                    canAccept
+                      ? "Chấp nhận báo cáo"
+                      : "Chỉ có thể chấp nhận khi báo cáo đang PENDING"
+                  }
+                  onClick={() => handleAction("accept")}
+                >
+                  {actionLoading === "accept" ? "..." : "Chấp nhận"}
+                </Button>
+                {/* Từ chối */}
+                <Button
+                  variant="outline"
+                  className={
+                    canReject || rawStatus === "REJECTED"
+                      ? "bg-[#F44336] text-white border-[#F44336] shadow font-bold hover:bg-[#C62828] hover:border-[#C62828] hover:text-white focus:text-white active:text-white"
+                      : "text-[#F44336] border-[#FFCDD2] hover:bg-[#FFEBEE] hover:text-[#F44336] focus:text-[#F44336] active:text-[#F44336]"
+                  }
+                  type="button"
+                  disabled={!canReject || actionLoading !== ""}
+                  title={
+                    canReject
+                      ? "Từ chối báo cáo"
+                      : "Chỉ có thể từ chối khi báo cáo đang PENDING"
+                  }
+                  onClick={openRejectPopup}
+                >
+                  {actionLoading === "reject" ? "..." : "Từ chối"}
+                </Button>
+              </>
+            )}
 
             {/* Quay về */}
             <Button
@@ -577,7 +579,8 @@ export default function ReportDetail() {
               <>
                 <div className="mx-6 mt-6 rounded-lg border p-4 space-y-2">
                   <div className="font-medium">
-                    Báo cáo {selectedReport?.reportCode || reportCodeText} • {selectedReport?.status || "-"}
+                    Báo cáo {selectedReport?.reportCode || reportCodeText} •{" "}
+                    {selectedReport?.status || "-"}
                   </div>
                   <div className="text-sm text-muted-foreground flex items-center gap-2">
                     <MapPin className="size-4" />
@@ -585,13 +588,19 @@ export default function ReportDetail() {
                   </div>
                   <div className="text-sm text-muted-foreground flex items-center gap-2">
                     <span className="font-medium">Loại rác:</span>
-                    <span>{selectedReport?.wasteType || selectedReport?.waste || "-"}</span>
+                    <span>
+                      {selectedReport?.wasteType ||
+                        selectedReport?.waste ||
+                        "-"}
+                    </span>
                   </div>
                   <div className="text-sm text-muted-foreground flex items-center gap-2">
                     <Clock3 className="size-4" />
                     <span>
                       {selectedReport?.createdAt
-                        ? new Date(selectedReport.createdAt).toLocaleString("vi-VN")
+                        ? new Date(selectedReport.createdAt).toLocaleString(
+                            "vi-VN",
+                          )
                         : "Chưa cập nhật"}
                     </span>
                   </div>
@@ -695,109 +704,36 @@ export default function ReportDetail() {
         </DialogContent>
       </Dialog>
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-        <Card className="xl:col-span-7">
-          <CardHeader>
-            <CardTitle>Hình ảnh</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="space-y-3">
-                <p className="text-sm text-green-600 font-medium">
-                  Ảnh người dân
-                </p>
-                {citizenImages.length > 0 ? (
-                  citizenImages.map((image, index) => (
-                    <ImageSection key={`citizen-${index}`} image={image} />
-                  ))
-                ) : (
-                  <div className="w-full h-60 bg-gray-100 rounded-lg border flex items-center justify-center">
-                    <p className="text-sm text-muted-foreground">Chưa có ảnh</p>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-3">
-                <p className="text-sm text-green-600 font-medium">
-                  Ảnh collector
-                </p>
-                {collectorImages.length > 0 ? (
-                  collectorImages.map((image, index) => (
-                    <ImageSection key={`collector-${index}`} image={image} />
-                  ))
-                ) : (
-                  <div className="w-full h-60 bg-gray-100 rounded-lg border flex items-center justify-center">
-                    <p className="text-sm text-muted-foreground">
-                      {rawStatus === "COLLECTED"
-                        ? "Chưa có ảnh minh chứng"
-                        : "Đang chờ người thu gom"}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="xl:col-span-5">
-          <CardHeader>
-            <CardTitle>Bản đồ vị trí</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <ReportMapCanvas
-              center={center}
-              location={data.location}
-              destination={destination}
-            />
-
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <p className="text-xs text-muted-foreground">VỊ TRÍ</p>
-                <p className="text-sm font-medium">
-                  {resolvedAddress ||
-                    `${data.location.lat.toFixed(6)}, ${data.location.lng.toFixed(6)}`}
-                </p>
-              </div>
-
-              <Button variant="outline" type="button" onClick={openDirections}>
-                Xem đường đi
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="xl:col-span-12 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          <Stat
-            tone="green"
-            icon={<Check className="size-4" />}
-            label="LOẠI CHẤT THẢI"
-            value={wasteTypeValue || "Không rõ"}
-          />
-          <Stat
-            tone="green"
-            icon={<Check className="size-4" />}
-            label="KHỐI LƯỢNG ƯỚC TÍNH"
-            value={data.weightEstimate}
-          />
-          <Stat
-            tone="green"
-            icon={<Check className="size-4" />}
-            label="KHỐI LƯỢNG THỰC TẾ"
-            value={
-              data.actualQuantity !== null && data.actualQuantity !== undefined
-                ? `${data.actualQuantity} ${data.unitType || ""}`
-                : "Chưa cập nhật"
-            }
-          />
-          <Stat
-            tone="muted"
-            icon={<CircleUserRound className="size-4" />}
-            label="NGƯỜI BÁO CÁO"
-            value={data.reporter?.name || "Không rõ"}
-          />
-        </div>
+      <div className="xl:col-span-12 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <Stat
+          tone="green"
+          icon={<Check className="size-4" />}
+          label="LOẠI CHẤT THẢI"
+          value={wasteTypeValue || "Không rõ"}
+        />
+        <Stat
+          tone="green"
+          icon={<Check className="size-4" />}
+          label="KHỐI LƯỢNG ƯỚC TÍNH"
+          value={data.weightEstimate}
+        />
+        <Stat
+          tone="green"
+          icon={<Check className="size-4" />}
+          label="KHỐI LƯỢNG THỰC TẾ"
+          value={
+            data.actualQuantity !== null && data.actualQuantity !== undefined
+              ? `${data.actualQuantity} ${data.unitType || ""}`
+              : "Chưa cập nhật"
+          }
+        />
+        <Stat
+          tone="muted"
+          icon={<CircleUserRound className="size-4" />}
+          label="NGƯỜI BÁO CÁO"
+          value={data.reporter?.name || "Không rõ"}
+        />
       </div>
-
       <Card>
         <CardHeader>
           <CardTitle>Danh sách loại rác</CardTitle>
@@ -825,6 +761,32 @@ export default function ReportDetail() {
               Không có dữ liệu loại rác.
             </p>
           )}
+        </CardContent>
+      </Card>
+      <Card className="xl:col-span-5">
+        <CardHeader>
+          <CardTitle>Bản đồ vị trí</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <ReportMapCanvas
+            center={center}
+            location={data.location}
+            destination={destination}
+          />
+
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <p className="text-xs text-muted-foreground">VỊ TRÍ</p>
+              <p className="text-sm font-medium">
+                {resolvedAddress ||
+                  `${data.location.lat.toFixed(6)}, ${data.location.lng.toFixed(6)}`}
+              </p>
+            </div>
+
+            <Button variant="outline" type="button" onClick={openDirections}>
+              Xem đường đi
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -903,6 +865,49 @@ export default function ReportDetail() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="xl:col-span-7">
+        <CardHeader>
+          <CardTitle>Hình ảnh</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-3">
+              <p className="text-sm text-green-600 font-medium">
+                Ảnh người dân
+              </p>
+              {citizenImages.length > 0 ? (
+                citizenImages.map((image, index) => (
+                  <ImageSection key={`citizen-${index}`} image={image} />
+                ))
+              ) : (
+                <div className="w-full h-60 bg-gray-100 rounded-lg border flex items-center justify-center">
+                  <p className="text-sm text-muted-foreground">Chưa có ảnh</p>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-sm text-green-600 font-medium">
+                Ảnh người thu gom
+              </p>
+              {collectorImages.length > 0 ? (
+                collectorImages.map((image, index) => (
+                  <ImageSection key={`collector-${index}`} image={image} />
+                ))
+              ) : (
+                <div className="w-full h-60 bg-gray-100 rounded-lg border flex items-center justify-center">
+                  <p className="text-sm text-muted-foreground">
+                    {rawStatus === "COLLECTED"
+                      ? "Chưa có ảnh minh chứng"
+                      : "Đang chờ người thu gom"}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

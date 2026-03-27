@@ -1,6 +1,14 @@
 ﻿import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { Calendar, Loader2, MapPin, Phone, Recycle, Scale } from "lucide-react";
+import {
+  Calendar,
+  Loader2,
+  MapPin,
+  Phone,
+  Recycle,
+  Scale,
+  X,
+} from "lucide-react";
 import {
   acceptCollectorReport,
   getCollectorReportById,
@@ -28,6 +36,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
+const MAX_UPLOAD_IMAGES = 5;
 
 function buildMapEmbedUrl(location) {
   if (!location?.lat || !location?.lng) {
@@ -64,15 +74,16 @@ function mapApiData(apiData) {
   const reportId = apiData?.reportId || "";
   const reportCode = apiData?.reportCode || apiData?.wasteCode || reportId;
 
-  const firstCitizenImage = Array.isArray(apiData?.citizenImages)
-    ? apiData.citizenImages.find((item) => item?.file_uri || item?.fileUri)
-    : null;
+  const citizenImages = Array.isArray(apiData?.citizenImages)
+    ? apiData.citizenImages.filter((item) => item?.file_uri || item?.fileUri)
+    : [];
 
-  const fallbackImage = Array.isArray(apiData?.images)
-    ? apiData.images.find((item) => item?.file_uri || item?.fileUri)
-    : null;
+  const fallbackImages = Array.isArray(apiData?.images)
+    ? apiData.images.filter((item) => item?.file_uri || item?.fileUri)
+    : [];
 
-  const normalizedFirstImage = firstCitizenImage || fallbackImage || null;
+  const normalizedImages =
+    citizenImages.length > 0 ? citizenImages : fallbackImages;
   const items = Array.isArray(apiData?.items) ? apiData.items : [];
   const normalizedItems = items
     .map((item) => ({
@@ -122,7 +133,7 @@ function mapApiData(apiData) {
             lng,
           }
         : null,
-    images: normalizedFirstImage ? [normalizedFirstImage] : [],
+    images: normalizedImages,
     status: apiData?.status || "ASSIGNED",
     areaName: "Không rõ vị trí",
   };
@@ -169,40 +180,40 @@ function TaskDetail() {
   const [markingFake, setMarkingFake] = useState(false);
   const [fakeDialogOpen, setFakeDialogOpen] = useState(false);
   const [fakeNote, setFakeNote] = useState("");
-  const [fakeFile, setFakeFile] = useState(null);
-  const [fakeFilePreview, setFakeFilePreview] = useState("");
+  const [fakeFiles, setFakeFiles] = useState([]);
+  const [fakeFilePreviews, setFakeFilePreviews] = useState([]);
   const [actualItems, setActualItems] = useState([]);
   const [note, setNote] = useState("");
-  const [resultFile, setResultFile] = useState(null);
-  const [resultFilePreview, setResultFilePreview] = useState("");
+  const [resultFiles, setResultFiles] = useState([]);
+  const [resultFilePreviews, setResultFilePreviews] = useState([]);
 
   useEffect(() => {
-    if (!resultFile) {
-      setResultFilePreview("");
-      return;
+    if (!resultFiles.length) {
+      setResultFilePreviews([]);
+      return undefined;
     }
 
-    const previewUrl = URL.createObjectURL(resultFile);
-    setResultFilePreview(previewUrl);
+    const previews = resultFiles.map((file) => URL.createObjectURL(file));
+    setResultFilePreviews(previews);
 
     return () => {
-      URL.revokeObjectURL(previewUrl);
+      previews.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [resultFile]);
+  }, [resultFiles]);
 
   useEffect(() => {
-    if (!fakeFile) {
-      setFakeFilePreview("");
-      return;
+    if (!fakeFiles.length) {
+      setFakeFilePreviews([]);
+      return undefined;
     }
 
-    const previewUrl = URL.createObjectURL(fakeFile);
-    setFakeFilePreview(previewUrl);
+    const previews = fakeFiles.map((file) => URL.createObjectURL(file));
+    setFakeFilePreviews(previews);
 
     return () => {
-      URL.revokeObjectURL(previewUrl);
+      previews.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [fakeFile]);
+  }, [fakeFiles]);
 
   useEffect(() => {
     const fetchDetail = async () => {
@@ -248,7 +259,7 @@ function TaskDetail() {
       }));
       setActualItems(draftItems);
       setNote("");
-      setResultFile(null);
+      setResultFiles([]);
       setSubmitDialogOpen(true);
       return;
     }
@@ -307,7 +318,7 @@ function TaskDetail() {
         actualItems: normalizedActualItems,
         quantityUnit: submitUnit,
         note,
-        files: resultFile ? [resultFile] : [],
+        files: resultFiles,
       });
 
       const submittedQuantity =
@@ -381,7 +392,7 @@ function TaskDetail() {
     }
 
     setFakeNote("");
-    setFakeFile(null);
+    setFakeFiles([]);
     setFakeDialogOpen(true);
   };
 
@@ -395,7 +406,7 @@ function TaskDetail() {
       const response = await markCollectorReportAsFake(task.reportId, {
         quantityUnit: task.unitType || "KG",
         note: fakeNote,
-        file: fakeFile,
+        files: fakeFiles,
       });
 
       setTask((prev) => ({
@@ -495,7 +506,15 @@ function TaskDetail() {
               </div>
 
               {task.images.length > 0 ? (
-                <ImageSection title="Hình hiện trường" image={task.images[0]} />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {task.images.map((image, index) => (
+                    <ImageSection
+                      key={`scene-${index}`}
+                      image={image}
+                      className="flex-1"
+                    />
+                  ))}
+                </div>
               ) : (
                 <div className="h-40 rounded-xl border border-dashed border-gray-200 flex items-center justify-center text-sm text-gray-500">
                   Chưa có ảnh hiện trường
@@ -683,15 +702,62 @@ function TaskDetail() {
               <Input
                 type="file"
                 accept="image/*"
-                onChange={(e) => setFakeFile(e.target.files?.[0] || null)}
+                multiple
+                onChange={(e) => {
+                  const files = Array.from(e.target.files || []);
+                  if (files.length === 0) return;
+
+                  setFakeFiles((prev) => {
+                    const remainingSlots = Math.max(
+                      0,
+                      MAX_UPLOAD_IMAGES - prev.length,
+                    );
+
+                    if (remainingSlots === 0) {
+                      toast.warning("Chỉ được tải lên tối đa 5 ảnh.");
+                      return prev;
+                    }
+
+                    if (files.length > remainingSlots) {
+                      toast.warning("Bạn chỉ có thể thêm tối đa 5 ảnh.");
+                    }
+
+                    return [...prev, ...files.slice(0, remainingSlots)];
+                  });
+                  e.target.value = "";
+                }}
               />
 
-              {fakeFilePreview && (
-                <div className="mt-3">
-                  <ImageSection
-                    title="Xem trước ảnh minh chứng"
-                    image={fakeFilePreview}
-                  />
+              {fakeFilePreviews.length > 0 && (
+                <div className="mt-3 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {fakeFilePreviews.map((preview, index) => (
+                      <div
+                        key={`${preview}-${index}`}
+                        className="relative overflow-hidden rounded-xl"
+                      >
+                        <ImageSection
+                          image={preview}
+                          className="flex-1"
+                          imageClassName="h-44"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFakeFiles((prev) =>
+                              prev.filter(
+                                (_, fileIndex) => fileIndex !== index,
+                              ),
+                            );
+                          }}
+                          className="absolute top-2 right-2 inline-flex items-center justify-center size-7 rounded-full bg-black/70 text-white hover:bg-black/85"
+                          aria-label="Xóa ảnh"
+                        >
+                          <X className="size-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -778,15 +844,62 @@ function TaskDetail() {
               <Input
                 type="file"
                 accept="image/*"
-                onChange={(e) => setResultFile(e.target.files?.[0] || null)}
+                multiple
+                onChange={(e) => {
+                  const files = Array.from(e.target.files || []);
+                  if (files.length === 0) return;
+
+                  setResultFiles((prev) => {
+                    const remainingSlots = Math.max(
+                      0,
+                      MAX_UPLOAD_IMAGES - prev.length,
+                    );
+
+                    if (remainingSlots === 0) {
+                      toast.warning("Chỉ được tải lên tối đa 5 ảnh.");
+                      return prev;
+                    }
+
+                    if (files.length > remainingSlots) {
+                      toast.warning("Bạn chỉ có thể thêm tối đa 5 ảnh.");
+                    }
+
+                    return [...prev, ...files.slice(0, remainingSlots)];
+                  });
+                  e.target.value = "";
+                }}
               />
 
-              {resultFilePreview && (
-                <div className="mt-3">
-                  <ImageSection
-                    title="Xem trước ảnh minh chứng"
-                    image={resultFilePreview}
-                  />
+              {resultFilePreviews.length > 0 && (
+                <div className="mt-3 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {resultFilePreviews.map((preview, index) => (
+                      <div
+                        key={`${preview}-${index}`}
+                        className="relative overflow-hidden rounded-xl"
+                      >
+                        <ImageSection
+                          image={preview}
+                          className="flex-1"
+                          imageClassName="h-44"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setResultFiles((prev) =>
+                              prev.filter(
+                                (_, fileIndex) => fileIndex !== index,
+                              ),
+                            );
+                          }}
+                          className="absolute top-2 right-2 inline-flex items-center justify-center size-7 rounded-full bg-black/70 text-white hover:bg-black/85"
+                          aria-label="Xóa ảnh"
+                        >
+                          <X className="size-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

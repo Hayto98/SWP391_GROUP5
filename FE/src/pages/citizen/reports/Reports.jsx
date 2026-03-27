@@ -388,16 +388,27 @@ function Reports() {
 
     setEditSaving(true);
     try {
-      const hasNewFile = payload?.file instanceof File;
+      const hasNewFiles =
+        Array.isArray(payload?.files) &&
+        payload.files.some((file) => file instanceof File);
+      const hasRetainedImageUris = Array.isArray(payload?.retainedImageUris);
 
-      if (hasNewFile) {
+      if (hasNewFiles || hasRetainedImageUris) {
         const formPayload = new FormData();
         formPayload.append("items", JSON.stringify(payload.items || []));
         formPayload.append("gpsLat", String(payload.gpsLat));
         formPayload.append("gpsLng", String(payload.gpsLng));
         formPayload.append("description", String(payload.description || ""));
         formPayload.append("weight", String(payload.weight || 0));
-        formPayload.append("file", payload.file);
+        formPayload.append(
+          "retainedImageUris",
+          JSON.stringify(payload.retainedImageUris || []),
+        );
+        payload.files.forEach((file) => {
+          if (file instanceof File) {
+            formPayload.append("file", file);
+          }
+        });
         await updateReportById(editTargetReport.id, formPayload);
       } else {
         await updateReportById(editTargetReport.id, payload);
