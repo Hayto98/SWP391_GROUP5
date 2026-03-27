@@ -148,6 +148,22 @@ async function resolveComplaint(req, res, next) {
   }
 }
 
+async function rejectComplaint(req, res, next) {
+  try {
+    const adminId = req.user?.sub
+    const { complaintId } = req.params
+    const { adminResponse } = req.body
+    const result = await complaintService.rejectComplaint({
+      adminId,
+      complaintId,
+      adminResponse
+    })
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
 module.exports = {
   getAllUsers,
   getUserById,
@@ -157,5 +173,6 @@ module.exports = {
   changeUserRole,
   changeUserStatus,
   deleteUser,
-  resolveComplaint
+  resolveComplaint,
+  rejectComplaint
 }

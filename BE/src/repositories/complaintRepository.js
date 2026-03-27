@@ -229,6 +229,18 @@ async function resolveComplaint(connection, { complaintId, adminResponse, refund
   await connection.execute(query, [adminResponse, refundPoints, adminId, complaintId])
 }
 
+async function rejectComplaint(connection, { complaintId, adminResponse, adminId }) {
+  const query = `
+    UPDATE reportcomplaint 
+    SET complaint_status = 'REJECTED',
+        admin_response = ?,
+        resolved_at = NOW(),
+        resolved_by_admin_id = ?
+    WHERE report_complaint_id = ?
+  `
+  await connection.execute(query, [adminResponse, adminId, complaintId])
+}
+
 module.exports = {
   createComplaint,
   findComplaintByCitizenAndReport,
@@ -237,5 +249,6 @@ module.exports = {
   updateComplaint,
   softDeleteComplaint,
   findComplaintById,
-  resolveComplaint
+  resolveComplaint,
+  rejectComplaint
 }
