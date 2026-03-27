@@ -174,6 +174,15 @@ async function getComplaintDetail(req, res, next) {
   }
 }
 
+async function getAllComplaints(req, res, next) {
+  try {
+    const result = await complaintService.getAllComplaintsForAdmin({ query: req.query })
+    res.status(200).json({ success: true, ...result })
+  } catch (error) {
+    next(error)
+  }
+}
+
 module.exports = {
   getAllUsers,
   getUserById,
@@ -185,5 +194,6 @@ module.exports = {
   deleteUser,
   resolveComplaint,
   rejectComplaint,
-  getComplaintDetail
+  getComplaintDetail,
+  getAllComplaints
 }

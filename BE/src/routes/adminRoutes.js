@@ -27,6 +27,7 @@ router.patch('/users/:id/role', adminController.changeUserRole)
 router.patch('/users/:id/status', adminController.changeUserStatus)
 
 // ==================== COMPLAINT OPERATIONS ====================
+router.get('/report-complaints', adminController.getAllComplaints)
 router.get('/report-complaints/:complaintId', adminController.getComplaintDetail)
 router.put('/report-complaints/:complaintId/resolve', adminController.resolveComplaint)
 router.put('/report-complaints/:complaintId/reject', adminController.rejectComplaint)
