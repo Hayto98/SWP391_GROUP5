@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,123 +35,21 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-
-const FAKE_LIST_RESPONSE = {
-  success: true,
-  data: [
-    {
-      complaintId: "4bc06b00-403c-417e-a264-6e1f27211111",
-      citizenName: "Nguyen Van A",
-      collectorName: "Tran Van B",
-      status: "PENDING",
-      adminResponse: null,
-      refundPoints: 0,
-      createdAt: "2026-03-01T10:00:00",
-      resolvedAt: null,
-    },
-    {
-      complaintId: "0e6e14c8-3aeb-4b05-8dc3-c035f3522222",
-      citizenName: "Le Thi C",
-      collectorName: "Pham Van D",
-      status: "RESOLVED",
-      adminResponse: "Da xac minh va hoan diem",
-      refundPoints: 20,
-      createdAt: "2026-03-02T09:30:00",
-      resolvedAt: "2026-03-03T13:00:00",
-    },
-    {
-      complaintId: "fdbfc188-1b92-4944-900f-cf778dbf3333",
-      citizenName: "Vo Minh E",
-      collectorName: null,
-      status: "REJECTED",
-      adminResponse: "Khieu nai khong hop le",
-      refundPoints: 0,
-      createdAt: "2026-03-04T15:20:00",
-      resolvedAt: "2026-03-05T08:45:00",
-    },
-  ],
-  pagination: {
-    page: 1,
-    size: 10,
-    totalElements: 3,
-    totalPages: 1,
-  },
-};
-
-const FAKE_DETAIL_MAP = {
-  "4bc06b00-403c-417e-a264-6e1f27211111": {
-    success: true,
-    data: {
-      complaintId: "4bc06b00-403c-417e-a264-6e1f27211111",
-      citizen: {
-        id: "citizen-1111",
-        name: "Nguyen Van A",
-      },
-      collector: {
-        id: "collector-1111",
-        name: "Tran Van B",
-      },
-      status: "PENDING",
-      complaintContent: "Collector khong den thu gom dung gio",
-      adminResponse: null,
-      refundPoints: 0,
-      createdAt: "2026-03-01T10:00:00",
-      resolvedAt: null,
-      resolvedBy: null,
-    },
-  },
-  "0e6e14c8-3aeb-4b05-8dc3-c035f3522222": {
-    success: true,
-    data: {
-      complaintId: "0e6e14c8-3aeb-4b05-8dc3-c035f3522222",
-      citizen: {
-        id: "citizen-2222",
-        name: "Le Thi C",
-      },
-      collector: {
-        id: "collector-2222",
-        name: "Pham Van D",
-      },
-      status: "RESOLVED",
-      complaintContent: "Collector bao sai trang thai thu gom",
-      adminResponse: "Da xac minh va hoan diem",
-      refundPoints: 20,
-      createdAt: "2026-03-02T09:30:00",
-      resolvedAt: "2026-03-03T13:00:00",
-      resolvedBy: {
-        adminId: "admin-1",
-        adminName: "Admin 1",
-      },
-    },
-  },
-  "fdbfc188-1b92-4944-900f-cf778dbf3333": {
-    success: true,
-    data: {
-      complaintId: "fdbfc188-1b92-4944-900f-cf778dbf3333",
-      citizen: {
-        id: "citizen-3333",
-        name: "Vo Minh E",
-      },
-      collector: null,
-      status: "REJECTED",
-      complaintContent: "Khieu nai khong ro noi dung",
-      adminResponse: "Khieu nai khong hop le",
-      refundPoints: 0,
-      createdAt: "2026-03-04T15:20:00",
-      resolvedAt: "2026-03-05T08:45:00",
-      resolvedBy: {
-        adminId: "admin-2",
-        adminName: "Admin 2",
-      },
-    },
-  },
-};
+import {
+  getComplaints,
+  getComplaintDetail,
+  resolveComplaint,
+  rejectComplaint,
+} from "@/services/adminComplaintService";
 
 const STATUS_OPTIONS = ["ALL", "PENDING", "RESOLVED", "REJECTED"];
 const PAGE_SIZE_OPTIONS = ["5", "10", "20"];
-const CURRENT_ADMIN = {
-  adminId: "admin-local",
-  adminName: "Admin Demo",
+
+const STATUS_DISPLAY = {
+  OPEN: "PENDING",
+  PENDING: "PENDING",
+  RESOLVED: "RESOLVED",
+  REJECTED: "REJECTED",
 };
 
 function formatDateTime(value) {
@@ -162,18 +60,21 @@ function formatDateTime(value) {
 }
 
 function shortId(id) {
+  if (!id || id.length < 12) return id;
   return `${id.slice(0, 8)}...${id.slice(-4)}`;
 }
 
 function getStatusBadgeVariant(status) {
-  if (status === "PENDING") return "secondary";
-  if (status === "RESOLVED") return "default";
+  const display = STATUS_DISPLAY[status] || status;
+  if (display === "PENDING") return "secondary";
+  if (display === "RESOLVED") return "default";
   return "destructive";
 }
 
 function Complaint() {
-  const [listData, setListData] = useState(FAKE_LIST_RESPONSE.data);
-  const [detailMap, setDetailMap] = useState(FAKE_DETAIL_MAP);
+  const [listData, setListData] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, size: 10, totalElements: 0, totalPages: 1 });
+  const [loading, setLoading] = useState(false);
 
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [fromDate, setFromDate] = useState("");
@@ -183,55 +84,58 @@ function Complaint() {
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(10);
 
-  const [selectedId, setSelectedId] = useState(null);
+  const [selectedDetail, setSelectedDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [adminResponse, setAdminResponse] = useState("");
   const [refundPoints, setRefundPoints] = useState(0);
   const [openDetail, setOpenDetail] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const fetchList = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await getComplaints({
+        status: statusFilter !== "ALL" ? statusFilter : undefined,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+        page,
+        size,
+      });
+      setListData(result.data || []);
+      setPagination(result.pagination || { page: 1, size: 10, totalElements: 0, totalPages: 1 });
+    } catch (error) {
+      toast.error("Lỗi khi tải danh sách khiếu nại: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter, fromDate, toDate, page, size]);
+
+  useEffect(() => {
+    fetchList();
+  }, [fetchList]);
 
   const filteredRows = useMemo(() => {
-    return listData.filter((row) => {
-      if (statusFilter !== "ALL" && row.status !== statusFilter) return false;
-      if (
-        citizenKeyword &&
-        !row.citizenName.toLowerCase().includes(citizenKeyword.toLowerCase())
-      ) {
-        return false;
-      }
+    if (!citizenKeyword) return listData;
+    return listData.filter((row) =>
+      row.citizenName?.toLowerCase().includes(citizenKeyword.toLowerCase())
+    );
+  }, [citizenKeyword, listData]);
 
-      if (fromDate) {
-        const createdDate = row.createdAt.slice(0, 10);
-        if (createdDate < fromDate) return false;
-      }
-
-      if (toDate) {
-        const createdDate = row.createdAt.slice(0, 10);
-        if (createdDate > toDate) return false;
-      }
-
-      return true;
-    });
-  }, [citizenKeyword, fromDate, listData, statusFilter, toDate]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / size));
-
-  const pagedRows = useMemo(() => {
-    const start = (page - 1) * size;
-    return filteredRows.slice(start, start + size);
-  }, [filteredRows, page, size]);
-
-  const selectedDetail = selectedId ? detailMap[selectedId]?.data : null;
-
-  const openDetailDialog = (complaintId) => {
-    const detail = detailMap[complaintId]?.data;
-    if (!detail) {
-      toast.error("Khong tim thay chi tiet khieu nai.");
-      return;
-    }
-
-    setSelectedId(complaintId);
-    setAdminResponse(detail.adminResponse || "");
-    setRefundPoints(detail.refundPoints || 0);
+  const openDetailDialog = async (complaintId) => {
+    setDetailLoading(true);
     setOpenDetail(true);
+    try {
+      const result = await getComplaintDetail(complaintId);
+      const detail = result.data || result;
+      setSelectedDetail(detail);
+      setAdminResponse(detail.adminResponse || "");
+      setRefundPoints(detail.refundPoints || 0);
+    } catch (error) {
+      toast.error("Lỗi khi tải chi tiết khiếu nại: " + error.message);
+      setOpenDetail(false);
+    } finally {
+      setDetailLoading(false);
+    }
   };
 
   const resetFilters = () => {
@@ -242,103 +146,74 @@ function Complaint() {
     setPage(1);
   };
 
-  const updateRowStatus = (complaintId, updates) => {
-    setListData((prev) =>
-      prev.map((row) => {
-        if (row.complaintId !== complaintId) return row;
-        return { ...row, ...updates };
-      }),
-    );
+  const isPending = (status) => {
+    return status === "PENDING" || status === "OPEN";
   };
 
-  const updateDetailStatus = (complaintId, updates) => {
-    setDetailMap((prev) => {
-      const current = prev[complaintId];
-      if (!current) return prev;
-      return {
-        ...prev,
-        [complaintId]: {
-          ...current,
-          data: {
-            ...current.data,
-            ...updates,
-          },
-        },
-      };
-    });
-  };
-
-  const handleResolve = () => {
+  const handleResolve = async () => {
     if (!selectedDetail) return;
-    if (selectedDetail.status !== "PENDING") {
-      toast.error("Chi co the xu ly khieu nai o trang thai PENDING.");
+    if (!isPending(selectedDetail.status)) {
+      toast.error("Chỉ có thể xử lý khiếu nại ở trạng thái PENDING.");
       return;
     }
     if (!adminResponse.trim()) {
-      toast.error("adminResponse khong duoc de trong.");
+      toast.error("Phản hồi admin không được để trống.");
       return;
     }
     if (refundPoints < 0) {
-      toast.error("refundPoints phai lon hon hoac bang 0.");
+      toast.error("Điểm hoàn phải lớn hơn hoặc bằng 0.");
       return;
     }
 
-    const resolvedAt = new Date().toISOString();
-    updateRowStatus(selectedDetail.complaintId, {
-      status: "RESOLVED",
-      adminResponse: adminResponse.trim(),
-      refundPoints: Number(refundPoints),
-      resolvedAt,
-    });
-    updateDetailStatus(selectedDetail.complaintId, {
-      status: "RESOLVED",
-      adminResponse: adminResponse.trim(),
-      refundPoints: Number(refundPoints),
-      resolvedAt,
-      resolvedBy: CURRENT_ADMIN,
-    });
-
-    toast.success("Complaint resolved and points refunded", {
-      description: `refundPoints: ${Number(refundPoints)}`,
-    });
-    setOpenDetail(false);
+    setActionLoading(true);
+    try {
+      await resolveComplaint(selectedDetail.complaintId, {
+        adminResponse: adminResponse.trim(),
+        refundPoints: Number(refundPoints),
+      });
+      toast.success("Khiếu nại đã được xử lý và hoàn điểm thành công", {
+        description: `Điểm hoàn: ${Number(refundPoints)}`,
+      });
+      setOpenDetail(false);
+      fetchList();
+    } catch (error) {
+      toast.error("Lỗi: " + error.message);
+    } finally {
+      setActionLoading(false);
+    }
   };
 
-  const handleReject = () => {
+  const handleReject = async () => {
     if (!selectedDetail) return;
-    if (selectedDetail.status !== "PENDING") {
-      toast.error("Chi co the xu ly khieu nai o trang thai PENDING.");
+    if (!isPending(selectedDetail.status)) {
+      toast.error("Chỉ có thể từ chối khiếu nại ở trạng thái PENDING.");
       return;
     }
     if (!adminResponse.trim()) {
-      toast.error("adminResponse khong duoc de trong.");
+      toast.error("Phản hồi admin không được để trống.");
       return;
     }
 
-    const resolvedAt = new Date().toISOString();
-    updateRowStatus(selectedDetail.complaintId, {
-      status: "REJECTED",
-      adminResponse: adminResponse.trim(),
-      refundPoints: 0,
-      resolvedAt,
-    });
-    updateDetailStatus(selectedDetail.complaintId, {
-      status: "REJECTED",
-      adminResponse: adminResponse.trim(),
-      refundPoints: 0,
-      resolvedAt,
-      resolvedBy: CURRENT_ADMIN,
-    });
-
-    toast.success("Complaint rejected successfully");
-    setOpenDetail(false);
+    setActionLoading(true);
+    try {
+      await rejectComplaint(selectedDetail.complaintId, {
+        adminResponse: adminResponse.trim(),
+      });
+      toast.success("Khiếu nại đã bị từ chối.");
+      setOpenDetail(false);
+      fetchList();
+    } catch (error) {
+      toast.error("Lỗi: " + error.message);
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Quan ly khieu nai</CardTitle>
+          <CardTitle>Quản lý khiếu nại</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -350,12 +225,12 @@ function Complaint() {
               }}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Loc theo trang thai" />
+                <SelectValue placeholder="Lọc theo trạng thái" />
               </SelectTrigger>
               <SelectContent>
                 {STATUS_OPTIONS.map((status) => (
                   <SelectItem key={status} value={status}>
-                    {status}
+                    {status === "ALL" ? "Tất cả" : status}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -368,6 +243,7 @@ function Complaint() {
                 setFromDate(e.target.value);
                 setPage(1);
               }}
+              placeholder="Từ ngày"
             />
 
             <Input
@@ -377,10 +253,11 @@ function Complaint() {
                 setToDate(e.target.value);
                 setPage(1);
               }}
+              placeholder="Đến ngày"
             />
 
             <Input
-              placeholder="Tim theo ten nguoi gui"
+              placeholder="Tìm theo tên người gửi"
               value={citizenKeyword}
               onChange={(e) => {
                 setCitizenKeyword(e.target.value);
@@ -389,7 +266,7 @@ function Complaint() {
             />
 
             <Button variant="outline" onClick={resetFilters}>
-              Dat lai bo loc
+              Đặt lại bộ lọc
             </Button>
           </div>
 
@@ -397,35 +274,43 @@ function Complaint() {
             <TableHeader>
               <TableRow>
                 <TableHead>ID</TableHead>
-                <TableHead>Nguoi gui</TableHead>
+                <TableHead>Người gửi</TableHead>
                 <TableHead>Collector</TableHead>
-                <TableHead>Trang thai</TableHead>
-                <TableHead>Tao luc</TableHead>
-                <TableHead>Xu ly luc</TableHead>
-                <TableHead className="text-right">Thao tac</TableHead>
+                <TableHead>Trạng thái</TableHead>
+                <TableHead>Tạo lúc</TableHead>
+                <TableHead>Xử lý lúc</TableHead>
+                <TableHead className="text-right">Thao tác</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {pagedRows.length === 0 ? (
+              {loading ? (
                 <TableRow>
                   <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
-                    Khong co du lieu phu hop bo loc.
+                    Đang tải...
+                  </TableCell>
+                </TableRow>
+              ) : filteredRows.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                    Không có dữ liệu phù hợp bộ lọc.
                   </TableCell>
                 </TableRow>
               ) : (
-                pagedRows.map((row) => (
+                filteredRows.map((row) => (
                   <TableRow key={row.complaintId}>
                     <TableCell className="font-mono text-xs">{shortId(row.complaintId)}</TableCell>
                     <TableCell>{row.citizenName}</TableCell>
                     <TableCell>{row.collectorName || "-"}</TableCell>
                     <TableCell>
-                      <Badge variant={getStatusBadgeVariant(row.status)}>{row.status}</Badge>
+                      <Badge variant={getStatusBadgeVariant(row.status)}>
+                        {STATUS_DISPLAY[row.status] || row.status}
+                      </Badge>
                     </TableCell>
                     <TableCell>{formatDateTime(row.createdAt)}</TableCell>
                     <TableCell>{formatDateTime(row.resolvedAt)}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="outline" onClick={() => openDetailDialog(row.complaintId)}>
-                        Xem chi tiet
+                        Xem chi tiết
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -436,12 +321,12 @@ function Complaint() {
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm text-muted-foreground">
-              Tong: {filteredRows.length} ban ghi
+              Tổng: {pagination.totalElements} bản ghi
             </div>
 
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 text-sm">
-                <span>Moi trang</span>
+                <span>Mỗi trang</span>
                 <Select
                   value={String(size)}
                   onValueChange={(value) => {
@@ -475,7 +360,7 @@ function Complaint() {
                   </PaginationItem>
                   <PaginationItem>
                     <PaginationLink href="#" isActive>
-                      {page}/{totalPages}
+                      {page}/{pagination.totalPages}
                     </PaginationLink>
                   </PaginationItem>
                   <PaginationItem>
@@ -483,7 +368,7 @@ function Complaint() {
                       href="#"
                       onClick={(e) => {
                         e.preventDefault();
-                        setPage((prev) => Math.min(totalPages, prev + 1));
+                        setPage((prev) => Math.min(pagination.totalPages, prev + 1));
                       }}
                     />
                   </PaginationItem>
@@ -497,13 +382,17 @@ function Complaint() {
       <Dialog open={openDetail} onOpenChange={setOpenDetail}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Chi tiet khieu nai</DialogTitle>
+            <DialogTitle>Chi tiết khiếu nại</DialogTitle>
             <DialogDescription>
-              Fake response theo Jira task: xem chi tiet va xu ly resolve/reject.
+              Xem chi tiết và xử lý resolve/reject khiếu nại.
             </DialogDescription>
           </DialogHeader>
 
-          {selectedDetail && (
+          {detailLoading ? (
+            <div className="flex items-center justify-center py-8 text-muted-foreground">
+              Đang tải chi tiết...
+            </div>
+          ) : selectedDetail && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div className="rounded-md border p-3">
@@ -511,90 +400,107 @@ function Complaint() {
                   <p className="font-mono text-sm break-all">{selectedDetail.complaintId}</p>
                 </div>
                 <div className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground">Trang thai</p>
+                  <p className="text-xs text-muted-foreground">Trạng thái</p>
                   <Badge variant={getStatusBadgeVariant(selectedDetail.status)}>
-                    {selectedDetail.status}
+                    {STATUS_DISPLAY[selectedDetail.status] || selectedDetail.status}
                   </Badge>
                 </div>
                 <div className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground">Nguoi gui</p>
+                  <p className="text-xs text-muted-foreground">Người gửi</p>
                   <p className="text-sm">
-                    {selectedDetail.citizen.name} ({selectedDetail.citizen.id})
+                    {selectedDetail.citizen?.name || "-"}
                   </p>
                 </div>
                 <div className="rounded-md border p-3">
                   <p className="text-xs text-muted-foreground">Collector</p>
                   <p className="text-sm">
                     {selectedDetail.collector
-                      ? `${selectedDetail.collector.name} (${selectedDetail.collector.id})`
+                      ? selectedDetail.collector.name
                       : "-"}
                   </p>
                 </div>
                 <div className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground">Tao luc</p>
+                  <p className="text-xs text-muted-foreground">Tạo lúc</p>
                   <p className="text-sm">{formatDateTime(selectedDetail.createdAt)}</p>
                 </div>
                 <div className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground">Xu ly luc</p>
+                  <p className="text-xs text-muted-foreground">Xử lý lúc</p>
                   <p className="text-sm">{formatDateTime(selectedDetail.resolvedAt)}</p>
                 </div>
               </div>
 
               <div className="rounded-md border p-3">
-                <p className="text-xs text-muted-foreground">Noi dung khieu nai</p>
-                <p className="mt-1 text-sm">{selectedDetail.complaintContent}</p>
+                <p className="text-xs text-muted-foreground">Nội dung khiếu nại</p>
+                <p className="mt-1 text-sm">{selectedDetail.complaintContent || "-"}</p>
               </div>
+
+              {selectedDetail.attachments && selectedDetail.attachments.length > 0 && (
+                <div className="rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground mb-2">Hình ảnh đính kèm</p>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedDetail.attachments.map((att, idx) => (
+                      <a key={idx} href={att.fileUri} target="_blank" rel="noopener noreferrer">
+                        <img
+                          src={att.fileUri}
+                          alt={`Attachment ${idx + 1}`}
+                          className="h-20 w-20 rounded border object-cover"
+                        />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div className="space-y-2">
-                  <p className="text-sm font-medium">adminResponse</p>
+                  <p className="text-sm font-medium">Phản hồi Admin</p>
                   <Textarea
                     value={adminResponse}
                     onChange={(e) => setAdminResponse(e.target.value)}
-                    placeholder="Nhap phan hoi cua admin..."
-                    disabled={selectedDetail.status !== "PENDING"}
+                    placeholder="Nhập phản hồi của admin..."
+                    disabled={!isPending(selectedDetail.status)}
                   />
                 </div>
                 <div className="space-y-2">
-                  <p className="text-sm font-medium">refundPoints</p>
+                  <p className="text-sm font-medium">Điểm hoàn trả</p>
                   <Input
                     type="number"
                     min={0}
                     value={refundPoints}
                     onChange={(e) => setRefundPoints(Number(e.target.value))}
-                    disabled={selectedDetail.status !== "PENDING"}
+                    disabled={!isPending(selectedDetail.status)}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Chi ap dung khi resolve. Reject se luon dat ve 0.
+                    Chỉ áp dụng khi resolve. Reject sẽ luôn đặt về 0.
                   </p>
                 </div>
               </div>
 
               <div className="rounded-md border p-3">
-                <p className="text-xs text-muted-foreground">Resolved by</p>
+                <p className="text-xs text-muted-foreground">Người xử lý</p>
                 <p className="text-sm">
                   {selectedDetail.resolvedBy
-                    ? `${selectedDetail.resolvedBy.adminName} (${selectedDetail.resolvedBy.adminId})`
+                    ? `${selectedDetail.resolvedBy.adminName}`
                     : "-"}
                 </p>
               </div>
 
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setOpenDetail(false)}>
-                  Dong
+                  Đóng
                 </Button>
                 <Button
                   variant="destructive"
                   onClick={handleReject}
-                  disabled={selectedDetail.status !== "PENDING"}
+                  disabled={!isPending(selectedDetail.status) || actionLoading}
                 >
-                  Tu choi khieu nai
+                  {actionLoading ? "Đang xử lý..." : "Từ chối khiếu nại"}
                 </Button>
                 <Button
                   onClick={handleResolve}
-                  disabled={selectedDetail.status !== "PENDING"}
+                  disabled={!isPending(selectedDetail.status) || actionLoading}
                 >
-                  Resolve + Hoan diem
+                  {actionLoading ? "Đang xử lý..." : "Resolve + Hoàn điểm"}
                 </Button>
               </div>
             </div>
@@ -606,4 +512,3 @@ function Complaint() {
 }
 
 export default Complaint;
-
