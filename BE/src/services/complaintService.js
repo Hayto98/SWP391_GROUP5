@@ -238,7 +238,7 @@ async function resolveComplaint({ adminId, complaintId, adminResponse, refundPoi
         citizenId: complaint.citizenId,
         wasteReportId: complaint.wasteReportId,
         pointsDelta: refundPoints,
-        transactionReason: `Hoàn điểm từ khiếu nại: ${complaintId}`,
+        transactionReason: `[REFUND_COMPLAINT] Hoàn điểm từ khiếu nại: ${complaintId}`,
         createdAt: new Date()
       })
     }
