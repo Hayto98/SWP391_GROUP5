@@ -241,6 +241,144 @@ async function rejectComplaint(connection, { complaintId, adminResponse, adminId
   await connection.execute(query, [adminResponse, adminId, complaintId])
 }
 
+async function findComplaintDetailForAdmin(complaintId) {
+  const query = `
+    SELECT 
+      rc.report_complaint_id,
+      rc.waste_report_id,
+      rc.complaint_reason,
+      rc.complaint_status,
+      rc.refund_points,
+      rc.admin_response,
+      rc.created_at,
+      rc.resolved_at,
+      rc.citizen_id,
+      ua_citizen.user_account_id AS citizen_user_account_id,
+      ua_citizen.fullname AS citizen_name,
+      wr.assigned_collector_id AS collector_user_account_id,
+      ua_collector.fullname AS collector_name,
+      rc.resolved_by_admin_id,
+      ua_admin.fullname AS admin_name,
+      GROUP_CONCAT(rca.file_uri SEPARATOR '|||') AS attachment_uris
+    FROM reportcomplaint rc
+    JOIN citizen c ON rc.citizen_id = c.citizen_id
+    JOIN useraccount ua_citizen ON c.user_account_id = ua_citizen.user_account_id
+    LEFT JOIN wastereport wr ON rc.waste_report_id = wr.waste_report_id
+    LEFT JOIN useraccount ua_collector ON wr.assigned_collector_id = ua_collector.user_account_id
+    LEFT JOIN useraccount ua_admin ON rc.resolved_by_admin_id = ua_admin.user_account_id
+    LEFT JOIN reportcomplaintattachment rca ON rc.report_complaint_id = rca.report_complaint_id
+    WHERE rc.report_complaint_id = ? AND rc.is_deleted = 0
+    GROUP BY rc.report_complaint_id
+  `
+  const [rows] = await db.execute(query, [complaintId])
+  if (rows.length === 0) return null
+
+  const row = rows[0]
+  const attachments = row.attachment_uris
+    ? row.attachment_uris.split('|||').filter(Boolean).map(uri => ({ fileUri: uri }))
+    : []
+
+  return {
+    complaintId: row.report_complaint_id,
+    citizen: {
+      id: row.citizen_user_account_id,
+      name: row.citizen_name
+    },
+    collector: row.collector_user_account_id
+      ? { id: row.collector_user_account_id, name: row.collector_name }
+      : null,
+    status: row.complaint_status,
+    complaintContent: row.complaint_reason,
+    adminResponse: row.admin_response,
+    refundPoints: row.refund_points,
+    createdAt: row.created_at,
+    resolvedAt: row.resolved_at,
+    resolvedBy: row.resolved_by_admin_id
+      ? { adminId: row.resolved_by_admin_id, adminName: row.admin_name }
+      : null,
+    attachments
+  }
+}
+
+async function findAllComplaintsForAdmin({ status, fromDate, toDate, citizenId, page = 1, size = 10 }) {
+  const safePage = Math.max(1, parseInt(page, 10) || 1)
+  const safeSize = Math.max(1, Math.min(100, parseInt(size, 10) || 10))
+  const offset = (safePage - 1) * safeSize
+
+  const where = ['rc.is_deleted = 0']
+  const params = []
+
+  if (status) {
+    const mappedStatus = status.toUpperCase() === 'PENDING' ? 'OPEN' : status.toUpperCase()
+    where.push('rc.complaint_status = ?')
+    params.push(mappedStatus)
+  }
+
+  if (fromDate) {
+    where.push('rc.created_at >= ?')
+    params.push(fromDate)
+  }
+
+  if (toDate) {
+    where.push('rc.created_at <= ?')
+    params.push(toDate)
+  }
+
+  if (citizenId) {
+    where.push('rc.citizen_id = ?')
+    params.push(citizenId)
+  }
+
+  const whereClause = where.join(' AND ')
+
+  const countQuery = `SELECT COUNT(*) AS total FROM reportcomplaint rc WHERE ${whereClause}`
+  const [countRows] = await db.execute(countQuery, params)
+  const totalElements = Number(countRows[0].total)
+
+  const dataQuery = `
+    SELECT 
+      rc.report_complaint_id,
+      rc.complaint_status,
+      rc.complaint_reason,
+      rc.admin_response,
+      rc.refund_points,
+      rc.created_at,
+      rc.resolved_at,
+      ua_citizen.fullname AS citizen_name,
+      ua_collector.fullname AS collector_name
+    FROM reportcomplaint rc
+    JOIN citizen c ON rc.citizen_id = c.citizen_id
+    JOIN useraccount ua_citizen ON c.user_account_id = ua_citizen.user_account_id
+    LEFT JOIN wastereport wr ON rc.waste_report_id = wr.waste_report_id
+    LEFT JOIN useraccount ua_collector ON wr.assigned_collector_id = ua_collector.user_account_id
+    WHERE ${whereClause}
+    ORDER BY rc.created_at DESC
+    LIMIT ${safeSize} OFFSET ${offset}
+  `
+  const [rows] = await db.execute(dataQuery, params)
+
+  const data = rows.map(row => ({
+    complaintId: row.report_complaint_id,
+    citizenName: row.citizen_name,
+    collectorName: row.collector_name || null,
+    status: row.complaint_status,
+    adminResponse: row.admin_response,
+    refundPoints: row.refund_points,
+    createdAt: row.created_at,
+    resolvedAt: row.resolved_at
+  }))
+
+  return {
+    data,
+    pagination: {
+      page: safePage,
+      size: safeSize,
+      totalElements,
+      totalPages: Math.ceil(totalElements / safeSize)
+    }
+  }
+}
+
 module.exports = {
   createComplaint,
   findComplaintByCitizenAndReport,
@@ -250,5 +388,7 @@ module.exports = {
   softDeleteComplaint,
   findComplaintById,
   resolveComplaint,
-  rejectComplaint
+  rejectComplaint,
+  findComplaintDetailForAdmin,
+  findAllComplaintsForAdmin
 }

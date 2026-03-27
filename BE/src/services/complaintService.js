@@ -298,6 +298,31 @@ async function rejectComplaint({ adminId, complaintId, adminResponse }) {
   }
 }
 
+async function getComplaintDetailForAdmin({ complaintId }) {
+  if (!complaintId) {
+    throw new ApiError(400, 'Thiếu complaintId.')
+  }
+
+  const complaint = await complaintRepository.findComplaintDetailForAdmin(complaintId)
+  if (!complaint) {
+    throw new ApiError(404, 'Không tìm thấy khiếu nại.')
+  }
+
+  return complaint
+}
+
+async function getAllComplaintsForAdmin({ query }) {
+  const { status, fromDate, toDate, citizenId, page, size } = query
+  return await complaintRepository.findAllComplaintsForAdmin({
+    status,
+    fromDate,
+    toDate,
+    citizenId,
+    page,
+    size
+  })
+}
+
 module.exports = {
   createComplaint,
   getMyComplaints,
@@ -305,5 +330,7 @@ module.exports = {
   updateComplaint,
   softDeleteComplaint,
   resolveComplaint,
-  rejectComplaint
+  rejectComplaint,
+  getComplaintDetailForAdmin,
+  getAllComplaintsForAdmin
 }
