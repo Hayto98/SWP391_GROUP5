@@ -114,7 +114,14 @@ function EditReportDialog({
       const mergedCurrentImages = [
         ...existingFromCitizenImages,
         ...existingFromImages,
-      ].slice(0, MAX_IMAGES);
+      ]
+        .filter((img) => typeof img?.uri === "string" && img.uri.trim() !== "")
+        .reduce((acc, img) => {
+          const exists = acc.some((item) => item.uri === img.uri);
+          if (!exists) acc.push(img);
+          return acc;
+        }, [])
+        .slice(0, MAX_IMAGES);
 
       setCurrentImages(mergedCurrentImages);
       setNewImages((prev) => {
@@ -246,14 +253,15 @@ function EditReportDialog({
     }
 
     setNewImages((prev) => {
-      const remainingSlots = Math.max(0, MAX_IMAGES - prev.length);
+      const currentTotal = currentImages.length + prev.length;
+      const remainingSlots = Math.max(0, MAX_IMAGES - currentTotal);
       if (remainingSlots === 0) {
-        toast.warning("Bạn chỉ có thể tải lên tối đa 5 ảnh mới.");
+        toast.warning("Bạn chỉ có thể có tối đa 5 ảnh cho báo cáo.");
         return prev;
       }
 
       if (validFiles.length > remainingSlots) {
-        toast.warning("Chỉ thêm được tối đa 5 ảnh mới.");
+        toast.warning("Số ảnh vượt giới hạn, chỉ thêm được tối đa 5 ảnh.");
       }
 
       const incoming = validFiles.slice(0, remainingSlots).map((file) => ({
@@ -330,7 +338,7 @@ function EditReportDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog className=" w-[80vw]" open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Chỉnh sửa báo cáo</DialogTitle>
@@ -416,35 +424,7 @@ function EditReportDialog({
 
           <div className="space-y-3">
             <Label>Ảnh báo cáo</Label>
-            {newImages.length > 0 ? (
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  Ảnh mới sẽ cập nhật
-                </p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {newImages.map((img) => (
-                    <div
-                      key={img.id}
-                      className="relative overflow-hidden rounded-lg border bg-muted aspect-square"
-                    >
-                      <ImageSection
-                        image={img.preview}
-                        className="h-full"
-                        imageClassName="h-full w-full rounded-none border-0"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveNewImage(img.id)}
-                        className="absolute top-1 right-1 inline-flex items-center justify-center size-6 rounded-full bg-black/70 text-white hover:bg-black/85"
-                        aria-label="Xóa ảnh"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : currentImages.length > 0 ? (
+            {currentImages.length > 0 && (
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">
                   Ảnh hiện tại (bấm X để bỏ ảnh không muốn giữ)
@@ -472,7 +452,39 @@ function EditReportDialog({
                   ))}
                 </div>
               </div>
-            ) : (
+            )}
+
+            {newImages.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Ảnh mới sẽ cập nhật
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {newImages.map((img) => (
+                    <div
+                      key={img.id}
+                      className="relative overflow-hidden rounded-lg border bg-muted aspect-square"
+                    >
+                      <ImageSection
+                        image={img.preview}
+                        className="h-full"
+                        imageClassName="h-full w-full rounded-none border-0"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveNewImage(img.id)}
+                        className="absolute top-1 right-1 inline-flex items-center justify-center size-6 rounded-full bg-black/70 text-white hover:bg-black/85"
+                        aria-label="Xóa ảnh"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {currentImages.length === 0 && newImages.length === 0 && (
               <p className="text-sm text-muted-foreground">
                 Chưa có ảnh báo cáo
               </p>
@@ -484,9 +496,7 @@ function EditReportDialog({
                 variant="outline"
                 onClick={handleOpenFilePicker}
               >
-                {newImages.length > 0
-                  ? "Thêm hoặc thay đổi ảnh mới"
-                  : "Chọn ảnh mới"}
+                {newImages.length > 0 ? "Thêm ảnh mới" : "Chọn ảnh mới"}
               </Button>
               {newImages.length > 0 && (
                 <Button
@@ -507,8 +517,9 @@ function EditReportDialog({
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Đã chọn {newImages.length}/{MAX_IMAGES} ảnh mới. Tối đa 5MB mỗi
-              ảnh.
+              Đang giữ {currentImages.length} ảnh cũ, thêm {newImages.length}{" "}
+              ảnh mới. Tổng {currentImages.length + newImages.length}/
+              {MAX_IMAGES} ảnh. Tối đa 5MB mỗi ảnh.
             </p>
 
             <Input
