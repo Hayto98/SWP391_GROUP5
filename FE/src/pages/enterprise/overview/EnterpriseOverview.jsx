@@ -10,6 +10,14 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -51,52 +59,7 @@ const wasteDotTone = {
   other: "bg-slate-400",
 };
 
-function WasteRing({ percent, totalText, totalSubText }) {
-  const safePercent = Math.max(0, Math.min(100, Number(percent || 0)));
-  const radius = 54;
-  const circumference = 2 * Math.PI * radius;
-  const strokeOffset = circumference - (safePercent / 100) * circumference;
-
-  return (
-    <div className="relative size-40">
-      <svg
-        className="size-40 -rotate-90"
-        viewBox="0 0 128 128"
-        role="img"
-        aria-label="Waste ring chart"
-      >
-        <circle
-          cx="64"
-          cy="64"
-          r={radius}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="10"
-          className="text-slate-200"
-        />
-        <circle
-          cx="64"
-          cy="64"
-          r={radius}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="10"
-          strokeLinecap="round"
-          className="text-emerald-500 transition-all"
-          strokeDasharray={circumference}
-          strokeDashoffset={strokeOffset}
-        />
-      </svg>
-
-      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-        <p className="text-2xl font-black tracking-tight">{totalText || "-"}</p>
-        <p className="text-[11px] font-semibold text-muted-foreground">
-          {totalSubText || "TỔNG CỘNG"}
-        </p>
-      </div>
-    </div>
-  );
-}
+// Removed WasteRing to simplify data expression
 
 export default function EnterpriseOverview() {
   // State cho filter dashboard
@@ -109,6 +72,10 @@ export default function EnterpriseOverview() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-31 23:59:59`;
   });
   const [groupBy, setGroupBy] = useState("month");
+
+  // State cho phân trang hoạt động gần đây
+  const [activityPage, setActivityPage] = useState(1);
+  const itemsPerPage = 5;
 
   // State filter thực tế dùng cho API
   const [filter, setFilter] = useState({ fromDate, toDate, groupBy });
@@ -136,12 +103,6 @@ export default function EnterpriseOverview() {
         tone: "success",
         icon: <CheckCircle2 className="size-4" />,
       },
-      {
-        title: "SLA cảnh báo",
-        value: String(s.slaWarning),
-        tone: "danger",
-        icon: <AlertTriangle className="size-4" />,
-      },
     ];
   }, [data]);
 
@@ -151,6 +112,13 @@ export default function EnterpriseOverview() {
   const highlightValue = Math.max(...chartValues, 0);
   const activities = data?.activities || [];
   const waste = data?.waste;
+
+  // Xử lý list hoạt động
+  const totalActivityPages = Math.max(1, Math.ceil(activities.length / itemsPerPage));
+  const currentActivities = activities.slice(
+    (activityPage - 1) * itemsPerPage,
+    activityPage * itemsPerPage
+  );
 
   if (loading) {
     return (
@@ -186,7 +154,7 @@ export default function EnterpriseOverview() {
           Dashboard tổng quan doanh nghiệp
         </h1>
         <p className="mt-1 text-sm text-green-600">
-          Theo dõi hiệu suất thu gom, chất lượng phân loại và nguy cơ SLA.
+          Theo dõi hiệu suất thu gom, chất lượng phân loại
         </p>
       </div>
 
@@ -199,36 +167,41 @@ export default function EnterpriseOverview() {
             </p>
           </div>
 
-          <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto items-center">
-            {/* Date range picker (simple) */}
-            <input
-              type="date"
-              value={fromDate.slice(0, 10)}
-              onChange={(e) => setFromDate(`${e.target.value} 00:00:00`)}
-              className="border rounded px-2 py-1 text-sm"
-              style={{ minWidth: 120 }}
-            />
-            <span className="mx-1">-</span>
-            <input
-              type="date"
-              value={toDate.slice(0, 10)}
-              onChange={(e) => setToDate(`${e.target.value} 23:59:59`)}
-              className="border rounded px-2 py-1 text-sm"
-              style={{ minWidth: 120 }}
-            />
-            <select
-              value={groupBy}
-              onChange={(e) => setGroupBy(e.target.value)}
-              className="border rounded px-2 py-1 text-sm ml-2"
-            >
-              <option value="day">Theo ngày</option>
-              <option value="month">Theo tháng</option>
-              <option value="year">Theo năm</option>
-            </select>
+          <div className="flex w-full flex-col gap-3 sm:flex-row md:w-auto md:items-center">
+            {/* Date range picker (styled) */}
+            <div className="flex items-center gap-2">
+              <Input
+                type="date"
+                value={fromDate.slice(0, 10)}
+                onChange={(e) => setFromDate(`${e.target.value} 00:00:00`)}
+                className="h-9 w-[140px]"
+              />
+              <span className="text-muted-foreground">-</span>
+              <Input
+                type="date"
+                value={toDate.slice(0, 10)}
+                onChange={(e) => setToDate(`${e.target.value} 23:59:59`)}
+                className="h-9 w-[140px]"
+              />
+            </div>
+
+            <Select value={groupBy} onValueChange={setGroupBy}>
+              <SelectTrigger className="h-9 w-[130px]">
+                <SelectValue placeholder="Lọc theo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="day">Theo ngày</SelectItem>
+                  <SelectItem value="month">Theo tháng</SelectItem>
+                  <SelectItem value="year">Theo năm</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+
             <Button
-              variant="outline"
+              variant="default"
               size="sm"
-              className="ml-2"
+              className="h-9 bg-green-600 px-5 text-white shadow-sm hover:bg-green-700 sm:ml-2"
               onClick={() => {
                 setFilter({ fromDate, toDate, groupBy });
                 setTimeout(() => refetch(), 0); // Đảm bảo refetch sau khi setFilter
@@ -240,7 +213,7 @@ export default function EnterpriseOverview() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-3">
         {stats.map((item) => (
           <Card key={item.title}>
             <CardContent className="space-y-3 py-4">
@@ -330,33 +303,48 @@ export default function EnterpriseOverview() {
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-4">
-            <div className="flex justify-center">
-              <WasteRing
-                percent={waste?.ringPercent}
-                totalText={waste?.totalText}
-                totalSubText={waste?.totalSubText}
-              />
+          <CardContent className="space-y-6">
+            <div className="flex flex-col items-center justify-center rounded-lg bg-green-50 py-6 border border-green-100">
+              <span className="text-3xl font-black tracking-tight text-green-700">
+                {waste?.totalText || "0"} <span className="text-base font-semibold">kg</span>
+              </span>
+              <span className="text-xs font-bold uppercase tracking-wider text-green-600/70">
+                TỔNG KHỐI LƯỢNG ĐÃ PHÂN LOẠI
+              </span>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-4">
               {(waste?.breakdown || []).map((item) => (
-                <div
-                  key={item.key}
-                  className="flex items-center justify-between rounded-md border px-3 py-2"
-                >
-                  <div className="flex items-center gap-2">
-                    <span
+                <div key={item.key} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={[
+                          "inline-block size-3 rounded-full",
+                          wasteDotTone[item.key] || "bg-slate-400",
+                        ].join(" ")}
+                      />
+                      <span className="font-semibold">{item.label}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="font-medium text-slate-700">
+                        {item.quantity} kg
+                      </span>
+                      <span className="w-10 text-right font-bold text-muted-foreground">
+                        {item.percent}%
+                      </span>
+                    </div>
+                  </div>
+                  {/* Progress Bar tự build cho trực quan và tùy biến theo Data */}
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div
                       className={[
-                        "inline-block size-2.5 rounded-full",
+                        "h-full rounded-full transition-all duration-500",
                         wasteDotTone[item.key] || "bg-slate-400",
                       ].join(" ")}
+                      style={{ width: `${item.percent}%` }}
                     />
-                    <span className="text-sm font-medium">{item.label}</span>
                   </div>
-                  <span className="text-sm font-semibold text-muted-foreground">
-                    {item.percent}%
-                  </span>
                 </div>
               ))}
             </div>
@@ -372,9 +360,6 @@ export default function EnterpriseOverview() {
               Cập nhật tiến độ đơn hàng và trạng thái xử lý.
             </CardDescription>
           </div>
-          <Button variant="ghost" size="sm">
-            Xem tất cả
-          </Button>
         </CardHeader>
 
         <CardContent>
@@ -400,8 +385,8 @@ export default function EnterpriseOverview() {
                   </TableRow>
                 )}
 
-                {activities.map((activity) => (
-                  <TableRow key={activity.code}>
+                {currentActivities.map((activity, index) => (
+                  <TableRow key={`${activity.code}-${activityPage}-${index}`}>
                     <TableCell className="font-mono text-xs font-semibold">
                       {activity.code}
                     </TableCell>
@@ -422,6 +407,33 @@ export default function EnterpriseOverview() {
               </TableBody>
             </Table>
           </div>
+
+          {/* Phân trang UI */}
+          {activities.length > 0 && (
+            <div className="flex items-center justify-between border-t px-2 pt-4 mt-4">
+              <span className="text-sm font-medium text-muted-foreground">
+                Trang {activityPage} / {totalActivityPages}
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setActivityPage((prev) => Math.max(1, prev - 1))}
+                  disabled={activityPage === 1}
+                >
+                  Trước
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setActivityPage((prev) => Math.min(totalActivityPages, prev + 1))}
+                  disabled={activityPage === totalActivityPages}
+                >
+                  Sau
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
