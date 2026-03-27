@@ -1,5 +1,4 @@
-import { useMemo } from "react";
-import { Badge } from "@/components/ui/badge";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -19,62 +18,73 @@ import {
 } from "@/components/ui/table";
 import { useCollectors } from "@/hooks/useCollectors";
 import {
-  CalendarDays,
-  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Eye,
-  Filter,
   Loader2,
-  Pencil,
   Plus,
   Search,
-  Truck,
-  Users,
+  Trash2,
+  ClipboardList,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
 
-const statusMeta = {
-  ready: {
-    text: "Sẵn sàng",
-    className: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  },
-  busy: {
-    text: "Đang bận",
-    className: "border-amber-200 bg-amber-50 text-amber-700",
-  },
-  leave: {
-    text: "Nghỉ phép",
-    className: "border-slate-200 bg-slate-100 text-slate-700",
-  },
-};
+import AddEmployeeModal from "./AddEmployeeModal";
+import DeleteEmployeeDialog from "./DeleteEmployeeDialog";
+import ViewEmployeeDialog from "./ViewEmployeeDialog";
 
+/* ─── Stat card metadata ─────────────────────────────────────────────── */
 const statMeta = {
-  total: {
-    title: "Tổng nhân sự",
-    sub: "+4.2%",
-    icon: Users,
-    iconTone: "border-slate-200 bg-slate-100 text-slate-700",
+  assigned: {
+    title: "Tổng nhiệm vụ giao",
+    icon: ClipboardList,
+    iconTone: "border-blue-200 bg-blue-100 text-blue-700",
   },
-  ready: {
-    title: "Sẵn sàng",
-    sub: "Đủ điều phối",
-    icon: CheckCircle2,
+  completed: {
+    title: "Đã hoàn thành",
+    icon: CheckCircle,
     iconTone: "border-emerald-200 bg-emerald-100 text-emerald-700",
   },
-  busy: {
-    title: "Đang làm nhiệm vụ",
-    sub: "22% công suất",
-    icon: Truck,
-    iconTone: "border-amber-200 bg-amber-100 text-amber-700",
-  },
-  leave: {
-    title: "Nghỉ phép",
-    sub: "Theo lịch đăng ký",
-    icon: CalendarDays,
-    iconTone: "border-slate-200 bg-slate-100 text-slate-700",
+  rejected: {
+    title: "Từ chối",
+    icon: XCircle,
+    iconTone: "border-red-200 bg-red-100 text-red-700",
   },
 };
 
+/* ─── Helpers ─────────────────────────────────────────────────────────── */
+function getInitials(name) {
+  if (!name) return "?";
+  return name
+    .split(" ")
+    .map((w) => w[0])
+    .slice(-2)
+    .join("")
+    .toUpperCase();
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return "—";
+  try {
+    return new Intl.DateTimeFormat("vi-VN", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(dateStr));
+  } catch {
+    return dateStr;
+  }
+}
+
+function truncateId(uuid) {
+  if (!uuid) return "—";
+  return uuid.length > 8 ? `${uuid.slice(0, 8)}...` : uuid;
+}
+
+/* ─── Avatar ──────────────────────────────────────────────────────────── */
 function Avatar({ seed }) {
   return (
     <div className="flex size-9 items-center justify-center rounded-full border border-cyan-200 bg-cyan-100 text-xs font-black text-cyan-700">
@@ -83,56 +93,42 @@ function Avatar({ seed }) {
   );
 }
 
-function StatusBadge({ status }) {
-  const meta = statusMeta[status] || {
-    text: status || "Không xác định",
-    className: "border-slate-200 bg-slate-100 text-slate-700",
-  };
-
-  return (
-    <Badge variant="outline" className={meta.className}>
-      {meta.text}
-    </Badge>
-  );
-}
-
-function taskPercent(tasks) {
-  return Math.min(100, Math.max(0, (Number(tasks || 0) / 6) * 100));
-}
-
+/* ─── Main Component ──────────────────────────────────────────────────── */
 export default function Collectors() {
   const {
-    data,
+    rows,
+    total,
+    totalPages,
+    startItem,
+    endItem,
+    totalEmployees,
+    statistics,
     loading,
     error,
     q,
-    status,
-    onlyReady,
     page,
-    pageSize,
     setQ,
-    setStatus,
-    setOnlyReady,
     setPage,
     reload,
+    handleCreate,
+    handleDelete,
+    getDetail,
   } = useCollectors();
 
-  const summary = data?.summary || { total: 0, ready: 0, busy: 0, leave: 0 };
-  const total = data?.result?.total || 0;
-  const rows = data?.result?.rows || [];
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const chipItems = data?.filters?.status || ["Tất cả", "Sẵn sàng", "Đang bận", "Nghỉ phép"];
-  const startItem = total === 0 ? 0 : (page - 1) * pageSize + 1;
-  const endItem = Math.min(page * pageSize, total);
+  // ── Modal states ────────────────────────────────────────────────────
+  const [showAdd, setShowAdd] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [showView, setShowView] = useState(false);
+  const [viewTargetId, setViewTargetId] = useState(null);
 
+  // ── Pagination helper ───────────────────────────────────────────────
   const pages = useMemo(() => {
     const arr = [];
-
     if (totalPages <= 7) {
       for (let i = 1; i <= totalPages; i += 1) arr.push(i);
       return arr;
     }
-
     arr.push(1);
     if (page > 3) arr.push("...");
     const from = Math.max(2, page - 1);
@@ -143,23 +139,36 @@ export default function Collectors() {
     return arr;
   }, [page, totalPages]);
 
+  // ── Handlers ────────────────────────────────────────────────────────
+  function openDelete(emp) {
+    setDeleteTarget(emp);
+    setShowDelete(true);
+  }
+
+  function openView(empId) {
+    setViewTargetId(empId);
+    setShowView(true);
+  }
+
   return (
     <div className="space-y-6">
+      {/* ── Header ───────────────────────────────────────────────────── */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-lg font-bold tracking-tight lg:text-2xl">Quản lý nhân viên thu gom</h1>
           <p className="mt-1 text-sm text-green-600">
-            Theo dõi trạng thái làm việc và hiệu suất của đội ngũ collector.
+            Theo dõi và quản lý đội ngũ collector của doanh nghiệp.
           </p>
         </div>
 
-        <Button type="button">
+        <Button type="button" onClick={() => setShowAdd(true)}>
           <Plus className="size-4" />
           Thêm nhân viên mới
         </Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {/* ── Stat Cards ───────────────────────────────────────────────── */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {Object.entries(statMeta).map(([key, meta]) => {
           const Icon = meta.icon;
           return (
@@ -178,70 +187,44 @@ export default function Collectors() {
                     <Icon className="size-4" />
                   </span>
                 </div>
-                <p className="text-3xl font-black leading-none tracking-tight">{summary[key] ?? 0}</p>
-                <p className="text-xs font-medium text-muted-foreground">{meta.sub}</p>
+                <p className="text-3xl font-black leading-none tracking-tight">
+                  {statistics[key] ?? 0}
+                </p>
               </CardContent>
             </Card>
           );
         })}
       </div>
 
+      {/* ── Search ───────────────────────────────────────────────────── */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Bộ lọc nhân sự</CardTitle>
-          <CardDescription>Lọc nhanh theo trạng thái sẵn sàng và từ khóa tìm kiếm.</CardDescription>
+          <CardTitle className="text-base">Tìm kiếm nhân viên</CardTitle>
+          <CardDescription>Tìm nhanh nhân viên theo tên, email hoặc số điện thoại.</CardDescription>
         </CardHeader>
-
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            {chipItems.map((item) => (
-              <Button
-                key={item}
-                type="button"
-                variant={status === item ? "default" : "outline"}
-                size="sm"
-                onClick={() => setStatus(item)}
-              >
-                {item}
-              </Button>
-            ))}
-          </div>
-
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
-              <input
-                type="checkbox"
-                className="size-4 rounded border-slate-300 accent-emerald-600"
-                checked={onlyReady}
-                onChange={(e) => setOnlyReady(e.target.checked)}
-              />
-              Chỉ hiển thị sẵn sàng
-            </label>
-
-            <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
-              <Button type="button" variant="outline" size="sm">
-                <Filter className="size-4" />
-                Bộ lọc nâng cao
-              </Button>
-
-              <div className="relative sm:w-72">
-                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Tìm theo tên hoặc mã..."
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-            </div>
+        <CardContent>
+          <div className="relative sm:w-72">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Tìm theo tên, email, SĐT..."
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              className="pl-9"
+            />
           </div>
         </CardContent>
       </Card>
 
+      {/* ── Employee Table ───────────────────────────────────────────── */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Danh sách collector</CardTitle>
-          <CardDescription>Cập nhật theo trạng thái thời gian thực từ hệ thống điều phối.</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between pb-4">
+          <div className="space-y-1">
+            <CardTitle className="text-base">Danh sách nhân viên</CardTitle>
+            <CardDescription>Danh sách nhân viên thu gom trong hệ thống.</CardDescription>
+          </div>
+          <div className="flex h-7 items-center justify-center rounded-full bg-green-600 px-3 text-xs font-bold text-white shadow-sm ring-1 ring-green-600/20">
+            {totalEmployees} nhân viên
+          </div>
         </CardHeader>
 
         <CardContent>
@@ -266,10 +249,10 @@ export default function Collectors() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Nhân viên thu gom</TableHead>
-                    <TableHead>Trạng thái</TableHead>
-                    <TableHead>Nhiệm vụ đang chờ</TableHead>
-                    <TableHead>Hoạt động cuối</TableHead>
+                    <TableHead>Nhân viên</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Số điện thoại</TableHead>
+                    <TableHead>Ngày tạo</TableHead>
                     <TableHead className="text-right">Thao tác</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -278,51 +261,52 @@ export default function Collectors() {
                   {rows.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={5} className="py-6 text-center text-muted-foreground">
-                        Không có nhân viên phù hợp với bộ lọc.
+                        Không có nhân viên phù hợp.
                       </TableCell>
                     </TableRow>
                   )}
 
                   {rows.map((row) => (
-                    <TableRow key={row.id}>
+                    <TableRow key={row.userAccountId}>
                       <TableCell>
                         <div className="flex items-center gap-3">
-                          <Avatar seed={row.avatarSeed} />
+                          <Avatar seed={getInitials(row.fullname)} />
                           <div>
-                            <p className="font-semibold">{row.name}</p>
-                            <p className="text-xs text-muted-foreground">{row.code}</p>
+                            <p className="font-semibold">{row.fullname}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {truncateId(row.userAccountId)}
+                            </p>
                           </div>
                         </div>
                       </TableCell>
 
-                      <TableCell>
-                        <StatusBadge status={row.status} />
-                      </TableCell>
+                      <TableCell className="text-sm">{row.email || "—"}</TableCell>
 
-                      <TableCell>
-                        <div className="w-40 max-w-full">
-                          <div className="mb-1 flex items-center justify-between text-xs font-semibold text-slate-700">
-                            <span>{row.tasks}</span>
-                            <span>{Math.round(taskPercent(row.tasks))}%</span>
-                          </div>
-                          <div className="h-2 overflow-hidden rounded-full border border-slate-200 bg-slate-100">
-                            <div
-                              className="h-full rounded-full bg-emerald-500 transition-all"
-                              style={{ width: `${taskPercent(row.tasks)}%` }}
-                            />
-                          </div>
-                        </div>
-                      </TableCell>
+                      <TableCell className="text-sm">{row.phone || "—"}</TableCell>
 
-                      <TableCell className="text-sm text-muted-foreground">{row.lastActive}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {formatDate(row.createdAt)}
+                      </TableCell>
 
                       <TableCell>
                         <div className="flex justify-end gap-2">
-                          <Button variant="outline" size="icon-sm" className="size-8" title="Xem">
+                          <Button
+                            variant="outline"
+                            size="icon-sm"
+                            className="size-8"
+                            title="Xem chi tiết"
+                            onClick={() => openView(row.userAccountId)}
+                          >
                             <Eye className="size-4" />
                           </Button>
-                          <Button variant="outline" size="icon-sm" className="size-8" title="Sửa">
-                            <Pencil className="size-4" />
+                          <Button
+                            variant="outline"
+                            size="icon-sm"
+                            className="size-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+                            title="Xóa"
+                            onClick={() => openDelete(row)}
+                          >
+                            <Trash2 className="size-4" />
                           </Button>
                         </div>
                       </TableCell>
@@ -331,6 +315,7 @@ export default function Collectors() {
                 </TableBody>
               </Table>
 
+              {/* ── Pagination ─────────────────────────────────────────── */}
               <div className="mt-4 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs font-semibold text-muted-foreground">
                   Đang hiển thị {startItem}-{endItem} trên {total} nhân viên
@@ -387,6 +372,27 @@ export default function Collectors() {
           )}
         </CardContent>
       </Card>
+
+      {/* ── Modals ───────────────────────────────────────────────────── */}
+      <AddEmployeeModal
+        open={showAdd}
+        onOpenChange={setShowAdd}
+        onSubmit={handleCreate}
+      />
+
+      <DeleteEmployeeDialog
+        open={showDelete}
+        onOpenChange={setShowDelete}
+        employee={deleteTarget}
+        onConfirm={handleDelete}
+      />
+
+      <ViewEmployeeDialog
+        open={showView}
+        onOpenChange={setShowView}
+        employeeId={viewTargetId}
+        getDetail={getDetail}
+      />
     </div>
   );
 }
