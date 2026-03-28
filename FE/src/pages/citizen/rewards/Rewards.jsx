@@ -86,7 +86,7 @@ function Rewards() {
     setIsRedeemDialogOpen(true);
   };
 
-  const confirmRedeem = async () => {
+  const confirmRedeem = async (quantity) => {
     if (!selectedVoucher) {
       return;
     }
@@ -99,8 +99,10 @@ function Rewards() {
     setIsRedeeming(true);
 
     try {
-      await redeemVoucher(selectedVoucher.voucherId);
-      toast.success(`Đã đổi voucher "${selectedVoucher.title}" thành công.`);
+      await redeemVoucher(selectedVoucher.voucherId, quantity);
+      toast.success(
+        `Đã đổi ${quantity} voucher "${selectedVoucher.title}" thành công.`,
+      );
       setIsRedeemDialogOpen(false);
       setSelectedVoucher(null);
       await loadRewardsData({ silent: true });

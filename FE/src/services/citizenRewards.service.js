@@ -28,9 +28,9 @@ export function getPointHistory({ page = 1, limit = 20, ...filters } = {}) {
   });
 }
 
-export function redeemVoucher(voucherId) {
+export function redeemVoucher(voucherId, quantity = 1) {
   return request("/citizen/vouchers/redeem", {
     method: "POST",
-    data: { voucherId },
+    data: { voucherId, quantity },
   });
 }

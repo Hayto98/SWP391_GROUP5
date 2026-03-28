@@ -113,7 +113,7 @@ export default function Complaints() {
       <Table>
         <TableHeader className="bg-gray-50">
           <TableRow>
-            <TableHead>Mã báo cáo (Waste ID)</TableHead>
+            <TableHead>STT</TableHead>
             <TableHead>Lý do khiếu nại</TableHead>
             <TableHead>Trạng thái</TableHead>
             <TableHead>Ngày tạo</TableHead>
@@ -134,23 +134,27 @@ export default function Complaints() {
               </TableCell>
             </TableRow>
           ) : (
-            visibleComplaints.map((c) => (
+            visibleComplaints.map((c, i) => (
               <TableRow key={c.reportComplaintId}>
-                <TableCell className="font-medium">{c.wasteReportId}</TableCell>
+                <TableCell className="font-medium">{i + 1}</TableCell>
                 <TableCell className="max-w-50 truncate">
                   {c.complaintReason}
                 </TableCell>
                 <TableCell>
                   <Badge
                     variant={
-                      c.complaintStatus === "OPEN" ? "default" : 
-                      c.complaintStatus === "REJECTED" ? "destructive" : 
-                      "secondary"
+                      c.complaintStatus === "OPEN"
+                        ? "default"
+                        : c.complaintStatus === "REJECTED"
+                          ? "destructive"
+                          : "secondary"
                     }
                   >
-                    {c.complaintStatus === "OPEN" ? "Đang chờ xử lý" : 
-                     c.complaintStatus === "REJECTED" ? "Từ chối" : 
-                     "Đã giải quyết"}
+                    {c.complaintStatus === "OPEN"
+                      ? "Đang chờ xử lý"
+                      : c.complaintStatus === "REJECTED"
+                        ? "Từ chối"
+                        : "Đã giải quyết"}
                   </Badge>
                 </TableCell>
                 <TableCell>
