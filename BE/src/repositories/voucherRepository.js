@@ -51,12 +51,12 @@ async function findByIdForUpdate(connection, voucherId) {
   return rows[0] || null
 }
 
-async function decrementQuantity(connection, voucherId) {
+async function decrementQuantity(connection, voucherId, quantity = 1) {
   const [result] = await connection.execute(
     `UPDATE voucher
-       SET quantity_remaining = quantity_remaining - 1
-     WHERE voucher_id = ? AND quantity_remaining > 0`,
-    [voucherId]
+       SET quantity_remaining = quantity_remaining - ?
+     WHERE voucher_id = ? AND quantity_remaining >= ?`,
+    [quantity, voucherId, quantity]
   )
 
   return result.affectedRows
