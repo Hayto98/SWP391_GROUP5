@@ -12,28 +12,54 @@ function getUserAccountIdFromRequest(req) {
 async function createReport(req, res, next) {
   try {
     const userAccountId = req.user.sub
-    const { wasteTypeId, gpsLat, gpsLng, description, weight, fileUri } = req.body
-    const fileBuffer = req.file ? req.file.buffer : null
-    const fileMimetype = req.file ? req.file.mimetype : null
+    const { gpsLat, gpsLng, description, weight, fileUri } = req.body
+    const files = req.files || []
+
+    if (files.length > 5) {
+      throw new ApiError(400, 'Bạn chỉ được phép tải lên tối đa 5 ảnh.')
+    }
+
+    const parsedWeight =
+      weight !== undefined && weight !== null && String(weight).trim() !== '' ? parseFloat(weight) : null
+
+    // Hỗ trợ items dạng JSON string (multipart) hoặc array (JSON body)
+    let items = req.body.items
+    if (typeof items === 'string') {
+      try {
+        items = JSON.parse(items)
+      } catch {
+        throw new ApiError(400, 'items phải là một mảng JSON hợp lệ.')
+      }
+    }
 
     const report = await wasteReportService.createReport({
       userAccountId,
-      wasteTypeId,
+      items,
       gpsLat: parseFloat(gpsLat),
       gpsLng: parseFloat(gpsLng),
       description,
-      weight: weight ? parseFloat(weight) : null,
-      fileBuffer,
-      fileMimetype,
-      fileUriFromBody: fileUri || null // URL truyền thẳng qua JSON body
+      weight: parsedWeight,
+      files,
+      fileUriFromBody: fileUri || null
     })
+
+    // Tính weight = tổng quantity của tất cả items
+    const totalWeight = (report.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0)
 
     res.status(201).json({
       success: true,
-      message: 'Report created successfully',
+      message: 'Tạo báo cáo rác thải thành công.',
       data: {
-        reportId: report.wasteReportId,
+        reportId: report.reportId,
         reportCode: report.reportCode,
+        items: report.items,
+        description: report.description,
+        gpsLat: report.gpsLat,
+        gpsLng: report.gpsLng,
+        weight: totalWeight,
+        images: report.images || [],
+        status: report.status,
+        createdAt: report.createdAt,
         isSpam: report.isSpam,
         spamMessage: report.spamMessage,
         isDuplicate: report.isDuplicate,
@@ -88,8 +114,7 @@ async function getReportById(req, res, next) {
 
 /**
  * Cập nhật báo cáo rác thải
- * Vui lòng chỉ truyền các properties (waste_type_id, description, gps_lat, gps_lng)
- * Yêu cầu SCRUM-14 (TASK 3) PUT /reports/:id
+ * PUT /reports/:id — multipart/form-data hoặc JSON
  */
 async function updateReport(req, res, next) {
   try {
@@ -98,7 +123,31 @@ async function updateReport(req, res, next) {
       throw new ApiError(401, 'Unauthorized')
     }
     const reportId = req.params.id
-    const updateData = req.body
+    const updateData = { ...req.body }
+
+    // Hỗ trợ items dạng JSON string (multipart) hoặc array (JSON body)
+    if (typeof updateData.items === 'string') {
+      try {
+        updateData.items = JSON.parse(updateData.items)
+      } catch {
+        throw new ApiError(400, 'items phải là một mảng JSON hợp lệ.')
+      }
+    }
+
+    if (typeof updateData.retainedImageUris === 'string') {
+      try {
+        updateData.retainedImageUris = JSON.parse(updateData.retainedImageUris)
+      } catch {
+        throw new ApiError(400, 'retainedImageUris phải là một mảng JSON hợp lệ.')
+      }
+    }
+
+    // Hỗ trợ file upload (multipart)
+    const files = req.files || []
+    if (files.length > 5) {
+      throw new ApiError(400, 'Bạn chỉ được phép tải lên tối đa 5 ảnh.')
+    }
+    updateData.files = files
 
     const result = await wasteReportService.updateReport(reportId, userAccountId, updateData)
 

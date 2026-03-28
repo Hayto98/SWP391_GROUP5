@@ -2,6 +2,12 @@ const ApiError = require('../errors/ApiError')
 const wasteTypeRepository = require('../repositories/wasteTypeRepository')
 const rewardConfigRepository = require('../repositories/rewardConfigRepository')
 const enterpriseRepository = require('../repositories/enterpriseRepository')
+const bcrypt = require('bcryptjs')
+const { v4: uuidv4 } = require('uuid')
+const userRepository = require('../repositories/userRepository')
+const { ROLES } = require('../utils/constants')
+
+const DEFAULT_SALT_ROUNDS = 10
 
 // ==================== WASTE TYPE SERVICES ====================
 
@@ -193,15 +199,15 @@ async function getAllWasteTypes({ isActive, unitType, includeInactiveReward } = 
     // createdAt intentionally omitted per API spec
     rewardConfig: wt.rewardConfig
       ? {
-        rewardConfigId: wt.rewardConfig.rewardConfigId,
-        pointsPerUnit: wt.rewardConfig.pointsPerUnit,
-        description: wt.rewardConfig.description,
-        allowedVariancePercent: wt.rewardConfig.allowedVariancePercent,
-        minKgRequired: wt.rewardConfig.minKgRequired,
-        maxKgRequired: wt.rewardConfig.maxKgRequired,
-        penaltyPercent: wt.rewardConfig.penaltyPercent,
-        isActive: wt.rewardConfig.isActive
-      }
+          rewardConfigId: wt.rewardConfig.rewardConfigId,
+          pointsPerUnit: wt.rewardConfig.pointsPerUnit,
+          description: wt.rewardConfig.description,
+          allowedVariancePercent: wt.rewardConfig.allowedVariancePercent,
+          minKgRequired: wt.rewardConfig.minKgRequired,
+          maxKgRequired: wt.rewardConfig.maxKgRequired,
+          penaltyPercent: wt.rewardConfig.penaltyPercent,
+          isActive: wt.rewardConfig.isActive
+        }
       : null
   }))
 
@@ -235,15 +241,15 @@ async function getWasteTypeById(wasteTypeId) {
       isActive: wasteType.isActive,
       rewardConfig: wasteType.rewardConfig
         ? {
-          rewardConfigId: wasteType.rewardConfig.rewardConfigId,
-          pointsPerUnit: wasteType.rewardConfig.pointsPerUnit,
-          description: wasteType.rewardConfig.description,
-          allowedVariancePercent: wasteType.rewardConfig.allowedVariancePercent,
-          minKgRequired: wasteType.rewardConfig.minKgRequired,
-          maxKgRequired: wasteType.rewardConfig.maxKgRequired,
-          penaltyPercent: wasteType.rewardConfig.penaltyPercent,
-          isActive: wasteType.rewardConfig.isActive
-        }
+            rewardConfigId: wasteType.rewardConfig.rewardConfigId,
+            pointsPerUnit: wasteType.rewardConfig.pointsPerUnit,
+            description: wasteType.rewardConfig.description,
+            allowedVariancePercent: wasteType.rewardConfig.allowedVariancePercent,
+            minKgRequired: wasteType.rewardConfig.minKgRequired,
+            maxKgRequired: wasteType.rewardConfig.maxKgRequired,
+            penaltyPercent: wasteType.rewardConfig.penaltyPercent,
+            isActive: wasteType.rewardConfig.isActive
+          }
         : null
     }
   }
@@ -311,9 +317,7 @@ async function createRewardConfig({
   }
 
   const variance =
-    allowedVariancePercent !== undefined && allowedVariancePercent !== null
-      ? Number(allowedVariancePercent)
-      : 10
+    allowedVariancePercent !== undefined && allowedVariancePercent !== null ? Number(allowedVariancePercent) : 10
   if (isNaN(variance) || variance < 0) {
     throw new ApiError(400, 'allowedVariancePercent phải >= 0')
   }
@@ -458,8 +462,10 @@ async function updateRewardConfig(
     updateData.maxKgRequired = val
   }
 
-  const effectiveMin = updateData.minKgRequired !== undefined ? updateData.minKgRequired : Number(existingConfig.minKgRequired)
-  const effectiveMax = updateData.maxKgRequired !== undefined ? updateData.maxKgRequired : Number(existingConfig.maxKgRequired)
+  const effectiveMin =
+    updateData.minKgRequired !== undefined ? updateData.minKgRequired : Number(existingConfig.minKgRequired)
+  const effectiveMax =
+    updateData.maxKgRequired !== undefined ? updateData.maxKgRequired : Number(existingConfig.maxKgRequired)
 
   if (effectiveMax < effectiveMin) {
     throw new ApiError(400, 'maxKgRequired phải lớn hơn hoặc bằng minKgRequired')
@@ -610,14 +616,6 @@ async function getDashboardStatistics(fromDate, toDate, groupBy = 'day') {
     throw new ApiError(400, 'fromDate phải nhỏ hơn toDate')
   }
 
-  const maxAllowedDate = new Date(now.getTime() + 24 * 60 * 60 * 1000)
-  if (startDate > now || endDate > maxAllowedDate) {
-    throw new ApiError(400, 'Không thể truy vấn dữ liệu trong tương lai')
-  }
-
-
-
-
   const formatDate = (date) => {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
   }
@@ -667,11 +665,11 @@ async function getDashboardStatistics(fromDate, toDate, groupBy = 'day') {
     totalReports: Number(statusStats?.totalReports) || 0,
     pendingReports: Number(statusStats?.pendingReports) || 0,
     inProgressReports: Number(statusStats?.inProgressReports) || 0,
-    wasteByType: wasteByType.map(w => ({
+    wasteByType: wasteByType.map((w) => ({
       wasteType: w?.wasteType || '',
       quantity: Number(w?.quantity) || 0
     })),
-    reportsByTime: reportsByTime.map(r => ({
+    reportsByTime: reportsByTime.map((r) => ({
       time: r?.time || '',
       reports: Number(r?.reports) || 0
     })),
@@ -684,6 +682,172 @@ async function getDashboardStatistics(fromDate, toDate, groupBy = 'day') {
       activeCollectors: Number(staffStats?.activeCollectors) || 0,
       idleCollectors: Number(staffStats?.idleCollectors) || 0
     }
+  }
+}
+
+// ==================== EMPLOYEE (COLLECTOR) SERVICES ====================
+
+/**
+ * Enterprise tạo nhân viên (Collector)
+ * POST /enterprise/employees
+ *
+ * Business Rules:
+ * - Role cố định là ROLES.COLLECTOR (3)
+ * - Email và phone phải unique
+ * - Password bắt buộc
+ */
+async function createEmployee({ fullname, email, phone, password }) {
+  if (!fullname || !email || !phone || !password) {
+    throw new ApiError(400, 'fullname, email, phone và password là bắt buộc')
+  }
+
+  const existingByEmail = await userRepository.findByEmail(email)
+  if (existingByEmail) {
+    throw new ApiError(409, 'Email đã được đăng ký')
+  }
+
+  const existingByPhone = await userRepository.findByPhone(phone)
+  if (existingByPhone) {
+    throw new ApiError(409, 'Số điện thoại đã được đăng ký')
+  }
+
+  const userAccountId = uuidv4()
+  const saltRounds = Number(process.env.BCRYPT_SALT_ROUNDS || DEFAULT_SALT_ROUNDS)
+  const passwordHash = await bcrypt.hash(password, saltRounds)
+  const createdAt = new Date()
+
+  try {
+    await userRepository.createUser({
+      userAccountId,
+      fullname,
+      email,
+      phone,
+      passwordHash,
+      roleId: ROLES.COLLECTOR,
+      createdAt
+    })
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') {
+      throw new ApiError(409, 'Email hoặc số điện thoại đã tồn tại')
+    }
+    throw error
+  }
+
+  return {
+    userAccountId,
+    fullname,
+    email,
+    phone,
+    roleId: ROLES.COLLECTOR,
+    createdAt
+  }
+}
+
+/**
+ * Enterprise lấy nhân viên theo ID
+ * GET /enterprise/employees/:employeeId
+ */
+async function getEmployeeById(employeeId) {
+  const user = await userRepository.findById(employeeId)
+  if (!user) {
+    throw new ApiError(404, 'Nhân viên không tồn tại')
+  }
+  if (user.roleId !== ROLES.COLLECTOR) {
+    throw new ApiError(403, 'Không phải tài khoản nhân viên')
+  }
+  return user
+}
+
+/**
+ * Enterprise lấy danh sách nhân viên (Collector)
+ * GET /enterprise/employees
+ */
+async function getEmployees({ page = 1, limit = 20, keyword } = {}) {
+  const pageNum = Math.max(1, parseInt(page) || 1)
+  const limitNum = Math.max(1, Math.min(100, parseInt(limit) || 20))
+  const offset = (pageNum - 1) * limitNum
+
+  const employees = await userRepository.findAll({
+    limit: limitNum,
+    offset,
+    keyword: keyword?.trim() || undefined,
+    roleId: ROLES.COLLECTOR
+  })
+
+  const total = await userRepository.countAll({
+    keyword: keyword?.trim() || undefined,
+    roleId: ROLES.COLLECTOR
+  })
+
+  return {
+    data: employees,
+    total,
+    page: pageNum,
+    limit: limitNum,
+    totalPages: Math.ceil(total / limitNum)
+  }
+}
+
+/**
+ * Enterprise thống kê công việc của nhân viên (Collector)
+ * GET /enterprise/employees/statistics
+ */
+async function getEmployeeStatistics({ page = 1, limit = 20, month, year } = {}) {
+  const pageNum = Math.max(1, parseInt(page) || 1)
+  const limitNum = Math.max(1, Math.min(100, parseInt(limit) || 20))
+  const offset = (pageNum - 1) * limitNum
+
+  const result = await enterpriseRepository.getEmployeeStatistics({
+    limit: limitNum,
+    offset,
+    month,
+    year
+  })
+
+  // Format data
+  const formattedData = result.data.map((emp) => ({
+    employeeId: emp.employeeId,
+    employeeName: emp.employeeName,
+    employeeEmail: emp.employeeEmail,
+    totalAssigned: Number(emp.totalAssigned) || 0,
+    totalCompleted: Number(emp.totalCompleted) || 0,
+    totalRejected: Number(emp.totalRejected) || 0,
+    completionRate:
+      emp.totalAssigned > 0 ? Math.round((Number(emp.totalCompleted) / Number(emp.totalAssigned)) * 100) : 0
+  }))
+
+  return {
+    data: formattedData,
+    total: result.total,
+    page: pageNum,
+    limit: limitNum,
+    totalPages: Math.ceil(result.total / limitNum)
+  }
+}
+
+/**
+ * Enterprise xóa nhân viên (Collector) — soft delete
+ * DELETE /enterprise/employees/:employeeId
+ *
+ * Business Rules:
+ * - Nhân viên phải tồn tại và có roleId = COLLECTOR
+ * - Dùng soft delete (is_locked = 1, ban_reason = 'Account deactivated')
+ */
+async function deleteEmployee(employeeId) {
+  const user = await userRepository.findById(employeeId)
+  if (!user) {
+    throw new ApiError(404, 'Nhân viên không tồn tại')
+  }
+
+  if (user.roleId !== ROLES.COLLECTOR) {
+    throw new ApiError(403, 'Chỉ có thể xóa tài khoản nhân viên (Collector)')
+  }
+
+  await userRepository.softDeleteUser(employeeId)
+
+  return {
+    success: true,
+    message: 'Nhân viên đã được xóa'
   }
 }
 
@@ -702,5 +866,12 @@ module.exports = {
   getAllRewardConfigs,
   getRewardConfigById,
   getRewardConfigByWasteTypeId,
-  getDashboardStatistics
+  getDashboardStatistics,
+
+  // Employee
+  createEmployee,
+  getEmployees,
+  getEmployeeById,
+  deleteEmployee,
+  getEmployeeStatistics
 }

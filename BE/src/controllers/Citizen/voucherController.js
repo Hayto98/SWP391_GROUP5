@@ -14,8 +14,8 @@ async function listAvailable(req, res, next) {
 async function redeem(req, res, next) {
   try {
     const userAccountId = req.user.sub
-    const { voucherId } = req.body
-    const result = await voucherService.redeemVoucher(userAccountId, voucherId)
+    const { voucherId, quantity } = req.body
+    const result = await voucherService.redeemVoucher(userAccountId, voucherId, quantity)
     res.status(200).json(result)
   } catch (error) {
     next(error)

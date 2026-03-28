@@ -8,7 +8,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -18,6 +25,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useEnterpriseOverview } from "@/hooks/useEnterpriseOverview";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from "recharts";
 import {
   AlertTriangle,
   Bell,
@@ -44,91 +59,76 @@ const activityTone = {
   default: "border-slate-200 bg-slate-100 text-slate-700",
 };
 
-const wasteDotTone = {
-  plastic: "bg-emerald-500",
-  paper: "bg-blue-500",
-  metal: "bg-amber-500",
-  other: "bg-slate-400",
+const wasteColorTone = {
+  plastic: "#10b981", // emerald-500
+  paper: "#3b82f6", // blue-500
+  metal: "#f59e0b", // amber-500
+  other: "#94a3b8", // slate-400
 };
 
-function WasteRing({ percent, totalText, totalSubText }) {
-  const safePercent = Math.max(0, Math.min(100, Number(percent || 0)));
-  const radius = 54;
-  const circumference = 2 * Math.PI * radius;
-  const strokeOffset = circumference - (safePercent / 100) * circumference;
-
-  return (
-    <div className="relative size-40">
-      <svg className="size-40 -rotate-90" viewBox="0 0 128 128" role="img" aria-label="Waste ring chart">
-        <circle cx="64" cy="64" r={radius} fill="none" stroke="currentColor" strokeWidth="10" className="text-slate-200" />
-        <circle
-          cx="64"
-          cy="64"
-          r={radius}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="10"
-          strokeLinecap="round"
-          className="text-emerald-500 transition-all"
-          strokeDasharray={circumference}
-          strokeDashoffset={strokeOffset}
-        />
-      </svg>
-
-      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-        <p className="text-2xl font-black tracking-tight">{totalText || "-"}</p>
-        <p className="text-[11px] font-semibold text-muted-foreground">{totalSubText || "TỔNG CỘNG"}</p>
-      </div>
-    </div>
-  );
-}
+// Removed WasteRing to simplify data expression
 
 export default function EnterpriseOverview() {
-  const [range, setRange] = useState("month");
-  const { data, loading, error, refetch } = useEnterpriseOverview(range);
+  // State cho filter dashboard
+  const [fromDate, setFromDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01 00:00:00`;
+  });
+  const [toDate, setToDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-31 23:59:59`;
+  });
+  const [groupBy, setGroupBy] = useState("month");
+
+  // State cho phân trang hoạt động gần đây
+  const [activityPage, setActivityPage] = useState(1);
+  const itemsPerPage = 5;
+
+  // State filter thực tế dùng cho API
+  const [filter, setFilter] = useState({ fromDate, toDate, groupBy });
+  const { data, loading, error, refetch } = useEnterpriseOverview(filter);
 
   const stats = useMemo(() => {
     if (!data?.summary) return [];
     const s = data.summary;
-
     return [
       {
         title: "Chờ xử lý",
         value: String(s.pending),
-        sub: `${s.pendingDelta >= 0 ? "+" : ""}${s.pendingDelta}% so với hôm qua`,
         tone: "default",
         icon: <Clock3 className="size-4" />,
       },
       {
         title: "Đang thực hiện",
         value: String(s.inProgress),
-        sub: `${s.inProgressDelta >= 0 ? "+" : ""}${s.inProgressDelta}% đang di chuyển`,
         tone: "info",
         icon: <Truck className="size-4" />,
       },
       {
         title: "Đã hoàn tất",
         value: String(s.done),
-        sub: `${s.doneDelta >= 0 ? "+" : ""}${s.doneDelta}% hiệu suất`,
         tone: "success",
         icon: <CheckCircle2 className="size-4" />,
-      },
-      {
-        title: "SLA cảnh báo",
-        value: String(s.slaWarning),
-        sub: `${s.slaDelta >= 0 ? "+" : ""}${s.slaDelta}% với tuần này`,
-        tone: "danger",
-        icon: <AlertTriangle className="size-4" />,
       },
     ];
   }, [data]);
 
-  const activeChart = data?.chart?.active || data?.chart?.[range];
+  const activeChart = data?.chart?.active;
   const chartValues = activeChart?.values || [];
   const maxChartValue = Math.max(...chartValues, 1);
   const highlightValue = Math.max(...chartValues, 0);
   const activities = data?.activities || [];
   const waste = data?.waste;
+
+  // Xử lý list hoạt động
+  const totalActivityPages = Math.max(
+    1,
+    Math.ceil(activities.length / itemsPerPage),
+  );
+  const currentActivities = activities.slice(
+    (activityPage - 1) * itemsPerPage,
+    activityPage * itemsPerPage,
+  );
 
   if (loading) {
     return (
@@ -160,61 +160,60 @@ export default function EnterpriseOverview() {
   return (
     <div className="space-y-6">
       <div className="mb-6">
-        <h1 className="text-lg font-bold tracking-tight lg:text-2xl">Dashboard tổng quan doanh nghiệp</h1>
-        <p className="mt-1 text-sm text-green-600">Theo dõi hiệu suất thu gom, chất lượng phân loại và nguy cơ SLA.</p>
+        <h1 className="text-lg font-bold tracking-tight lg:text-2xl">
+          Dashboard tổng quan doanh nghiệp
+        </h1>
+        <p className="mt-1 text-sm text-green-600">
+          Theo dõi hiệu suất thu gom, chất lượng phân loại
+        </p>
       </div>
 
       <Card>
         <CardContent className="flex flex-col gap-3 py-4 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm font-semibold">RecycleCorp</p>
-            <p className="text-xs text-muted-foreground">Quản trị doanh nghiệp</p>
+            <p className="text-xs text-muted-foreground">
+              Quản trị doanh nghiệp
+            </p>
           </div>
 
-          <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto">
-            <Button variant="outline" className="justify-between sm:w-48">
-              Tháng 10, 2023
-              <ChevronDown className="size-4 text-muted-foreground" />
-            </Button>
+          <div className="flex w-full flex-col gap-3 sm:flex-row md:w-auto md:items-center">
+            <Select value={groupBy} onValueChange={setGroupBy}>
+              <SelectTrigger className="h-9 w-[130px]">
+                <SelectValue placeholder="Lọc theo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="day">Theo ngày</SelectItem>
+                  <SelectItem value="month">Theo tháng</SelectItem>
+                  <SelectItem value="year">Theo năm</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
 
-            <div className="relative sm:w-64">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="Tìm kiếm đơn hàng..." className="pl-9" />
-            </div>
-
-            <Button variant="outline" size="icon" title="Thông báo">
-              <Bell className="size-4" />
+            <Button
+              variant="default"
+              size="sm"
+              className="h-9 bg-green-600 px-5 text-white shadow-sm hover:bg-green-700 sm:ml-2"
+              onClick={() => {
+                setFilter({ fromDate, toDate, groupBy });
+                setTimeout(() => refetch(), 0); // Đảm bảo refetch sau khi setFilter
+              }}
+            >
+              Lọc
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="border-red-200 bg-red-50/70">
-        <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 rounded-lg border border-red-200 bg-white p-2 text-red-600">
-              <AlertTriangle className="size-4" />
-            </div>
-            <div>
-              <p className="font-semibold text-red-800">Cảnh báo SLA sắp vi phạm</p>
-              <p className="text-sm text-red-700">
-                Có <b>{data.summary?.slaWarning ?? 0}</b> đơn hàng sắp vượt quá thời gian cam kết xử lý.
-              </p>
-            </div>
-          </div>
-
-          <Button variant="destructive" size="sm">
-            Kiểm tra ngay
-          </Button>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-3">
         {stats.map((item) => (
           <Card key={item.title}>
             <CardContent className="space-y-3 py-4">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{item.title}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {item.title}
+                </p>
                 <span
                   className={[
                     "flex size-8 items-center justify-center rounded-md border",
@@ -224,8 +223,10 @@ export default function EnterpriseOverview() {
                   {item.icon}
                 </span>
               </div>
-              <p className="text-3xl font-black leading-none tracking-tight">{item.value}</p>
-              <p className="text-xs font-medium text-muted-foreground">{item.sub}</p>
+              <p className="text-3xl font-black leading-none tracking-tight">
+                {item.value}
+              </p>
+              {/* Đã xoá sub */}
             </CardContent>
           </Card>
         ))}
@@ -236,38 +237,33 @@ export default function EnterpriseOverview() {
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle className="text-base">Sản lượng thu gom</CardTitle>
-              <CardDescription>So sánh xu hướng theo từng chu kỳ vận hành.</CardDescription>
+              <CardDescription>
+                So sánh xu hướng theo từng chu kỳ vận hành.
+              </CardDescription>
             </div>
 
-            <div className="flex gap-2">
-              <Button
-                variant={range === "week" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setRange("week")}
-              >
-                Tuần
-              </Button>
-              <Button
-                variant={range === "month" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setRange("month")}
-              >
-                Tháng
-              </Button>
-            </div>
+            {/* Range buttons removed: API does not support range switching */}
           </CardHeader>
 
           <CardContent>
             {activeChart ? (
               <div className="flex h-64 items-end gap-3 rounded-lg border bg-slate-50 px-3 py-4">
                 {activeChart.values.map((value, index) => {
-                  const height = Math.max(8, Math.round((value / maxChartValue) * 100));
+                  const height = Math.max(
+                    8,
+                    Math.round((value / maxChartValue) * 100),
+                  );
                   const label = activeChart.labels[index];
                   const isHighlight = value === highlightValue;
 
                   return (
-                    <div key={`${label}-${index}`} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
-                      <span className="text-[11px] font-semibold text-slate-600">{value}</span>
+                    <div
+                      key={`${label}-${index}`}
+                      className="flex h-full flex-1 flex-col items-center justify-end gap-2"
+                    >
+                      <span className="text-[11px] font-semibold text-slate-600">
+                        {value}
+                      </span>
                       <div
                         className={[
                           "w-full max-w-12 rounded-md border transition-all",
@@ -277,64 +273,87 @@ export default function EnterpriseOverview() {
                         ].join(" ")}
                         style={{ height: `${height}%` }}
                       />
-                      <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
+                      <span className="text-[11px] font-medium text-muted-foreground">
+                        {label}
+                      </span>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">Không có dữ liệu chart.</p>
+              <p className="text-sm text-muted-foreground">
+                Không có dữ liệu chart.
+              </p>
             )}
           </CardContent>
         </Card>
 
-        <Card>
+        {/* <Card>
           <CardHeader>
             <CardTitle className="text-base">Phân loại rác thải</CardTitle>
-            <CardDescription>Tổng hợp tỉ lệ theo nhóm vật liệu thu gom.</CardDescription>
+            <CardDescription>
+              Tổng hợp tỉ lệ theo nhóm vật liệu thu gom.
+            </CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-4">
-            <div className="flex justify-center">
-              <WasteRing
-                percent={waste?.ringPercent}
-                totalText={waste?.totalText}
-                totalSubText={waste?.totalSubText}
-              />
+          <CardContent className="space-y-6">
+            <div className="flex flex-col items-center justify-center rounded-lg bg-green-50 py-6 border border-green-100">
+              <span className="text-3xl font-black tracking-tight text-green-700">
+                {waste?.totalText || "0"}{" "}
+                <span className="text-base font-semibold">kg</span>
+              </span>
+              <span className="text-xs font-bold uppercase tracking-wider text-green-600/70">
+                TỔNG KHỐI LƯỢNG ĐÃ PHÂN LOẠI
+              </span>
             </div>
 
-            <div className="space-y-2">
-              {(waste?.breakdown || []).map((item) => (
-                <div
-                  key={item.key}
-                  className="flex items-center justify-between rounded-md border px-3 py-2"
-                >
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={[
-                        "inline-block size-2.5 rounded-full",
-                        wasteDotTone[item.key] || "bg-slate-400",
-                      ].join(" ")}
+            <div className="h-[250px] w-full">
+              {waste?.breakdown && waste.breakdown.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={waste.breakdown}
+                      dataKey="quantity"
+                      nameKey="label"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      paddingAngle={5}
+                    >
+                      {waste.breakdown.map((entry, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={
+                            wasteColorTone[entry.key] || wasteColorTone.other
+                          }
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value, name) => [`${value} kg`, name]}
                     />
-                    <span className="text-sm font-medium">{item.label}</span>
-                  </div>
-                  <span className="text-sm font-semibold text-muted-foreground">{item.percent}%</span>
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                  Không có dữ liệu phân loại
                 </div>
-              ))}
+              )}
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-3">
           <div>
             <CardTitle className="text-base">Hoạt động gần đây</CardTitle>
-            <CardDescription>Cập nhật tiến độ đơn hàng và trạng thái xử lý.</CardDescription>
+            <CardDescription>
+              Cập nhật tiến độ đơn hàng và trạng thái xử lý.
+            </CardDescription>
           </div>
-          <Button variant="ghost" size="sm">
-            Xem tất cả
-          </Button>
         </CardHeader>
 
         <CardContent>
@@ -343,7 +362,6 @@ export default function EnterpriseOverview() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Mã đơn</TableHead>
-                  <TableHead>Địa điểm</TableHead>
                   <TableHead>Loại rác</TableHead>
                   <TableHead>Thời gian</TableHead>
                   <TableHead>Trạng thái</TableHead>
@@ -352,22 +370,28 @@ export default function EnterpriseOverview() {
               <TableBody>
                 {activities.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-6 text-center text-muted-foreground">
+                    <TableCell
+                      colSpan={4}
+                      className="py-6 text-center text-muted-foreground"
+                    >
                       Không có dữ liệu hoạt động.
                     </TableCell>
                   </TableRow>
                 )}
 
-                {activities.map((activity) => (
-                  <TableRow key={activity.code}>
-                    <TableCell className="font-mono text-xs font-semibold">{activity.code}</TableCell>
-                    <TableCell>{activity.district}</TableCell>
+                {currentActivities.map((activity, index) => (
+                  <TableRow key={`${activity.code}-${activityPage}-${index}`}>
+                    <TableCell className="font-mono text-xs font-semibold">
+                      {activity.code}
+                    </TableCell>
                     <TableCell>{activity.type}</TableCell>
                     <TableCell>{activity.time}</TableCell>
                     <TableCell>
                       <Badge
                         variant="outline"
-                        className={activityTone[activity.badge] || activityTone.default}
+                        className={
+                          activityTone[activity.badge] || activityTone.default
+                        }
                       >
                         {activity.status}
                       </Badge>
@@ -377,6 +401,39 @@ export default function EnterpriseOverview() {
               </TableBody>
             </Table>
           </div>
+
+          {/* Phân trang UI */}
+          {activities.length > 0 && (
+            <div className="flex items-center justify-between border-t px-2 pt-4 mt-4">
+              <span className="text-sm font-medium text-muted-foreground">
+                Trang {activityPage} / {totalActivityPages}
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setActivityPage((prev) => Math.max(1, prev - 1))
+                  }
+                  disabled={activityPage === 1}
+                >
+                  Trước
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setActivityPage((prev) =>
+                      Math.min(totalActivityPages, prev + 1),
+                    )
+                  }
+                  disabled={activityPage === totalActivityPages}
+                >
+                  Sau
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

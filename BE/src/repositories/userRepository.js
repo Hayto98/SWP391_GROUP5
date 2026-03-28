@@ -130,6 +130,38 @@ async function countAll({ keyword, roleId } = {}) {
   return rows[0].total
 }
 
+async function getUserStats({ keyword, roleId } = {}) {
+  const conditions = ['(ban_reason IS NULL OR ban_reason != ?)']
+  const params = [SOFT_DELETED_REASON]
+
+  if (keyword && keyword.trim()) {
+    const searchTerm = `%${keyword.trim()}%`
+    conditions.push('(fullname LIKE ? OR email LIKE ? OR phone LIKE ?)')
+    params.push(searchTerm, searchTerm, searchTerm)
+  }
+
+  if (roleId !== undefined && roleId !== null && roleId !== '') {
+    conditions.push('role_id = ?')
+    params.push(Number(roleId))
+  }
+
+  const whereClause = conditions.join(' AND ')
+  const sql = `
+    SELECT 
+      COUNT(*) as total,
+      SUM(CASE WHEN is_locked = 0 THEN 1 ELSE 0 END) as active,
+      SUM(CASE WHEN is_locked = 1 THEN 1 ELSE 0 END) as locked
+    FROM useraccount 
+    WHERE ${whereClause}
+  `
+  const [rows] = await db.execute(sql, params)
+  return {
+    total: Number(rows[0].total || 0),
+    active: Number(rows[0].active || 0),
+    locked: Number(rows[0].locked || 0)
+  }
+}
+
 // ==================== CREATE ====================
 
 async function createUser({ userAccountId, fullname, email, phone, passwordHash, roleId, createdAt }) {
@@ -311,6 +343,7 @@ module.exports = {
   findById,
   findAll,
   countAll,
+  getUserStats,
   createUser,
   update,
   updateRole,

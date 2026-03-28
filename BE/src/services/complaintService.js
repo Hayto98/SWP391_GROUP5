@@ -238,7 +238,7 @@ async function resolveComplaint({ adminId, complaintId, adminResponse, refundPoi
         citizenId: complaint.citizenId,
         wasteReportId: complaint.wasteReportId,
         pointsDelta: refundPoints,
-        transactionReason: `Hoàn điểm từ khiếu nại: ${complaintId}`,
+        transactionReason: `Hoàn điểm từ khiếu nại`,
         createdAt: new Date()
       })
     }
@@ -257,11 +257,80 @@ async function resolveComplaint({ adminId, complaintId, adminResponse, refundPoi
   }
 }
 
+async function rejectComplaint({ adminId, complaintId, adminResponse }) {
+  if (!complaintId) {
+    throw new ApiError(400, 'Thiếu complaintId.')
+  }
+
+  if (!adminResponse) {
+    throw new ApiError(400, 'adminResponse không được để trống.')
+  }
+
+  const complaint = await complaintRepository.findComplaintById(complaintId)
+  if (!complaint) {
+    throw new ApiError(404, 'Không tìm thấy khiếu nại.')
+  }
+
+  if (complaint.complaintStatus !== 'OPEN') {
+    throw new ApiError(400, 'Chỉ có thể từ chối khiếu nại đang ở trạng thái OPEN.')
+  }
+
+  const connection = await db.getConnection()
+  try {
+    await connection.beginTransaction()
+
+    await complaintRepository.rejectComplaint(connection, {
+      complaintId,
+      adminResponse,
+      adminId
+    })
+
+    await connection.commit()
+    return {
+      success: true,
+      message: 'Complaint rejected successfully'
+    }
+  } catch (error) {
+    await connection.rollback()
+    throw error
+  } finally {
+    connection.release()
+  }
+}
+
+async function getComplaintDetailForAdmin({ complaintId }) {
+  if (!complaintId) {
+    throw new ApiError(400, 'Thiếu complaintId.')
+  }
+
+  const complaint = await complaintRepository.findComplaintDetailForAdmin(complaintId)
+  if (!complaint) {
+    throw new ApiError(404, 'Không tìm thấy khiếu nại.')
+  }
+
+  return complaint
+}
+
+async function getAllComplaintsForAdmin({ query }) {
+  const { status, fromDate, toDate, citizenId, page, size } = query
+  return await complaintRepository.findAllComplaintsForAdmin({
+    status,
+    fromDate,
+    toDate,
+    citizenId,
+    page,
+    size
+  })
+}
+
 module.exports = {
   createComplaint,
   getMyComplaints,
   getComplaintDetail,
   updateComplaint,
   softDeleteComplaint,
-  resolveComplaint
+  resolveComplaint,
+  rejectComplaint,
+  getComplaintDetailForAdmin,
+  getAllComplaintsForAdmin
 }

@@ -51,12 +51,12 @@ async function findByIdForUpdate(connection, voucherId) {
   return rows[0] || null
 }
 
-async function decrementQuantity(connection, voucherId) {
+async function decrementQuantity(connection, voucherId, quantity = 1) {
   const [result] = await connection.execute(
     `UPDATE voucher
-       SET quantity_remaining = quantity_remaining - 1
-     WHERE voucher_id = ? AND quantity_remaining > 0`,
-    [voucherId]
+       SET quantity_remaining = quantity_remaining - ?
+     WHERE voucher_id = ? AND quantity_remaining >= ?`,
+    [quantity, voucherId, quantity]
   )
 
   return result.affectedRows
@@ -64,13 +64,13 @@ async function decrementQuantity(connection, voucherId) {
 
 async function insertVoucherRedemption(
   connection,
-  { redemptionId, voucherId, citizenId, pointsUsed, redeemedAt, status = 'REDEEMED' }
+  { redemptionId, voucherId, citizenId, pointsUsed, redeemedAt, quantity = 1, status = 'REDEEMED' }
 ) {
   await connection.execute(
     `INSERT INTO voucherredemption
-       (voucher_redemption_id, voucher_id, citizen_id, points_used, redeemed_at, status)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [redemptionId, voucherId, citizenId, pointsUsed, redeemedAt, status]
+       (voucher_redemption_id, voucher_id, citizen_id, points_used, redeemed_at, quantity, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [redemptionId, voucherId, citizenId, pointsUsed, redeemedAt, quantity, status]
   )
 }
 
@@ -143,7 +143,7 @@ async function findById(voucherId) {
  */
 async function getVoucherByIdWithRedemptionCount(voucherId) {
   const query = `
-    SELECT v.*, COUNT(vr.voucher_redemption_id) as redeemed_count
+    SELECT v.*, COALESCE(SUM(vr.quantity), 0) as redeemed_count
     FROM voucher v
     LEFT JOIN voucherredemption vr ON v.voucher_id = vr.voucher_id
     WHERE v.voucher_id = ? AND v.is_deleted = 0
@@ -284,6 +284,7 @@ async function findRedeemedByCitizenId(citizenId) {
        v.title,
        v.file_uri AS fileUri,
        vr.points_used AS pointsUsed,
+       vr.quantity,
        vr.redeemed_at AS redeemedAt
      FROM voucherredemption vr
      INNER JOIN voucher v ON vr.voucher_id = v.voucher_id

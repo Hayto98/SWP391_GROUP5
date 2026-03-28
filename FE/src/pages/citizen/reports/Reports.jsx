@@ -209,15 +209,29 @@ function mapReport(report) {
   const lat = Number(report?.location?.lat || 0);
   const lng = Number(report?.location?.lng || 0);
   const rawStatus = report?.status || "PENDING";
+  const mappedItems = (report?.items || [])
+    .map((item) => ({
+      waste_type_id: Number(item?.wasteTypeId ?? item?.waste_type_id),
+      quantity: Number(item?.quantity),
+    }))
+    .filter(
+      (item) =>
+        Number.isInteger(item.waste_type_id) &&
+        item.waste_type_id > 0 &&
+        Number.isFinite(item.quantity) &&
+        item.quantity > 0,
+    );
   const normalizedWeightKg =
     report?.weightKg !== undefined && report?.weightKg !== null
       ? Number(report.weightKg)
       : null;
 
   return {
-    id: report.wasteReportId,
-    reportCode: report?.reportCode || report.wasteReportId,
-    wasteTypeId: report?.wasteType?.id || null,
+    id: report?.reportId || report?.wasteReportId,
+    reportCode: report?.reportCode || report?.reportId || report?.wasteReportId,
+    wasteTypeId:
+      report?.wasteType?.id ||
+      (mappedItems.length > 0 ? mappedItems[0].waste_type_id : null),
     title: report?.wasteType?.name || "-",
     unitType: report?.wasteType?.unitType || "-",
     date: report?.createdAt
@@ -232,12 +246,17 @@ function mapReport(report) {
     progress: progressTemplate[rawStatus] || progressTemplate.PENDING,
     trashTypes: [],
     totalPoints: 0,
+    items: mappedItems,
     description: report?.description || "",
     weightKg:
       Number.isFinite(normalizedWeightKg) && normalizedWeightKg > 0
         ? normalizedWeightKg
         : null,
-    citizenImages: (report.attachments || []).map((item) => item.fileUri),
+    citizenImages: [
+      ...(report.attachments || []).map((item) => item.fileUri),
+      ...(report.images || []).map((item) => item.file_uri),
+    ].filter(Boolean),
+    images: report.images || [],
     collectorImages: [],
     collector: report.assignedCollector
       ? {
@@ -247,6 +266,12 @@ function mapReport(report) {
           estimatedTime: "Đang cập nhật",
         }
       : null,
+    collectorName: report?.assignedCollector?.fullname || null,
+    rewardPoints:
+      report?.rewardPoint?.pointsDelta !== undefined &&
+      report?.rewardPoint?.pointsDelta !== null
+        ? Number(report.rewardPoint.pointsDelta)
+        : null,
     wasteTypeDetail: null,
   };
 }
@@ -363,7 +388,32 @@ function Reports() {
 
     setEditSaving(true);
     try {
-      await updateReportById(editTargetReport.id, payload);
+      const hasNewFiles =
+        Array.isArray(payload?.files) &&
+        payload.files.some((file) => file instanceof File);
+      const hasRetainedImageUris = Array.isArray(payload?.retainedImageUris);
+
+      if (hasNewFiles || hasRetainedImageUris) {
+        const formPayload = new FormData();
+        formPayload.append("items", JSON.stringify(payload.items || []));
+        formPayload.append("gpsLat", String(payload.gpsLat));
+        formPayload.append("gpsLng", String(payload.gpsLng));
+        formPayload.append("description", String(payload.description || ""));
+        formPayload.append("weight", String(payload.weight || 0));
+        formPayload.append(
+          "retainedImageUris",
+          JSON.stringify(payload.retainedImageUris || []),
+        );
+        payload.files.forEach((file) => {
+          if (file instanceof File) {
+            formPayload.append("file", file);
+          }
+        });
+        await updateReportById(editTargetReport.id, formPayload);
+      } else {
+        await updateReportById(editTargetReport.id, payload);
+      }
+
       toast.success("Cập nhật báo cáo thành công");
       setIsEditModalOpen(false);
       setEditTargetReport(null);
@@ -504,9 +554,8 @@ function Reports() {
             <TableHeader>
               <TableRow>
                 <TableHead className="max-w-10">Mã báo cáo</TableHead>
-                <TableHead>Loại rác</TableHead>
                 <TableHead>Ngày gửi</TableHead>
-                <TableHead>Cân nặng</TableHead>
+                <TableHead>Người thu gom</TableHead>
                 <TableHead>Trạng thái</TableHead>
                 <TableHead className="text-right">Thao tác</TableHead>
               </TableRow>
@@ -514,7 +563,7 @@ function Reports() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-32 text-center">
+                  <TableCell colSpan={8} className="h-32 text-center">
                     <div className="inline-flex items-center gap-2 text-muted-foreground">
                       <Loader2 className="size-4 animate-spin" />
                       Đang tải dữ liệu...
@@ -524,7 +573,7 @@ function Reports() {
               ) : paginatedReports.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={8}
                     className="h-32 text-center text-muted-foreground"
                   >
                     Không có báo cáo nào
@@ -536,7 +585,6 @@ function Reports() {
                     <TableCell className="font-medium text-cyan-600 truncate max-w-25">
                       {report.reportCode}
                     </TableCell>
-                    <TableCell>{report.title}</TableCell>
 
                     <TableCell>
                       <div className="flex items-center gap-1 text-sm">
@@ -544,11 +592,13 @@ function Reports() {
                         {report.date}
                       </div>
                     </TableCell>
+
                     <TableCell>
-                      <div className="flex items-center gap-1 text-sm">
-                        {`${report.weightKg}/${report.unitType}`}
-                      </div>
+                      <span className="text-sm text-foreground">
+                        {report.collectorName || "-"}
+                      </span>
                     </TableCell>
+
                     <TableCell>
                       <span
                         className={`text-xs px-3 py-1 rounded-full border font-medium inline-block ${getStatusColor(

@@ -116,10 +116,13 @@ export function LoginForm({ className, ...props }) {
 
       completeLogin(response);
     } catch (error) {
+
       toast.error(
         error.message ||
         "Đăng nhập thất bại. Vui lòng kiểm tra email và mật khẩu.",
       );
+
+      
     }
   };
 

@@ -15,6 +15,7 @@ function Users() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [viewLoading, setViewLoading] = useState(false);
   const [users, setUsers] = useState([]);
+  const [stats, setStats] = useState({ total: 0, active: 0, locked: 0 });
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
@@ -35,6 +36,11 @@ function Users() {
       const data = await getUsers(params);
       setUsers(data.users || []);
       setTotal(data.total || 0);
+      setStats({
+        total: data.total || 0,
+        active: data.active || 0,
+        locked: data.locked || 0,
+      });
       if (overrides.page !== undefined) setPage(overrides.page);
     } catch (error) {
       toast.error(error.message || "Không thể tải danh sách người dùng");
@@ -91,7 +97,7 @@ function Users() {
 
   return (
     <div>
-      <UserStatsCards />
+      <UserStatsCards stats={stats} />
 
       <UserFilters
         keyword={keyword}

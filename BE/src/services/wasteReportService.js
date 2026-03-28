@@ -52,58 +52,111 @@ async function uploadBufferToCloudinary(buffer, mimetype) {
  * Generates a formatted report code: WR-YYYY-NNNN
  */
 async function generateReportCode() {
-  const currentYear = new Date().getFullYear();
+  const currentYear = new Date().getFullYear()
 
   // Atomically fetch numerical sequence
-  const sequenceNumber = await wasteReportRepository.getNextSequence(currentYear);
+  const sequenceNumber = await wasteReportRepository.getNextSequence(currentYear)
 
   // Pad to 4 digits (e.g., 5 becomes '0005')
-  const paddedSequence = String(sequenceNumber).padStart(4, '0');
+  const paddedSequence = String(sequenceNumber).padStart(4, '0')
 
-  return `WR-${currentYear}-${paddedSequence}`;
+  return `WR-${currentYear}-${paddedSequence}`
+}
+
+/**
+ * Validate mảng items cho waste report.
+ * @param {{ waste_type_id: number|string, quantity: number|string }[]} items
+ * @returns {string[]} - Mảng lỗi validation (rỗng nếu hợp lệ)
+ */
+function validateItems(items) {
+  const errors = []
+
+  if (!Array.isArray(items) || items.length === 0) {
+    errors.push('Danh sách loại rác (items) là bắt buộc và phải là một mảng.')
+    return errors
+  }
+
+  if (items.length > 5) {
+    errors.push('Số lượng loại rác tối đa là 5.')
+  }
+
+  const seenIds = new Set()
+  items.forEach((item, index) => {
+    const wasteTypeId = Number(item.waste_type_id)
+    const quantity = Number(item.quantity)
+
+    if (!Number.isInteger(wasteTypeId) || wasteTypeId <= 0) {
+      errors.push(`Item ${index + 1}: waste_type_id phải là số nguyên dương.`)
+    } else if (seenIds.has(wasteTypeId)) {
+      errors.push(`Item ${index + 1}: waste_type_id ${wasteTypeId} bị trùng lặp trong cùng báo cáo.`)
+    } else {
+      seenIds.add(wasteTypeId)
+    }
+
+    if (isNaN(quantity) || quantity <= 0) {
+      errors.push(`Item ${index + 1}: quantity phải là số lớn hơn 0.`)
+    }
+  })
+
+  return errors
 }
 
 /**
  * Validate và tạo mới một WasteReport — supports multipart/form-data with image upload.
+ * Hỗ trợ nhiều loại rác thông qua items array.
  */
-async function createReport({
-  userAccountId,
-  wasteTypeId,
-  gpsLat,
-  gpsLng,
-  description,
-  weight,
-  fileBuffer,
-  fileMimetype,
-  fileUriFromBody
-}) {
+async function createReport({ userAccountId, items, gpsLat, gpsLng, description, weight, files, fileUriFromBody }) {
   // ── Validation ──────────────────────────────────────────────
   const errors = []
 
   if (!userAccountId) {
-    throw new ApiError(401, 'Unauthorized')
+    throw new ApiError(401, 'Không có quyền truy cập.')
   }
 
-  if (wasteTypeId === undefined || wasteTypeId === null) {
-    errors.push('wasteTypeId is required')
-  } else if (!Number.isInteger(Number(wasteTypeId)) || Number(wasteTypeId) <= 0) {
-    errors.push('wasteTypeId must be a positive integer')
-  }
+  // Validate items array
+  const itemErrors = validateItems(items)
+  errors.push(...itemErrors)
 
   if (gpsLat === undefined || gpsLat === null || typeof gpsLat !== 'number' || Number.isNaN(gpsLat)) {
-    errors.push('gpsLat must be a valid number')
+    errors.push('gpsLat phải là một số hợp lệ.')
   }
 
   if (gpsLng === undefined || gpsLng === null || typeof gpsLng !== 'number' || Number.isNaN(gpsLng)) {
-    errors.push('gpsLng must be a valid number')
+    errors.push('gpsLng phải là một số hợp lệ.')
   }
 
   if (!description || (typeof description === 'string' && description.trim().length === 0)) {
-    errors.push('description is required')
+    errors.push('Mô tả (description) là bắt buộc.')
   }
 
   if (errors.length > 0) {
-    throw new ApiError(400, 'Validation failed', errors)
+    throw new ApiError(400, 'Dữ liệu không hợp lệ.', errors)
+  }
+
+  // Normalize items
+  const normalizedItems = items.map((item) => ({
+    waste_type_id: Number(item.waste_type_id),
+    quantity: Number(item.quantity)
+  }))
+
+  const totalItemWeight = normalizedItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
+  const hasExplicitWeight =
+    weight !== undefined && weight !== null && String(weight).trim() !== '' && Number.isFinite(Number(weight))
+  const normalizedWeight = hasExplicitWeight && Number(weight) >= 0 ? Number(weight) : totalItemWeight
+
+  // Validate waste_type_ids exist in DB
+  const wasteTypeIds = normalizedItems.map((i) => i.waste_type_id)
+  const invalidIds = await wasteReportRepository.validateWasteTypeIds(wasteTypeIds)
+  if (invalidIds.length > 0) {
+    throw new ApiError(400, 'Dữ liệu không hợp lệ.', [
+      ...invalidIds.map((id) => `waste_type_id ${id} không tồn tại hoặc không còn hoạt động.`)
+    ])
+  }
+
+  // ── Upload limit validation ────────────────────────────────
+  const filesToUpload = files || []
+  if (filesToUpload.length > 5) {
+    throw new ApiError(400, 'Bạn chỉ được phép tải lên tối đa 5 ảnh.')
   }
 
   // ── Resolve citizenId from userAccountId ─────────────────────
@@ -112,24 +165,28 @@ async function createReport({
     throw new ApiError(403, 'Chỉ Citizen mới được tạo báo cáo rác thải.')
   }
 
-  // ── Upload image to Cloudinary (if file uploaded) or use URL from body ──
-  let imageUrl = null
-  if (fileBuffer) {
-    imageUrl = await uploadBufferToCloudinary(fileBuffer, fileMimetype || 'image/jpeg')
+  // ── Upload images to Cloudinary (if files uploaded) or use URL from body ──
+  let imageUrls = []
+  if (filesToUpload.length > 0) {
+    const uploadPromises = filesToUpload.map((file) =>
+      uploadBufferToCloudinary(file.buffer, file.mimetype || 'image/jpeg')
+    )
+    imageUrls = await Promise.all(uploadPromises)
   } else if (fileUriFromBody) {
-    imageUrl = fileUriFromBody
+    imageUrls = [fileUriFromBody]
   }
+  const primaryImageUrl = imageUrls.length > 0 ? imageUrls[0] : null
 
-  // ── 5. Generate unique Code and Persist using transaction ────
-  let created = null;
-  let spamResult = null;
-  let duplicateResult = null;
-  let isTransactionCommitted = false;
-  const connection = await db.getConnection();
+  // ── Generate unique Code and Persist using transaction ────
+  let created = null
+  let spamResult = null
+  let duplicateResult = null
+  let isTransactionCommitted = false
+  const connection = await db.getConnection()
   try {
-    await connection.beginTransaction();
+    await connection.beginTransaction()
 
-    const currentTime = new Date();
+    const currentTime = new Date()
 
     // STEP 0.5: Spam prevention — rate limit + daily limit
     spamResult = await rewardService.checkSpam(connection, {
@@ -137,8 +194,8 @@ async function createReport({
       currentTime
     })
     if (!spamResult.allowed) {
-      await connection.rollback();
-      connection.release();
+      await connection.rollback()
+      connection.release()
       throw new ApiError(429, spamResult.message)
     }
 
@@ -148,55 +205,72 @@ async function createReport({
       gpsLat,
       gpsLng,
       description: description.trim(),
-      fileUri: imageUrl || null,
+      fileUri: primaryImageUrl || null,
       currentTime
     })
 
     if (duplicateResult.isDuplicate) {
-      await connection.commit();
-      isTransactionCommitted = true;
-      connection.release();
+      await connection.commit()
+      isTransactionCommitted = true
+      connection.release()
       throw new ApiError(400, duplicateResult.message || 'Báo cáo này bị trùng')
     }
 
-    const reportCode = await generateReportCode();
+    const reportCode = await generateReportCode()
 
-    created = await wasteReportRepository.createReport({
-      citizenId,
-      citizenUserAccountId: userAccountId,
-      wasteTypeId: Number(wasteTypeId),
-      reportCode,
-      gpsLat,
-      gpsLng,
-      description: description.trim(),
-      weight: weight ?? null,
-      fileUri: imageUrl || null,
-      isDuplicate: duplicateResult.isDuplicate
-    }, connection)
+    created = await wasteReportRepository.createReport(
+      {
+        citizenId,
+        citizenUserAccountId: userAccountId,
+        items: normalizedItems,
+        reportCode,
+        gpsLat,
+        gpsLng,
+        description: description.trim(),
+        weight: normalizedWeight,
+        fileUri: primaryImageUrl || null,
+        isDuplicate: duplicateResult.isDuplicate
+      },
+      connection
+    )
 
-    await connection.commit();
-    isTransactionCommitted = true;
+    // Lọc ảnh đầu tiên (đã lưu ở file_uri của wastereport) và lưu các ảnh còn lại vào reportattachment (hoặc lưu tất cả)
+    // Tùy theo thiết kế, ta lưu tất cả các ảnh vào reportattachment để dễ truy xuất
+    if (imageUrls.length > 0) {
+      for (const url of imageUrls) {
+        await wasteReportRepository.createReportAttachment(
+          {
+            reportAttachmentId: uuidv4(),
+            wasteReportId: created.wasteReportId,
+            fileUri: url,
+            uploadedAt: new Date()
+          },
+          connection
+        )
+      }
+    }
+
+    await connection.commit()
+    isTransactionCommitted = true
   } catch (error) {
-    if (connection && !isTransactionCommitted) await connection.rollback();
+    if (connection && !isTransactionCommitted) await connection.rollback()
 
     if (error.status === 400 || error.status === 429) throw error
-    if (error.code === 'INVALID_WASTE_TYPE') {
-      throw new ApiError(400, error.message)
-    }
+    console.error('[createReport] DB Error:', error.code, error.message)
     if (error.code === 'ER_NO_REFERENCED_ROW_2') {
-      throw new ApiError(400, 'wasteTypeId không tồn tại.')
+      throw new ApiError(400, `Lỗi FK constraint: ${error.message}`)
     }
     throw error
   } finally {
-    if (connection && !isTransactionCommitted) connection.release();
+    if (connection && !isTransactionCommitted) connection.release()
   }
 
-  // ── 6. Send notifications to Enterprises ───────────────────────
+  // ── Send notifications to Enterprises ───────────────────────
   try {
     const enterprises = await userRepository.findAll({ roleId: ROLES.ENTERPRISE })
-    console.log(`[DEBUG] Notifying ${enterprises.length} Enterprises of new report ${created.wasteReportId}`);
+    console.log(`[DEBUG] Notifying ${enterprises.length} Enterprises of new report ${created.wasteReportId}`)
     for (const ent of enterprises) {
-      console.log(`[DEBUG] Sending notif to Enterprise: ${ent.userAccountId || ent.user_account_id}`);
+      console.log(`[DEBUG] Sending notif to Enterprise: ${ent.userAccountId || ent.user_account_id}`)
       await notificationService.createNotification({
         notificationType: NOTIFICATION_TYPES.NEW_REPORT_PENDING,
         recipientUserAccountId: ent.userAccountId || ent.user_account_id,
@@ -208,15 +282,19 @@ async function createReport({
     console.error('Failed to notify enterprises of new report:', notifError.message)
   }
 
+  // Lấy items kèm thông tin wastetype để trả về
+  const reportItems = await wasteReportRepository.findWasteReportItems(created.wasteReportId)
+
   return {
-    wasteReportId: created.wasteReportId,
+    reportId: created.wasteReportId,
     reportCode: created.reportCode || created?.report_code,
     citizenId,
-    wasteTypeId,
+    items: reportItems,
     gpsLat,
     gpsLng,
     description: description.trim(),
-    attachments: imageUrl ? [{ fileUri: imageUrl }] : [],
+    weight: normalizedWeight,
+    images: imageUrls.length > 0 ? imageUrls.map((url) => ({ file_uri: url })) : [],
     status: 'PENDING',
     isSpam: spamResult?.isSpam || false,
     spamMessage: spamResult?.isSpam ? spamResult.message : undefined,
@@ -305,7 +383,7 @@ async function getReportById(reportId, userAccountId, roleId) {
 }
 
 /**
- * Update a WasteReport text fields
+ * Update a WasteReport — hỗ trợ cập nhật items (REPLACE strategy).
  */
 async function updateReport(reportId, userAccountId, updateData) {
   // 1. Check if user is citizen
@@ -329,16 +407,33 @@ async function updateReport(reportId, userAccountId, updateData) {
     throw new ApiError(400, 'Bạn chỉ có thể cập nhật thông tin khi báo cáo đang ở trạng thái chờ xử lý (PENDING).')
   }
 
-  const normalizedData = {}
+  // 3. Validate and normalize items if provided
+  const items = updateData?.items
+  let normalizedItems = null
 
-  const nextWasteTypeId = updateData?.waste_type_id ?? updateData?.wasteTypeId
-  if (nextWasteTypeId !== undefined) {
-    if (!isNaN(Number(nextWasteTypeId))) {
-      normalizedData.waste_type_id = Number(nextWasteTypeId)
-    } else {
-      throw new ApiError(400, 'wasteTypeId must be a number')
+  if (items !== undefined) {
+    const itemErrors = validateItems(items)
+    if (itemErrors.length > 0) {
+      throw new ApiError(400, 'Dữ liệu không hợp lệ.', itemErrors)
+    }
+
+    normalizedItems = items.map((item) => ({
+      waste_type_id: Number(item.waste_type_id),
+      quantity: Number(item.quantity)
+    }))
+
+    // Validate waste_type_ids exist in DB
+    const wasteTypeIds = normalizedItems.map((i) => i.waste_type_id)
+    const invalidIds = await wasteReportRepository.validateWasteTypeIds(wasteTypeIds)
+    if (invalidIds.length > 0) {
+      throw new ApiError(400, 'Dữ liệu không hợp lệ.', [
+        ...invalidIds.map((id) => `waste_type_id ${id} không tồn tại hoặc không còn hoạt động.`)
+      ])
     }
   }
+
+  // 4. Normalize other update fields
+  const normalizedData = {}
 
   const nextGpsLat = updateData?.gps_lat ?? updateData?.gpsLat
   if (nextGpsLat !== undefined) {
@@ -361,30 +456,122 @@ async function updateReport(reportId, userAccountId, updateData) {
     normalizedData.description = normalizedDescription
   }
 
-  if (parsedWeightKg !== undefined && Number.isFinite(parsedWeightKg) && parsedWeightKg >= 0) {
+  if (normalizedItems) {
+    // Calculate total weight from items if updating items
+    const totalWeight = normalizedItems.reduce((sum, item) => sum + item.quantity, 0)
+    normalizedData.weight = totalWeight
+  } else if (parsedWeightKg !== undefined && Number.isFinite(parsedWeightKg) && parsedWeightKg >= 0) {
+    // Or from the body explicitly (if not updating items)
     normalizedData.weight = parsedWeightKg
   }
 
+  // Upload files to Cloudinary if provided
+  const filesToUpload = updateData?.files || []
+  let imageUrls = []
+
+  if (filesToUpload.length > 0) {
+    const uploadPromises = filesToUpload.map((file) =>
+      uploadBufferToCloudinary(file.buffer, file.mimetype || 'image/jpeg')
+    )
+    imageUrls = await Promise.all(uploadPromises)
+    if (imageUrls.length > 0) {
+      normalizedData.file_uri = imageUrls[0]
+    }
+  }
+
   const fileUri = updateData?.file_uri ?? updateData?.fileUri ?? updateData?.attachments?.[0]?.fileUri
-  if (fileUri !== undefined) {
+  if (fileUri !== undefined && !normalizedData.file_uri) {
     normalizedData.file_uri = fileUri
   }
 
-  if (
-    normalizedData.waste_type_id === undefined &&
-    normalizedData.gps_lat === undefined &&
-    normalizedData.gps_lng === undefined &&
-    normalizedData.description === undefined &&
-    normalizedData.weight === undefined &&
-    normalizedData.file_uri === undefined
-  ) {
-    throw new ApiError(400, 'No valid fields provided for update')
+  const retainedImageUrisInput =
+    updateData?.retainedImageUris ?? updateData?.keepImageUris ?? updateData?.existingImageUris
+  const hasRetainedImageInput = retainedImageUrisInput !== undefined
+
+  const existingImageUris = Array.isArray(report?.images)
+    ? report.images
+        .map((item) => item?.file_uri || item?.fileUri || null)
+        .filter((uri) => typeof uri === 'string' && uri.trim() !== '')
+    : []
+
+  let retainedImageUris = []
+  if (hasRetainedImageInput) {
+    if (!Array.isArray(retainedImageUrisInput)) {
+      throw new ApiError(400, 'retainedImageUris phải là một mảng hợp lệ.')
+    }
+
+    retainedImageUris = retainedImageUrisInput.map((uri) => (typeof uri === 'string' ? uri.trim() : '')).filter(Boolean)
+
+    const existingSet = new Set(existingImageUris)
+    const invalidRetained = retainedImageUris.filter((uri) => !existingSet.has(uri))
+    if (invalidRetained.length > 0) {
+      throw new ApiError(400, 'Có ảnh cũ không hợp lệ trong danh sách retainedImageUris.')
+    }
   }
 
-  // 3. Update the record
-  await wasteReportRepository.updateReportById(reportId, normalizedData)
+  const shouldRebuildAttachments = hasRetainedImageInput || imageUrls.length > 0
+  let finalImageUris = []
+  if (shouldRebuildAttachments) {
+    const baseUris = hasRetainedImageInput ? retainedImageUris : []
+    finalImageUris = [...new Set([...baseUris, ...imageUrls])]
+    if (finalImageUris.length > 5) {
+      throw new ApiError(400, 'Bạn chỉ được phép tải lên tối đa 5 ảnh.')
+    }
+    normalizedData.file_uri = finalImageUris[0] || null
+  }
 
-  // 4. Fetch and return the updated version
+  // Check if there's anything to update
+  const hasFieldUpdates = Object.keys(normalizedData).length > 0
+  const hasItemUpdates = normalizedItems !== null
+  const hasAttachmentUpdates = shouldRebuildAttachments
+
+  if (!hasFieldUpdates && !hasItemUpdates && !hasAttachmentUpdates) {
+    throw new ApiError(400, 'Không có trường hợp lệ nào để cập nhật.')
+  }
+
+  // 5. Use transaction for REPLACE strategy on items + attachments
+  const connection = await db.getConnection()
+  try {
+    await connection.beginTransaction()
+
+    // Update basic fields on wastereport table
+    if (hasFieldUpdates) {
+      await wasteReportRepository.updateReportById(reportId, normalizedData, connection)
+    }
+
+    // Replace new attachments if any
+    if (hasAttachmentUpdates) {
+      // Xóa toàn bộ attachment cũ rồi ghi lại ảnh đã giữ + ảnh mới
+      await wasteReportRepository.deleteReportAttachments(reportId, connection)
+
+      for (const url of finalImageUris) {
+        await wasteReportRepository.createReportAttachment(
+          {
+            reportAttachmentId: uuidv4(),
+            wasteReportId: reportId,
+            fileUri: url,
+            uploadedAt: new Date()
+          },
+          connection
+        )
+      }
+    }
+
+    // REPLACE strategy: DELETE old items → INSERT new items
+    if (hasItemUpdates) {
+      await wasteReportRepository.deleteWasteReportItems(reportId, connection)
+      await wasteReportRepository.insertWasteReportItems(reportId, normalizedItems, connection)
+    }
+
+    await connection.commit()
+  } catch (error) {
+    await connection.rollback()
+    throw error
+  } finally {
+    connection.release()
+  }
+
+  // 6. Fetch and return the updated version
   const updatedReport = await wasteReportRepository.findReportById(reportId)
   const { citizenId: _, ...cleanReport } = updatedReport
 

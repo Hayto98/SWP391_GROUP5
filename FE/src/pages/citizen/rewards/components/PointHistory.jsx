@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -15,9 +16,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Star } from "lucide-react";
+import { ExternalLink, Star } from "lucide-react";
 
 function PointHistory({ pointTransactions }) {
+  const navigate = useNavigate();
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleString("vi-VN", {
       day: "2-digit",
@@ -26,6 +29,12 @@ function PointHistory({ pointTransactions }) {
       hour: "2-digit",
       minute: "2-digit",
     });
+  };
+
+  const handleReportClick = (wasteReportId) => {
+    if (wasteReportId) {
+      navigate(`/citizen/reports/${wasteReportId}`);
+    }
   };
 
   return (
@@ -50,7 +59,20 @@ function PointHistory({ pointTransactions }) {
                 <TableRow key={transaction.transactionId}>
                   <TableCell>{i + 1}</TableCell>
                   <TableCell className="font-medium">
-                    {transaction.reason}
+                    <div className="flex items-center gap-2">
+                      <span>{transaction.reason}</span>
+                      {transaction.wasteReportId && (
+                        <button
+                          onClick={() =>
+                            handleReportClick(transaction.wasteReportId)
+                          }
+                          className="p-1 rounded hover:bg-slate-100 text-blue-500 hover:text-blue-700 transition-colors"
+                          title="Xem chi tiết báo cáo"
+                        >
+                          <ExternalLink className="size-4" />
+                        </button>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <span

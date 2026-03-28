@@ -93,8 +93,9 @@ async function getPointHistory(userAccountId, { fromDate, toDate, type, page, li
 
   return {
     success: true,
-    data: rows.map(r => ({
+    data: rows.map((r) => ({
       transactionId: r.transactionId,
+      wasteReportId: r.wasteReportId || null,
       type: r.type,
       points: Number(r.points),
       reason: r.reason,
@@ -104,109 +105,107 @@ async function getPointHistory(userAccountId, { fromDate, toDate, type, page, li
 }
 
 async function getDashboardStatistics(userAccountId, citizenIdFromToken, month, year) {
-  let citizenId = citizenIdFromToken;
+  let citizenId = citizenIdFromToken
 
   if (citizenId && !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(citizenId)) {
-    throw new ApiError(400, 'Định dạng ID người dùng không hợp lệ');
+    throw new ApiError(400, 'Định dạng ID người dùng không hợp lệ')
   }
 
-  const user = await userRepository.findById(userAccountId);
+  const user = await userRepository.findById(userAccountId)
   if (!user) {
-    throw new ApiError(404, 'Không tìm thấy người dùng');
+    throw new ApiError(404, 'Không tìm thấy người dùng')
   }
 
   if (user.isLocked) {
-    throw new ApiError(403, 'Tài khoản đã bị khóa');
+    throw new ApiError(403, 'Tài khoản đã bị khóa')
   }
 
   if (user.roleId !== ROLES.CITIZEN) {
-    throw new ApiError(403, 'Người dùng không phải Citizen');
+    throw new ApiError(403, 'Người dùng không phải Citizen')
   }
 
-  const citizen = await citizenRepository.findByUserAccountId(userAccountId);
+  const citizen = await citizenRepository.findByUserAccountId(userAccountId)
   if (!citizen) {
-    throw new ApiError(404, 'Không tìm thấy hồ sơ công dân');
+    throw new ApiError(404, 'Không tìm thấy hồ sơ công dân')
   }
 
   if (citizenId && citizenId !== citizen.citizenId) {
-    throw new ApiError(404, 'Không tìm thấy người dùng');
+    throw new ApiError(404, 'Không tìm thấy người dùng')
   }
 
-  citizenId = citizen.citizenId;
+  citizenId = citizen.citizenId
 
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1;
+  const now = new Date()
+  const currentYear = now.getFullYear()
+  const currentMonth = now.getMonth() + 1
 
-  const queryYear = year !== undefined ? parseInt(year, 10) : currentYear;
-  const queryMonth = month !== undefined ? parseInt(month, 10) : currentMonth;
+  const queryYear = year !== undefined ? parseInt(year, 10) : currentYear
+  const queryMonth = month !== undefined ? parseInt(month, 10) : currentMonth
 
   if (isNaN(queryYear) || queryYear < 2000) {
-    throw new ApiError(400, 'Năm không hợp lệ');
+    throw new ApiError(400, 'Năm không hợp lệ')
   }
 
   if (isNaN(queryMonth) || queryMonth < 1 || queryMonth > 12) {
-    throw new ApiError(400, 'Tháng không hợp lệ (1–12)');
+    throw new ApiError(400, 'Tháng không hợp lệ (1–12)')
   }
 
-  if (queryYear > currentYear || (queryYear === currentYear && queryMonth > currentMonth)) {
-    throw new ApiError(400, 'Không thể xem dữ liệu');
-  }
+  // if (queryYear > currentYear || (queryYear === currentYear && queryMonth > currentMonth)) {
+  //   throw new ApiError(400, 'Không thể xem dữ liệu');
+  // }
 
   if (currentYear - queryYear > 5) {
-    throw new ApiError(400, 'Chỉ có thể tra cứu dữ liệu trong khoảng 5 năm gần đây');
+    throw new ApiError(400, 'Chỉ có thể tra cứu dữ liệu trong khoảng 5 năm gần đây')
   }
 
-  const pad = (n) => String(n).padStart(2, '0');
-  const startStr = `${queryYear}-${pad(queryMonth)}-01 00:00:00`;
+  const pad = (n) => String(n).padStart(2, '0')
+  const startStr = `${queryYear}-${pad(queryMonth)}-01 00:00:00`
 
-  let nextMonth = queryMonth + 1;
-  let nextMonthYear = queryYear;
+  let nextMonth = queryMonth + 1
+  let nextMonthYear = queryYear
   if (nextMonth > 12) {
-    nextMonth = 1;
-    nextMonthYear += 1;
+    nextMonth = 1
+    nextMonthYear += 1
   }
-  const endStr = `${nextMonthYear}-${pad(nextMonth)}-01 00:00:00`;
+  const endStr = `${nextMonthYear}-${pad(nextMonth)}-01 00:00:00`
 
-  const data = await citizenRepository.getDashboardStatistics(citizenId, startStr, endStr);
+  const data = await citizenRepository.getDashboardStatistics(citizenId, startStr, endStr)
 
-  const totalPoints = Number(data?.totalPoints) || 0;
+  const totalPoints = Number(data?.totalPoints) || 0
 
-  let parsedDailyStats = [];
+  let parsedDailyStats = []
   try {
     if (data?.dailyStats) {
-      parsedDailyStats = typeof data.dailyStats === 'string'
-        ? JSON.parse(data.dailyStats)
-        : data.dailyStats;
+      parsedDailyStats = typeof data.dailyStats === 'string' ? JSON.parse(data.dailyStats) : data.dailyStats
     }
   } catch (error) {
-    parsedDailyStats = [];
+    parsedDailyStats = []
   }
 
   if (!Array.isArray(parsedDailyStats)) {
-    parsedDailyStats = [];
+    parsedDailyStats = []
   }
 
-  let totalReports = 0;
-  let completedReports = 0;
-  let rejectedReports = 0;
+  let totalReports = 0
+  let completedReports = 0
+  let rejectedReports = 0
 
-  const reportsByDay = parsedDailyStats.map(day => {
-    const dailyRep = Number(day?.reports) || 0;
-    const dailyComp = Number(day?.completed) || 0;
-    const dailyRej = Number(day?.rejected) || 0;
+  const reportsByDay = parsedDailyStats.map((day) => {
+    const dailyRep = Number(day?.reports) || 0
+    const dailyComp = Number(day?.completed) || 0
+    const dailyRej = Number(day?.rejected) || 0
 
-    totalReports += dailyRep;
-    completedReports += dailyComp;
-    rejectedReports += dailyRej;
+    totalReports += dailyRep
+    completedReports += dailyComp
+    rejectedReports += dailyRej
 
     return {
       date: day?.date || '',
       reports: dailyRep
-    };
-  });
+    }
+  })
 
-  const completionRate = totalReports > 0 ? (completedReports / totalReports) : 0;
+  const completionRate = totalReports > 0 ? completedReports / totalReports : 0
 
   return {
     totalReports,
@@ -215,8 +214,7 @@ async function getDashboardStatistics(userAccountId, citizenIdFromToken, month, 
     rejectedReports,
     completionRate,
     reportsByDay
-  };
+  }
 }
-
 
 module.exports = { getMyPoints, getPointHistory, getDashboardStatistics }

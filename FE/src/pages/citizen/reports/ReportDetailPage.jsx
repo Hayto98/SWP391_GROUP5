@@ -14,9 +14,11 @@ import {
   ArrowLeft,
   AlertCircle,
   Check,
+  Coins,
   Circle,
   Clock,
   Loader2,
+  Trophy,
   Upload,
 } from "lucide-react";
 import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
@@ -160,8 +162,15 @@ function mapReport(report) {
       : []),
   ].filter(Boolean);
 
+  const collectedItems = Array.isArray(report?.collectedItems)
+    ? report.collectedItems
+    : Array.isArray(collectedRecord?.items)
+      ? collectedRecord.items
+      : [];
+
   return {
     id: report?.reportId || report?.wasteReportId,
+    reportCode: report?.reportCode || report?.reportId || report?.wasteReportId,
     title: report?.wasteType?.name || "-",
     unitType: report?.unitType || report?.wasteType?.unitType || "-",
     date: report?.createdAt
@@ -179,6 +188,15 @@ function mapReport(report) {
     longitude: lng,
     progress: progressTemplate[rawStatus] || progressTemplate.PENDING,
     description: report?.description || "",
+    items: Array.isArray(report?.items)
+      ? report.items.map((item) => ({
+          wasteReportItemId: item?.wasteReportItemId,
+          wasteTypeId: item?.wasteTypeId,
+          wasteTypeName: item?.wasteTypeName || "-",
+          unitType: item?.unitType || report?.unitType || "-",
+          quantity: Number(item?.quantity || 0),
+        }))
+      : [],
     weightKg:
       Number.isFinite(normalizedWeightKg) && normalizedWeightKg > 0
         ? normalizedWeightKg
@@ -197,8 +215,17 @@ function mapReport(report) {
         }
       : null,
     collectedRecord,
+    collectedItems: collectedItems.map((item) => ({
+      collectedItemId: item?.collectedItemId,
+      collectedRecordId: item?.collectedRecordId,
+      wasteTypeId: item?.wasteTypeId,
+      wasteTypeName: item?.wasteTypeName || "-",
+      unitType: item?.unitType || report?.unitType || "-",
+      actualQuantity: Number(item?.actualQuantity || 0),
+    })),
     actualQuantity:
       report?.actualQuantity ?? collectedRecord?.actualQuantityValue ?? null,
+    rewardPoint: report?.rewardPoint || null,
     reason: report?.reason || null,
     status: rawStatus,
     wasteTypeDetail: null,
@@ -333,6 +360,13 @@ function ReportDetailPage() {
   const progressWidth = report.progress.length
     ? (completedSteps / report.progress.length) * 100
     : 0;
+  const pointsDelta = Number(report?.rewardPoint?.pointsDelta);
+  const hasRewardPoints = Number.isFinite(pointsDelta);
+  const rewardUpdatedAt = report?.rewardPoint?.createdAt
+    ? format(new Date(report.rewardPoint.createdAt), "HH:mm dd/MM/yyyy", {
+        locale: vi,
+      })
+    : null;
 
   return (
     <div className="space-y-6">
@@ -353,46 +387,31 @@ function ReportDetailPage() {
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Thông tin loại rác</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="bg-gray-50 rounded-lg p-3 border">
-              <p className="text-xs text-muted-foreground">Tên loại rác</p>
-              <p className="font-medium">
-                {report.wasteTypeDetail?.wasteTypeName || report.title}
-              </p>
-            </div>
-            <div className="bg-gray-50 rounded-lg p-3 border">
-              <p className="text-xs text-muted-foreground">Đơn vị</p>
-              <p className="font-medium">
-                {report.wasteTypeDetail?.unitType || report.unitType || "-"}
-              </p>
-            </div>
-            <div className="bg-gray-50 rounded-lg p-3 border">
-              <p className="text-xs text-muted-foreground">Khối lượng (kg)</p>
-              <p className="font-medium">{report.weightKg ?? "-"}</p>
-            </div>
-            <div className="bg-gray-50 rounded-lg p-3 border">
-              <p className="text-xs text-muted-foreground">
-                Mô tả cấu hình điểm
-              </p>
-              <p className="font-medium">
-                {report.wasteTypeDetail?.rewardConfig?.description || "-"}
-              </p>
-            </div>
-            <div className="bg-gray-50 rounded-lg p-3 border md:col-span-2">
-              <p className="text-xs text-muted-foreground">Mô tả báo cáo</p>
-              <p className="font-medium whitespace-pre-line wrap-break-word">
-                {report.description || "-"}
-              </p>
+      <Card className="overflow-hidden bg-linear-to-r from-emerald-500 to-teal-500 border-emerald-200 shadow-sm">
+        <CardContent className="p-0">
+          <div className=" px-5 py-4 text-white">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-white/85">
+                  Điểm nhận được
+                </p>
+                <p className="mt-1 text-3xl font-black tracking-tight">
+                  {hasRewardPoints
+                    ? `${pointsDelta >= 0 ? "+" : ""}${pointsDelta} điểm`
+                    : "Chưa chốt điểm"}
+                </p>
+              </div>
+              <div className="rounded-full bg-white/20 p-3">
+                {hasRewardPoints && pointsDelta >= 0 ? (
+                  <Trophy className="size-6" />
+                ) : (
+                  <Coins className="size-6" />
+                )}
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
-
       <Card>
         <CardHeader>
           <CardTitle>Tiến độ thu gom</CardTitle>
@@ -454,47 +473,68 @@ function ReportDetailPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Minh chứng thu gom</CardTitle>
+          <CardTitle>Thông tin loại rác</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm text-green-600 font-medium mb-2">
-                Ảnh người dân
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+            <div className="bg-gray-50 rounded-lg p-3 border">
+              <p className="text-xs text-muted-foreground">
+                Tổng khối lượng báo cáo
               </p>
-              {report.citizenImages && report.citizenImages.length > 0 ? (
-                <ImageSection
-                  image={report.citizenImages?.[0]}
-                  className="flex-1"
-                />
-              ) : (
-                <div className="w-full h-60 bg-gray-100 rounded-lg border flex items-center justify-center">
-                  <p className="text-sm text-muted-foreground">Chưa có ảnh</p>
-                </div>
-              )}
+              <p className="font-semibold">
+                {report.weightKg ?? "-"} {report.unitType || ""}
+              </p>
             </div>
-
-            <div>
-              <p className="text-sm text-green-600 font-medium mb-2">
-                Ảnh thu gom
+            <div className="bg-gray-50 rounded-lg p-3 border">
+              <p className="text-xs text-muted-foreground">
+                Thời gian tạo báo cáo
               </p>
-              {report.collectorImages && report.collectorImages.length > 0 ? (
-                <ImageSection
-                  image={report.collectorImages[0]}
-                  className="flex-1"
-                />
-              ) : (
-                <div className="w-full h-60 bg-gray-100 rounded-lg border flex items-center justify-center">
-                  <div className="text-center">
-                    <AlertCircle className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">
-                      {report.status === "COLLECTED"
-                        ? "Chưa có ảnh minh chứng"
-                        : "Đang chờ người thu gom"}
+              <p className="font-medium">
+                {report.createdAt
+                  ? format(new Date(report.createdAt), "HH:mm dd/MM/yyyy", {
+                      locale: vi,
+                    })
+                  : "-"}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-lg border bg-slate-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 mb-2">
+              Danh sách loại rác trong báo cáo
+            </p>
+            {report.items?.length ? (
+              <div className="space-y-2">
+                {report.items.map((item) => (
+                  <div
+                    key={
+                      item.wasteReportItemId ||
+                      `${item.wasteTypeId}-${item.wasteTypeName}`
+                    }
+                    className="flex items-center justify-between rounded border bg-white px-3 py-2"
+                  >
+                    <p className="font-medium text-slate-800">
+                      {item.wasteTypeName}
+                    </p>
+                    <p className="text-sm text-slate-600">
+                      {item.quantity} {item.unitType}
                     </p>
                   </div>
-                </div>
-              )}
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Không có dữ liệu loại rác.
+              </p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 mt-3">
+            <div className="bg-gray-50 rounded-lg p-3 border md:col-span-2">
+              <p className="text-xs text-muted-foreground">Mô tả báo cáo</p>
+              <p className="font-medium whitespace-pre-line wrap-break-word">
+                {report.description || "-"}
+              </p>
             </div>
           </div>
         </CardContent>
@@ -534,6 +574,36 @@ function ReportDetailPage() {
                     : "-"}
                 </p>
               </div>
+
+              <div className="bg-gray-50 rounded-lg p-3 border md:col-span-2">
+                <p className="text-xs text-muted-foreground mb-2">
+                  Chi tiết loại rác đã thu gom
+                </p>
+                {report.collectedItems?.length ? (
+                  <div className="space-y-2">
+                    {report.collectedItems.map((item) => (
+                      <div
+                        key={
+                          item.collectedItemId ||
+                          `${item.wasteTypeId}-${item.wasteTypeName}`
+                        }
+                        className="flex items-center justify-between rounded border bg-white px-3 py-2"
+                      >
+                        <p className="font-medium text-slate-800">
+                          {item.wasteTypeName}
+                        </p>
+                        <p className="text-sm text-slate-600">
+                          {item.actualQuantity} {item.unitType}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Chưa có dữ liệu loại rác thu gom chi tiết.
+                  </p>
+                )}
+              </div>
               <div className="bg-gray-50 rounded-lg p-3 border md:col-span-2">
                 <p className="text-xs text-muted-foreground">Ghi chú</p>
                 <p className="font-medium whitespace-pre-line wrap-break-word">
@@ -544,6 +614,69 @@ function ReportDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      <div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-6">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm font-semibold text-emerald-700">
+                Ảnh người dân
+              </p>
+              <span className="text-xs text-emerald-700/80">
+                {report.citizenImages?.length || 0} ảnh
+              </span>
+            </div>
+
+            {report.citizenImages && report.citizenImages.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {report.citizenImages.map((image, index) => (
+                  <ImageSection
+                    key={`citizen-${index}`}
+                    image={image}
+                    className="flex-1"
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="w-full h-60 bg-white rounded-lg border flex items-center justify-center">
+                <p className="text-sm text-muted-foreground">Chưa có ảnh</p>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-sky-200 bg-sky-50/40 p-6">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm font-semibold text-sky-700">Ảnh thu gom</p>
+              <span className="text-xs text-sky-700/80">
+                {report.collectorImages?.length || 0} ảnh
+              </span>
+            </div>
+
+            {report.collectorImages && report.collectorImages.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {report.collectorImages.map((image, index) => (
+                  <ImageSection
+                    key={`collector-${index}`}
+                    image={image}
+                    className="flex-1"
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="w-full h-60 bg-white rounded-lg border flex items-center justify-center ">
+                <div className="text-center">
+                  <AlertCircle className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    {report.status === "COLLECTED"
+                      ? "Chưa có ảnh minh chứng"
+                      : "Đang chờ người thu gom"}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
       {report.status === "REJECTED" && (
         <Card>

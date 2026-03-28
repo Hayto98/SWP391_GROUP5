@@ -1,9 +1,21 @@
 ﻿import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { Calendar, Loader2, MapPin, Phone, Recycle, Scale } from "lucide-react";
+import {
+  AlertTriangle,
+  Ban,
+  Calendar,
+  CheckCircle2,
+  Loader2,
+  MapPin,
+  Phone,
+  Recycle,
+  Scale,
+  X,
+} from "lucide-react";
 import {
   acceptCollectorReport,
   getCollectorReportById,
+  rejectCollectorReport,
   markCollectorReportAsFake,
   scheduleCollectorReport,
   submitCollectorReportResult,
@@ -28,6 +40,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
+const MAX_UPLOAD_IMAGES = 5;
 
 function buildMapEmbedUrl(location) {
   if (!location?.lat || !location?.lng) {
@@ -64,6 +78,42 @@ function mapApiData(apiData) {
   const reportId = apiData?.reportId || "";
   const reportCode = apiData?.reportCode || apiData?.wasteCode || reportId;
 
+  const citizenImages = Array.isArray(apiData?.citizenImages)
+    ? apiData.citizenImages.filter((item) => item?.file_uri || item?.fileUri)
+    : [];
+
+  const fallbackImages = Array.isArray(apiData?.images)
+    ? apiData.images.filter((item) => item?.file_uri || item?.fileUri)
+    : [];
+
+  const normalizedImages =
+    citizenImages.length > 0 ? citizenImages : fallbackImages;
+  const items = Array.isArray(apiData?.items) ? apiData.items : [];
+  const normalizedItems = items
+    .map((item) => ({
+      waste_type_id: Number(item?.wasteTypeId ?? item?.waste_type_id),
+      wasteTypeName: item?.wasteTypeName || "Không rõ",
+      unitType: item?.unitType || apiData?.unitType || "KG",
+      quantity: Number(item?.quantity || 0),
+    }))
+    .filter(
+      (item) =>
+        Number.isInteger(item.waste_type_id) &&
+        item.waste_type_id > 0 &&
+        Number.isFinite(item.quantity),
+    );
+
+  const wasteTypeSummary = normalizedItems.length
+    ? normalizedItems
+        .map((item) => {
+          const name = item?.wasteTypeName || "Không rõ";
+          const quantity = item?.quantity ?? "-";
+          const unit = item?.unitType || apiData?.unitType || "KG";
+          return `${name} (${quantity} ${unit})`;
+        })
+        .join(", ")
+    : `${apiData?.wasteType?.name || "-"} (ID: ${apiData?.wasteType?.id ?? "-"})`;
+
   return {
     reportId,
     reportCode,
@@ -75,6 +125,8 @@ function mapApiData(apiData) {
       id: apiData?.wasteType?.id ?? null,
       name: apiData?.wasteType?.name || "-",
     },
+    wasteTypeSummary,
+    items: normalizedItems,
     weight: apiData?.weight ?? null,
     actualQuantity: apiData?.actualQuantity ?? null,
     unitType: apiData?.unitType || "KG",
@@ -85,7 +137,7 @@ function mapApiData(apiData) {
             lng,
           }
         : null,
-    images: Array.isArray(apiData?.images) ? apiData.images : [],
+    images: normalizedImages,
     status: apiData?.status || "ASSIGNED",
     areaName: "Không rõ vị trí",
   };
@@ -127,45 +179,47 @@ function TaskDetail() {
     toTimeHHmm(getDefaultScheduleDateTime()),
   );
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
   const [submitSaving, setSubmitSaving] = useState(false);
   const [markingFake, setMarkingFake] = useState(false);
   const [fakeDialogOpen, setFakeDialogOpen] = useState(false);
   const [fakeNote, setFakeNote] = useState("");
-  const [fakeFile, setFakeFile] = useState(null);
-  const [fakeFilePreview, setFakeFilePreview] = useState("");
-  const [actualQuantity, setActualQuantity] = useState("");
+  const [fakeFiles, setFakeFiles] = useState([]);
+  const [fakeFilePreviews, setFakeFilePreviews] = useState([]);
+  const [actualItems, setActualItems] = useState([]);
   const [note, setNote] = useState("");
-  const [resultFile, setResultFile] = useState(null);
-  const [resultFilePreview, setResultFilePreview] = useState("");
+  const [resultFiles, setResultFiles] = useState([]);
+  const [resultFilePreviews, setResultFilePreviews] = useState([]);
 
   useEffect(() => {
-    if (!resultFile) {
-      setResultFilePreview("");
-      return;
+    if (!resultFiles.length) {
+      setResultFilePreviews([]);
+      return undefined;
     }
 
-    const previewUrl = URL.createObjectURL(resultFile);
-    setResultFilePreview(previewUrl);
+    const previews = resultFiles.map((file) => URL.createObjectURL(file));
+    setResultFilePreviews(previews);
 
     return () => {
-      URL.revokeObjectURL(previewUrl);
+      previews.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [resultFile]);
+  }, [resultFiles]);
 
   useEffect(() => {
-    if (!fakeFile) {
-      setFakeFilePreview("");
-      return;
+    if (!fakeFiles.length) {
+      setFakeFilePreviews([]);
+      return undefined;
     }
 
-    const previewUrl = URL.createObjectURL(fakeFile);
-    setFakeFilePreview(previewUrl);
+    const previews = fakeFiles.map((file) => URL.createObjectURL(file));
+    setFakeFilePreviews(previews);
 
     return () => {
-      URL.revokeObjectURL(previewUrl);
+      previews.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [fakeFile]);
+  }, [fakeFiles]);
 
   useEffect(() => {
     const fetchDetail = async () => {
@@ -199,9 +253,19 @@ function TaskDetail() {
     }
 
     if (task.status === "IN_PROGRESS") {
-      setActualQuantity(task.actualQuantity ?? "");
+      const draftItems = (task.items || []).map((item) => ({
+        waste_type_id: item.waste_type_id,
+        wasteTypeName: item.wasteTypeName,
+        unitType: item.unitType || task.unitType || "KG",
+        estimatedQuantity: item.quantity,
+        actual_quantity:
+          Number.isFinite(Number(item.quantity)) && Number(item.quantity) > 0
+            ? String(item.quantity)
+            : "",
+      }));
+      setActualItems(draftItems);
       setNote("");
-      setResultFile(null);
+      setResultFiles([]);
       setSubmitDialogOpen(true);
       return;
     }
@@ -231,23 +295,44 @@ function TaskDetail() {
       return;
     }
 
-    const quantity = Number(actualQuantity);
-    if (!Number.isFinite(quantity) || quantity <= 0) {
-      toast.warning("Vui lòng nhập khối lượng thực tế hợp lệ");
+    if (!Array.isArray(actualItems) || actualItems.length === 0) {
+      toast.warning("Không có dữ liệu loại rác để cập nhật");
       return;
+    }
+
+    const normalizedActualItems = [];
+    for (let i = 0; i < actualItems.length; i += 1) {
+      const item = actualItems[i];
+      const quantity = Number(item.actual_quantity);
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        toast.warning(
+          `Vui lòng nhập khối lượng thực tế hợp lệ cho ${item.wasteTypeName}`,
+        );
+        return;
+      }
+
+      normalizedActualItems.push({
+        waste_type_id: Number(item.waste_type_id),
+        actual_quantity: quantity,
+      });
     }
 
     setSubmitSaving(true);
     try {
       const submitUnit = task.unitType || "KG";
       const response = await submitCollectorReportResult(task.reportId, {
-        actualQuantity: quantity,
+        actualItems: normalizedActualItems,
         quantityUnit: submitUnit,
         note,
-        file: resultFile,
+        files: resultFiles,
       });
 
-      const submittedQuantity = response?.data?.actualQuantity ?? quantity;
+      const submittedQuantity =
+        response?.data?.actualQuantity ??
+        normalizedActualItems.reduce(
+          (sum, item) => sum + Number(item.actual_quantity || 0),
+          0,
+        );
       const completedReportId = response?.data?.reportId || task.reportId;
 
       setTask((prev) => ({
@@ -307,13 +392,35 @@ function TaskDetail() {
     }
   };
 
+  const handleRejectTask = async () => {
+    if (
+      !task ||
+      rejecting ||
+      (task.status !== "ASSIGNED" && task.status !== "IN_PROGRESS")
+    ) {
+      return;
+    }
+
+    setRejecting(true);
+    try {
+      await rejectCollectorReport(task.reportId);
+      toast.success("Đã từ chối nhiệm vụ");
+      setRejectDialogOpen(false);
+      navigate("/collector/tasks");
+    } catch (error) {
+      toast.error(error.message || "Từ chối nhiệm vụ thất bại");
+    } finally {
+      setRejecting(false);
+    }
+  };
+
   const handleOpenMarkAsFakeDialog = () => {
     if (!task || task.status !== "IN_PROGRESS") {
       return;
     }
 
     setFakeNote("");
-    setFakeFile(null);
+    setFakeFiles([]);
     setFakeDialogOpen(true);
   };
 
@@ -327,7 +434,7 @@ function TaskDetail() {
       const response = await markCollectorReportAsFake(task.reportId, {
         quantityUnit: task.unitType || "KG",
         note: fakeNote,
-        file: fakeFile,
+        files: fakeFiles,
       });
 
       setTask((prev) => ({
@@ -427,12 +534,12 @@ function TaskDetail() {
               </div>
 
               {task.images.length > 0 ? (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {task.images.map((image, index) => (
                     <ImageSection
-                      key={`${image.file_uri}-${index}`}
-                      title={`Hình hiện trường ${index + 1}`}
+                      key={`scene-${index}`}
                       image={image}
+                      className="flex-1"
                     />
                   ))}
                 </div>
@@ -448,10 +555,7 @@ function TaskDetail() {
             <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm space-y-3">
               <InfoRow label="Mã báo cáo" value={task.reportCode} />
               <InfoRow label="Trạng thái" value={task.status} />
-              <InfoRow
-                label="Loại rác"
-                value={`${task.wasteType.name} (ID: ${task.wasteType.id ?? "-"})`}
-              />
+              <InfoRow label="Loại rác" value={task.wasteTypeSummary} />
               <InfoRow
                 label="Khối lượng ước tính"
                 value={`${task.weight ?? "-"} ${task.unitType || ""}`}
@@ -479,7 +583,7 @@ function TaskDetail() {
               />
             </div>
 
-            <button
+            <Button
               onClick={() => {
                 if (task.status === "ASSIGNED") {
                   const defaultDate = getDefaultScheduleDateTime();
@@ -496,25 +600,66 @@ function TaskDetail() {
                 markingFake ||
                 task.status === "COLLECTED"
               }
-              className="w-full rounded-xl bg-green-500 text-white py-3 font-semibold hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full h-12 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
             >
-              {accepting
-                ? "Đang nhận..."
-                : task.status === "IN_PROGRESS"
-                  ? "Cập nhật kết quả thu gom"
-                  : "Nhận nhiệm vụ"}
-            </button>
+              {accepting ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Đang nhận...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="size-4" />
+                  {task.status === "IN_PROGRESS"
+                    ? "Cập nhật kết quả thu gom"
+                    : "Nhận nhiệm vụ"}
+                </>
+              )}
+            </Button>
+
+            {(task.status === "ASSIGNED" || task.status === "IN_PROGRESS") && (
+              <Button
+                onClick={() => setRejectDialogOpen(true)}
+                disabled={accepting || scheduleSaving || rejecting}
+                className="w-full h-12 rounded-xl bg-amber-500 text-white hover:bg-amber-600"
+              >
+                {rejecting ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Đang xử lý...
+                  </>
+                ) : (
+                  <>
+                    <Ban className="size-4" />
+                    {task.status === "IN_PROGRESS"
+                      ? "Hủy nhiệm vụ"
+                      : "Từ chối nhiệm vụ"}
+                  </>
+                )}
+              </Button>
+            )}
 
             {task.status === "IN_PROGRESS" && (
-              <button
+              <Button
                 onClick={handleOpenMarkAsFakeDialog}
                 disabled={
                   markingFake || submitSaving || accepting || scheduleSaving
                 }
-                className="w-full rounded-xl bg-red-500 text-white py-3 font-semibold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                variant="destructive"
+                className="w-full h-12 rounded-xl"
               >
-                {markingFake ? "Đang xử lý..." : "Báo cáo giả"}
-              </button>
+                {markingFake ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Đang xử lý...
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle className="size-4" />
+                    Báo cáo giả
+                  </>
+                )}
+              </Button>
             )}
           </div>
         </div>
@@ -601,6 +746,43 @@ function TaskDetail() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {task.status === "IN_PROGRESS"
+                ? "Xác nhận hủy nhiệm vụ"
+                : "Xác nhận từ chối nhiệm vụ"}
+            </DialogTitle>
+            <DialogDescription>
+              {task.status === "IN_PROGRESS"
+                ? "Bạn có chắc chắn muốn hủy nhiệm vụ đang xử lý không?"
+                : "Bạn có chắc chắn muốn từ chối nhiệm vụ này không?"}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setRejectDialogOpen(false)}
+              disabled={rejecting}
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleRejectTask}
+              disabled={rejecting}
+            >
+              {rejecting
+                ? "Đang xử lý..."
+                : task.status === "IN_PROGRESS"
+                  ? "Xác nhận hủy"
+                  : "Xác nhận từ chối"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={fakeDialogOpen} onOpenChange={setFakeDialogOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -626,15 +808,62 @@ function TaskDetail() {
               <Input
                 type="file"
                 accept="image/*"
-                onChange={(e) => setFakeFile(e.target.files?.[0] || null)}
+                multiple
+                onChange={(e) => {
+                  const files = Array.from(e.target.files || []);
+                  if (files.length === 0) return;
+
+                  setFakeFiles((prev) => {
+                    const remainingSlots = Math.max(
+                      0,
+                      MAX_UPLOAD_IMAGES - prev.length,
+                    );
+
+                    if (remainingSlots === 0) {
+                      toast.warning("Chỉ được tải lên tối đa 5 ảnh.");
+                      return prev;
+                    }
+
+                    if (files.length > remainingSlots) {
+                      toast.warning("Bạn chỉ có thể thêm tối đa 5 ảnh.");
+                    }
+
+                    return [...prev, ...files.slice(0, remainingSlots)];
+                  });
+                  e.target.value = "";
+                }}
               />
 
-              {fakeFilePreview && (
-                <div className="mt-3">
-                  <ImageSection
-                    title="Xem trước ảnh minh chứng"
-                    image={fakeFilePreview}
-                  />
+              {fakeFilePreviews.length > 0 && (
+                <div className="mt-3 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {fakeFilePreviews.map((preview, index) => (
+                      <div
+                        key={`${preview}-${index}`}
+                        className="relative overflow-hidden rounded-xl"
+                      >
+                        <ImageSection
+                          image={preview}
+                          className="flex-1"
+                          imageClassName="h-44"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFakeFiles((prev) =>
+                              prev.filter(
+                                (_, fileIndex) => fileIndex !== index,
+                              ),
+                            );
+                          }}
+                          className="absolute top-2 right-2 inline-flex items-center justify-center size-7 rounded-full bg-black/70 text-white hover:bg-black/85"
+                          aria-label="Xóa ảnh"
+                        >
+                          <X className="size-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -664,26 +893,46 @@ function TaskDetail() {
 
           <div className="space-y-4">
             <div>
-              <p className="text-sm font-medium mb-1">Khối lượng thực tế</p>
-              <Input
-                type="number"
-                min="0"
-                step="0.1"
-                value={actualQuantity}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (value === "") {
-                    setActualQuantity("");
-                    return;
-                  }
-
-                  const parsed = Number(value);
-                  if (Number.isNaN(parsed) || parsed < 0) return;
-
-                  setActualQuantity(value);
-                }}
-                placeholder="Ví dụ: 4"
-              />
+              <p className="text-sm font-medium mb-2">
+                Khối lượng thực tế theo loại rác
+              </p>
+              <div className="space-y-2">
+                {actualItems.map((item, index) => (
+                  <div
+                    key={`${item.waste_type_id}-${index}`}
+                    className="rounded-md border border-gray-200 p-3"
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <p className="text-sm font-semibold text-gray-800">
+                        {item.wasteTypeName}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Ước tính: {item.estimatedQuantity} {item.unitType}
+                      </p>
+                    </div>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={item.actual_quantity}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setActualItems((prev) =>
+                          prev.map((current, currentIndex) =>
+                            currentIndex === index
+                              ? {
+                                  ...current,
+                                  actual_quantity: value,
+                                }
+                              : current,
+                          ),
+                        );
+                      }}
+                      placeholder={`Nhập khối lượng thực tế (${item.unitType})`}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div>
@@ -701,15 +950,62 @@ function TaskDetail() {
               <Input
                 type="file"
                 accept="image/*"
-                onChange={(e) => setResultFile(e.target.files?.[0] || null)}
+                multiple
+                onChange={(e) => {
+                  const files = Array.from(e.target.files || []);
+                  if (files.length === 0) return;
+
+                  setResultFiles((prev) => {
+                    const remainingSlots = Math.max(
+                      0,
+                      MAX_UPLOAD_IMAGES - prev.length,
+                    );
+
+                    if (remainingSlots === 0) {
+                      toast.warning("Chỉ được tải lên tối đa 5 ảnh.");
+                      return prev;
+                    }
+
+                    if (files.length > remainingSlots) {
+                      toast.warning("Bạn chỉ có thể thêm tối đa 5 ảnh.");
+                    }
+
+                    return [...prev, ...files.slice(0, remainingSlots)];
+                  });
+                  e.target.value = "";
+                }}
               />
 
-              {resultFilePreview && (
-                <div className="mt-3">
-                  <ImageSection
-                    title="Xem trước ảnh minh chứng"
-                    image={resultFilePreview}
-                  />
+              {resultFilePreviews.length > 0 && (
+                <div className="mt-3 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {resultFilePreviews.map((preview, index) => (
+                      <div
+                        key={`${preview}-${index}`}
+                        className="relative overflow-hidden rounded-xl"
+                      >
+                        <ImageSection
+                          image={preview}
+                          className="flex-1"
+                          imageClassName="h-44"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setResultFiles((prev) =>
+                              prev.filter(
+                                (_, fileIndex) => fileIndex !== index,
+                              ),
+                            );
+                          }}
+                          className="absolute top-2 right-2 inline-flex items-center justify-center size-7 rounded-full bg-black/70 text-white hover:bg-black/85"
+                          aria-label="Xóa ảnh"
+                        >
+                          <X className="size-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

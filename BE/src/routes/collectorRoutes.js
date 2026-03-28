@@ -30,10 +30,12 @@ router.use(requireRole(ROLES.COLLECTOR))
 // ==================== ROUTES ====================
 router.get('/working-status', collectorController.getWorkingStatus)
 router.patch('/working-status', collectorController.updateWorkingStatus)
+router.get('/dashboard/statistics', collectorController.getDashboardStatistics)
 router.get('/reports', collectorReportController.getAssignedReports)
 router.get('/reports/:reportId', collectorReportController.getReportById)
 router.get('/reports/:reportId/result', collectorReportController.getResult)
 router.patch('/reports/:reportId/accept', collectorReportController.acceptReport)
+router.patch('/reports/:reportId/reject', collectorReportController.rejectReport)
 router.post('/reports/:reportId/result', uploadSingle, collectorReportController.submitResult)
 router.post('/reports/:reportId/complete', smartUploadComplete, collectorReportController.completeReport)
 router.patch('/reports/:reportId/mark-fake', smartUploadComplete, collectorReportController.markReportAsFake)
@@ -41,6 +43,7 @@ router.patch('/reports/:reportId/schedule', collectorReportController.scheduleCo
 
 // --- NOTIFICATIONS ---
 router.get('/notifications', notificationController.getNotifications)
+router.patch('/notifications/read-all', notificationController.markAllAsRead)
 router.patch('/notifications/:notificationId/read', notificationController.markAsRead)
 
 module.exports = router

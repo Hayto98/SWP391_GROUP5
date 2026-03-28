@@ -52,6 +52,23 @@ async function acceptReport(req, res, next) {
 }
 
 /**
+ * PATCH /collector/reports/:reportId/reject
+ * Reject an assigned report.
+ */
+async function rejectReport(req, res, next) {
+  try {
+    const collectorId = req.user.sub
+    const { reportId } = req.params
+    const { reason } = req.body
+
+    const result = await collectorReportService.rejectAssignedReport(collectorId, reportId, reason)
+
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+/**
  * POST /collector/reports/:reportId/result
  * Collector submits actual quantity result — compares against estimated weight.
  * Body: multipart/form-data OR application/json  { actualQuantity, note, quantity_unit, file }
@@ -79,20 +96,28 @@ async function submitResult(req, res, next) {
 /**
  * POST /collector/reports/:reportId/complete
  * Collector completes the collection — uploads proof images, records results, marks COLLECTED.
- * Body: multipart/form-data  { actualQuantity, quantityUnit, note, files[] }
+ * Body: multipart/form-data  { actualItems, quantityUnit, note, files[] }
  */
 async function completeReport(req, res, next) {
   try {
     const collectorId = req.user.sub
     const { reportId } = req.params
 
-    const { actualQuantity, quantityUnit, note } = req.body || {}
+    let { actualItems, quantityUnit, note } = req.body || {}
     const files = req.files || []
+
+    if (typeof actualItems === 'string') {
+      try {
+        actualItems = JSON.parse(actualItems)
+      } catch (err) {
+        throw new require('../../utils/ApiError')(400, 'actualItems không đúng định dạng JSON')
+      }
+    }
 
     const result = await collectorReportService.completeReport(
       collectorId,
       reportId,
-      { actualQuantity, quantityUnit, note },
+      { actualItems, quantityUnit, note },
       files
     )
 
@@ -162,6 +187,7 @@ module.exports = {
   getAssignedReports,
   getReportById,
   acceptReport,
+  rejectReport,
   submitResult,
   completeReport,
   markReportAsFake,

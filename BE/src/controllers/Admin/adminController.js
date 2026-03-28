@@ -97,6 +97,21 @@ async function changeUserStatus(req, res, next) {
   }
 }
 
+// ==================== ENTERPRISE ====================
+
+/**
+ * POST /admin/enterprises - Create new Enterprise user
+ * Request body: { fullname, email, phone, password }
+ */
+async function createEnterprise(req, res, next) {
+  try {
+    const result = await adminService.createEnterprise(req.body)
+    res.status(201).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
 // ==================== DELETE ====================
 
 /**
@@ -133,13 +148,52 @@ async function resolveComplaint(req, res, next) {
   }
 }
 
+async function rejectComplaint(req, res, next) {
+  try {
+    const adminId = req.user?.sub
+    const { complaintId } = req.params
+    const { adminResponse } = req.body
+    const result = await complaintService.rejectComplaint({
+      adminId,
+      complaintId,
+      adminResponse
+    })
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
+async function getComplaintDetail(req, res, next) {
+  try {
+    const { complaintId } = req.params
+    const result = await complaintService.getComplaintDetailForAdmin({ complaintId })
+    res.status(200).json({ success: true, data: result })
+  } catch (error) {
+    next(error)
+  }
+}
+
+async function getAllComplaints(req, res, next) {
+  try {
+    const result = await complaintService.getAllComplaintsForAdmin({ query: req.query })
+    res.status(200).json({ success: true, ...result })
+  } catch (error) {
+    next(error)
+  }
+}
+
 module.exports = {
   getAllUsers,
   getUserById,
   createUser,
+  createEnterprise,
   updateUser,
   changeUserRole,
   changeUserStatus,
   deleteUser,
-  resolveComplaint
+  resolveComplaint,
+  rejectComplaint,
+  getComplaintDetail,
+  getAllComplaints
 }

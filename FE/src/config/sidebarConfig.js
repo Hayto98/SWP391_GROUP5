@@ -76,20 +76,6 @@ export const navByRole = {
         },
       ],
     },
-    {
-      title: "Hỗ Trợ",
-      icon: AlertTriangle,
-      items: [
-        {
-          title: "Khiếu Nại Escalation",
-          url: "/enterprise/complaints/escalation",
-        },
-        {
-          title: "Hồ Sơ Doanh Nghiệp",
-          url: "/enterprise/profile/overview",
-        },
-      ],
-    },
   ],
 
   collector: [
@@ -125,16 +111,6 @@ export const navByRole = {
       title: "Khiếu nại",
       url: "/admin/complaints",
       icon: AlertTriangle,
-    },
-    {
-      title: "Nhật ký hệ thống",
-      url: "/admin/audit-log",
-      icon: Shield,
-    },
-    {
-      title: "Cài đặt",
-      url: "/admin/settings",
-      icon: Settings2,
     },
   ],
 };

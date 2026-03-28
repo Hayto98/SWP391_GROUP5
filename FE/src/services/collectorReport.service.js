@@ -27,6 +27,14 @@ export function acceptCollectorReport(reportId) {
   });
 }
 
+export function rejectCollectorReport(reportId) {
+  return request(`/api/v1/collector/reports/${reportId}/reject`, {
+    method: "PATCH",
+    data: {},
+    headers: getAuthHeaders(),
+  });
+}
+
 export function scheduleCollectorReport(reportId, scheduledCollectAt) {
   return request(`/api/v1/collector/reports/${reportId}/schedule`, {
     method: "PATCH",
@@ -39,13 +47,18 @@ export function scheduleCollectorReport(reportId, scheduledCollectAt) {
 
 export function submitCollectorReportResult(reportId, payload) {
   const formData = new FormData();
-  formData.append("actualQuantity", String(payload.actualQuantity));
+  formData.append("actualItems", JSON.stringify(payload.actualItems || []));
   formData.append("quantityUnit", payload.quantityUnit || "KG");
-  formData.append("quantity_unit", payload.quantityUnit || "KG");
   formData.append("note", payload.note || "");
 
-  if (payload.file) {
-    formData.append("file", payload.file);
+  if (Array.isArray(payload.files)) {
+    payload.files.forEach((file) => {
+      if (file) {
+        formData.append("files", file);
+      }
+    });
+  } else if (payload.file) {
+    formData.append("files", payload.file);
   }
 
   return request(`/api/v1/collector/reports/${reportId}/complete`, {
@@ -56,11 +69,23 @@ export function submitCollectorReportResult(reportId, payload) {
 }
 
 export function markCollectorReportAsFake(reportId, payload = {}) {
-  if (payload.file) {
+  const hasFiles =
+    Array.isArray(payload.files) && payload.files.some((file) => file);
+
+  if (hasFiles || payload.file) {
     const formData = new FormData();
     formData.append("quantityUnit", payload.quantityUnit || "KG");
     formData.append("note", payload.note || "");
-    formData.append("files", payload.file);
+
+    if (hasFiles) {
+      payload.files.forEach((file) => {
+        if (file) {
+          formData.append("files", file);
+        }
+      });
+    } else if (payload.file) {
+      formData.append("files", payload.file);
+    }
 
     return request(`/api/v1/collector/reports/${reportId}/mark-fake`, {
       method: "PATCH",

@@ -32,7 +32,23 @@ async function updateWorkingStatus(req, res, next) {
   }
 }
 
+/**
+ * GET /collector/dashboard/statistics
+ */
+async function getDashboardStatistics(req, res, next) {
+  try {
+    const collectorId = req.user.sub
+    const { fromDate, toDate, groupBy } = req.query
+
+    const result = await collectorService.getDashboardStatistics(collectorId, { fromDate, toDate, groupBy })
+    res.status(200).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
 module.exports = {
   getWorkingStatus,
-  updateWorkingStatus
+  updateWorkingStatus,
+  getDashboardStatistics
 }

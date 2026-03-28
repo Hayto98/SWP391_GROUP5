@@ -15,8 +15,8 @@ async function getAllUsers({ page = 1, limit = 20, keyword, role } = {}) {
   const roleId = role !== undefined && role !== '' ? Number(role) : undefined
   const filter = { keyword: keyword?.trim() || undefined, roleId }
   const users = await userRepository.findAll({ limit, offset, ...filter })
-  const total = await userRepository.countAll(filter)
-  return { users, total, page, limit }
+  const stats = await userRepository.getUserStats(filter)
+  return { users, ...stats, page, limit }
 }
 
 /**
@@ -251,10 +251,66 @@ async function deleteUser(targetUserId, adminId) {
   await userRepository.softDeleteUser(targetUserId)
 }
 
+// ==================== ENTERPRISE ====================
+
+/**
+ * Create a new Enterprise user (Admin action)
+ * roleId is fixed to ROLES.ENTERPRISE
+ */
+async function createEnterprise(data) {
+  const { fullname, email, phone, password } = data
+
+  if (!fullname || !email || !phone || !password) {
+    throw new ApiError(400, 'fullname, email, phone and password are required')
+  }
+
+  const existingUser = await userRepository.findByEmail(email)
+  if (existingUser) {
+    throw new ApiError(409, 'Email is already registered')
+  }
+
+  const existingUserByPhone = await userRepository.findByPhone(phone)
+  if (existingUserByPhone) {
+    throw new ApiError(409, 'Phone number is already registered')
+  }
+
+  const userAccountId = uuidv4()
+  const saltRounds = Number(process.env.BCRYPT_SALT_ROUNDS || DEFAULT_SALT_ROUNDS)
+  const passwordHash = await bcrypt.hash(password, saltRounds)
+  const createdAt = new Date()
+
+  try {
+    await userRepository.createUser({
+      userAccountId,
+      fullname,
+      email,
+      phone,
+      passwordHash,
+      roleId: ROLES.ENTERPRISE,
+      createdAt
+    })
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') {
+      throw new ApiError(409, 'Email or phone number already exists')
+    }
+    throw error
+  }
+
+  return {
+    userAccountId,
+    fullname,
+    email,
+    phone,
+    roleId: ROLES.ENTERPRISE,
+    createdAt
+  }
+}
+
 module.exports = {
   getAllUsers,
   getUserById,
   createUser,
+  createEnterprise,
   updateUser,
   changeUserRole,
   changeUserStatus,

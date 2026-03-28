@@ -46,13 +46,25 @@ function formatReportedAt(value) {
 function getStatusMeta(status) {
   if (status === "IN_PROGRESS") {
     return {
-      text: "Đã nhận",
+      text: "Đang xử lý",
       className: "bg-blue-50 text-blue-600 border-blue-200",
     };
   }
+  if (status === "ASSIGNED") {
+    return {
+      text: "Chờ xử lý",
+      className: "bg-orange-50 text-orange-700 border-orange-200",
+    };
+  }
+  if (status === "COLLECTED") {
+    return {
+      text: "Đã thu gom",
+      className: "bg-green-50 text-green-700 border-green-200",
+    };
+  }
   return {
-    text: "Chờ xử lý",
-    className: "bg-green-50 text-green-600 border-green-100",
+    text: "Chưa có nhiệm vụ",
+    className: "bg-gray-50 text-gray-700 border-gray-200",
   };
 }
 

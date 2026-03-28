@@ -108,7 +108,7 @@ export function UserTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-20">ID</TableHead>
+            <TableHead className="w-16 text-center">STT</TableHead>
             <TableHead>Người dùng</TableHead>
             <TableHead>Số điện thoại</TableHead>
             <TableHead>Vai trò</TableHead>
@@ -133,13 +133,13 @@ export function UserTable({
               </TableCell>
             </TableRow>
           ) : (
-            users.map((user) => {
+            users.map((user, index) => {
               const roleInfo = getRoleDisplay(user.roleId);
               const status = user.isLocked ? "locked" : "active";
               return (
                 <TableRow key={user.userAccountId}>
-                  <TableCell className="font-mono text-xs truncate max-w-[120px]">
-                    {user.userAccountId?.slice(0, 8)}...
+                  <TableCell className="text-center font-medium">
+                    {startItem + index}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-3">
