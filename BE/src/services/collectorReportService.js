@@ -517,7 +517,7 @@ async function rejectAssignedReport(collectorId, reportId, reason = '') {
         notificationType: NOTIFICATION_TYPES.REPORT_REJECTED,
         recipientUserAccountId: citizenUserAccountId,
         wasteReportId: reportId,
-        message: `Mã báo cáo ${reportFull.reportCode || ''} vừa bị từ chối. Mã báo cáo của bạn đang được phân công lại.`
+        message: `Mã báo cáo ${reportFull.reportCode || ''} vừa bị từ chối. Báo cáo của bạn đang được phân công lại.`
       })
     }
   } catch (notifError) {
