@@ -72,10 +72,13 @@ async function getRedeemedVouchers(userAccountId) {
 /**
  * Redeem a voucher for a citizen. All DB updates happen inside a single transaction.
  */
-async function redeemVoucher(userAccountId, voucherId) {
+async function redeemVoucher(userAccountId, voucherId, quantity = 1) {
   if (!voucherId || typeof voucherId !== 'string') {
     throw new ApiError(400, 'voucherId is required')
   }
+  
+  const qty = Number(quantity) || 1
+  if (qty < 1) throw new ApiError(400, 'Quantity must be at least 1')
 
   const user = await userRepository.findById(userAccountId)
   if (!user) throw new ApiError(404, 'Citizen not found')
@@ -96,37 +99,42 @@ async function redeemVoucher(userAccountId, voucherId) {
     const now = new Date()
     if (voucher.validFrom && new Date(voucher.validFrom) > now) throw new ApiError(400, 'Voucher not yet valid')
     if (voucher.validTo && new Date(voucher.validTo) < now) throw new ApiError(400, 'Voucher expired')
-    if (Number(voucher.quantityRemaining) <= 0) throw new ApiError(400, 'Voucher out of stock')
+    if (Number(voucher.quantityRemaining) < qty) throw new ApiError(400, 'Voucher out of stock or insufficient quantity')
 
     const pointsRequired = Number(voucher.pointsRequired) || 0
+    const totalPointsRequired = pointsRequired * qty
     const citizenPoints = Number(citizen.totalPoints) || 0
-    if (citizenPoints < pointsRequired) throw new ApiError(400, 'Insufficient points')
+    if (citizenPoints < totalPointsRequired) throw new ApiError(400, 'Insufficient points')
 
-    const redemptionId = uuidv4()
-    const pointTransactionId = uuidv4()
     const nowDate = new Date()
+    const redemptions = []
 
-    await voucherRepository.insertVoucherRedemption(connection, {
-      redemptionId,
-      voucherId,
-      citizenId: citizen.citizenId,
-      pointsUsed: pointsRequired,
-      redeemedAt: nowDate
-    })
-
-    const affectedRows = await voucherRepository.decrementQuantity(connection, voucherId)
-    if (affectedRows !== 1) {
-      throw new ApiError(409, 'Voucher out of stock')
+    for (let i = 0; i < qty; i++) {
+      const redemptionId = uuidv4()
+      await voucherRepository.insertVoucherRedemption(connection, {
+        redemptionId,
+        voucherId,
+        citizenId: citizen.citizenId,
+        pointsUsed: pointsRequired,
+        redeemedAt: nowDate
+      })
+      redemptions.push(redemptionId)
     }
 
-    await collectorReportRepository.updateCitizenPoints(connection, citizen.citizenId, -pointsRequired)
+    const affectedRows = await voucherRepository.decrementQuantity(connection, voucherId, qty)
+    if (affectedRows !== 1) {
+      throw new ApiError(409, 'Voucher out of stock or concurrency conflict')
+    }
 
+    await collectorReportRepository.updateCitizenPoints(connection, citizen.citizenId, -totalPointsRequired)
+
+    const pointTransactionId = uuidv4()
     await collectorReportRepository.insertPointTransaction(connection, {
       pointTransactionId,
       citizenId: citizen.citizenId,
       wasteReportId: null,
-      pointsDelta: -pointsRequired,
-      transactionReason: `Redeem voucher ${voucher.voucherCode}`,
+      pointsDelta: -totalPointsRequired,
+      transactionReason: `Redeem ${qty}x voucher ${voucher.voucherCode}`,
       createdAt: nowDate
     })
 
@@ -136,8 +144,9 @@ async function redeemVoucher(userAccountId, voucherId) {
       data: {
         voucherId,
         voucherCode: voucher.voucherCode,
-        redemptionId,
-        points: -pointsRequired
+        redemptions,
+        quantity: qty,
+        pointsUsed: totalPointsRequired
       }
     }
   } catch (err) {
