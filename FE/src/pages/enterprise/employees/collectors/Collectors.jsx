@@ -155,7 +155,9 @@ export default function Collectors() {
       {/* ── Header ───────────────────────────────────────────────────── */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-lg font-bold tracking-tight lg:text-2xl">Quản lý nhân viên thu gom</h1>
+          <h1 className="text-lg font-bold tracking-tight lg:text-2xl">
+            Quản lý nhân viên thu gom
+          </h1>
           <p className="mt-1 text-sm text-green-600">
             Theo dõi và quản lý đội ngũ collector của doanh nghiệp.
           </p>
@@ -168,7 +170,7 @@ export default function Collectors() {
       </div>
 
       {/* ── Stat Cards ───────────────────────────────────────────────── */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {/* <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {Object.entries(statMeta).map(([key, meta]) => {
           const Icon = meta.icon;
           return (
@@ -194,13 +196,15 @@ export default function Collectors() {
             </Card>
           );
         })}
-      </div>
+      </div> */}
 
       {/* ── Search ───────────────────────────────────────────────────── */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Tìm kiếm nhân viên</CardTitle>
-          <CardDescription>Tìm nhanh nhân viên theo tên, email hoặc số điện thoại.</CardDescription>
+          <CardDescription>
+            Tìm nhanh nhân viên theo tên, email hoặc số điện thoại.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="relative sm:w-72">
@@ -220,7 +224,9 @@ export default function Collectors() {
         <CardHeader className="flex flex-row items-center justify-between pb-4">
           <div className="space-y-1">
             <CardTitle className="text-base">Danh sách nhân viên</CardTitle>
-            <CardDescription>Danh sách nhân viên thu gom trong hệ thống.</CardDescription>
+            <CardDescription>
+              Danh sách nhân viên thu gom trong hệ thống.
+            </CardDescription>
           </div>
           <div className="flex h-7 items-center justify-center rounded-full bg-green-600 px-3 text-xs font-bold text-white shadow-sm ring-1 ring-green-600/20">
             {totalEmployees} nhân viên
@@ -238,7 +244,13 @@ export default function Collectors() {
           {error && (
             <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               Lỗi: {error}
-              <Button type="button" variant="link" size="sm" className="ml-2 h-auto p-0" onClick={reload}>
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="ml-2 h-auto p-0"
+                onClick={reload}
+              >
                 Thử lại
               </Button>
             </div>
@@ -260,7 +272,10 @@ export default function Collectors() {
                 <TableBody>
                   {rows.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} className="py-6 text-center text-muted-foreground">
+                      <TableCell
+                        colSpan={5}
+                        className="py-6 text-center text-muted-foreground"
+                      >
                         Không có nhân viên phù hợp.
                       </TableCell>
                     </TableRow>
@@ -273,16 +288,17 @@ export default function Collectors() {
                           <Avatar seed={getInitials(row.fullname)} />
                           <div>
                             <p className="font-semibold">{row.fullname}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {truncateId(row.userAccountId)}
-                            </p>
                           </div>
                         </div>
                       </TableCell>
 
-                      <TableCell className="text-sm">{row.email || "—"}</TableCell>
+                      <TableCell className="text-sm">
+                        {row.email || "—"}
+                      </TableCell>
 
-                      <TableCell className="text-sm">{row.phone || "—"}</TableCell>
+                      <TableCell className="text-sm">
+                        {row.phone || "—"}
+                      </TableCell>
 
                       <TableCell className="text-sm text-muted-foreground">
                         {formatDate(row.createdAt)}
@@ -336,7 +352,10 @@ export default function Collectors() {
                   {pages.map((item, index) => {
                     if (item === "...") {
                       return (
-                        <span key={`ellipsis-${index}`} className="px-2 text-xs font-semibold text-muted-foreground">
+                        <span
+                          key={`ellipsis-${index}`}
+                          className="px-2 text-xs font-semibold text-muted-foreground"
+                        >
                           ...
                         </span>
                       );

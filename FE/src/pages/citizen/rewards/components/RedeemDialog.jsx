@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ImageOff, Star } from "lucide-react";
+import { ImageOff, Star, Plus, Minus } from "lucide-react";
 
 function RedeemDialog({
   isOpen,
@@ -18,7 +18,38 @@ function RedeemDialog({
   isSubmitting,
   onConfirm,
 }) {
+  const [quantity, setQuantity] = useState(1);
+
+  useEffect(() => {
+    if (isOpen) {
+      setQuantity(1);
+    }
+  }, [isOpen]);
+
   if (!selectedVoucher) return null;
+
+  const maxPointsQuantity = Math.floor(
+    userPoints / selectedVoucher.pointsRequired,
+  );
+  const maxAvailableQuantity = Math.min(
+    selectedVoucher.quantityRemaining,
+    maxPointsQuantity,
+  );
+
+  const handleDecrease = () => {
+    if (quantity > 1) {
+      setQuantity(quantity - 1);
+    }
+  };
+
+  const handleIncrease = () => {
+    if (quantity < maxAvailableQuantity) {
+      setQuantity(quantity + 1);
+    }
+  };
+
+  const totalPointsRequired = selectedVoucher.pointsRequired * quantity;
+  const pointsRemaining = userPoints - totalPointsRequired;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -60,7 +91,33 @@ function RedeemDialog({
               </p>
             </div>
           </div>
-          <div className="border-t pt-4 space-y-2">
+
+          <div className="flex items-center justify-between border-t border-b py-4">
+            <span className="font-medium text-sm">Số lượng muốn đổi:</span>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 rounded-full"
+                onClick={handleDecrease}
+                disabled={quantity <= 1 || isSubmitting}
+              >
+                <Minus className="size-4" />
+              </Button>
+              <span className="w-8 text-center font-semibold">{quantity}</span>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 rounded-full"
+                onClick={handleIncrease}
+                disabled={quantity >= maxAvailableQuantity || isSubmitting}
+              >
+                <Plus className="size-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="pt-2 space-y-2">
             <div className="flex justify-between text-sm">
               <span>Điểm hiện tại:</span>
               <span className="font-semibold flex items-center gap-1">
@@ -72,25 +129,27 @@ function RedeemDialog({
               <span>Điểm cần dùng:</span>
               <span className="font-semibold text-red-600 flex items-center gap-1">
                 <Star className="size-4 fill-red-500 text-red-500" />-
-                {selectedVoucher.pointsRequired}
+                {totalPointsRequired}
               </span>
             </div>
             <div className="flex justify-between text-sm border-t pt-2">
               <span className="font-semibold">Điểm còn lại:</span>
               <span className="font-bold text-lg flex items-center gap-1">
                 <Star className="size-5 fill-amber-500 text-amber-500" />
-                {userPoints - selectedVoucher.pointsRequired}
+                {pointsRemaining}
               </span>
             </div>
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
             Hủy
           </Button>
           <Button
-            onClick={onConfirm}
-            disabled={isSubmitting || !selectedVoucher.canRedeem}
+            onClick={() => onConfirm(quantity)}
+            disabled={
+              isSubmitting || quantity < 1 || quantity > maxAvailableQuantity
+            }
           >
             {isSubmitting ? "Đang đổi..." : "Xác Nhận Đổi"}
           </Button>

@@ -8,7 +8,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -26,6 +25,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useEnterpriseOverview } from "@/hooks/useEnterpriseOverview";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from "recharts";
 import {
   AlertTriangle,
   Bell,
@@ -52,11 +59,11 @@ const activityTone = {
   default: "border-slate-200 bg-slate-100 text-slate-700",
 };
 
-const wasteDotTone = {
-  plastic: "bg-emerald-500",
-  paper: "bg-blue-500",
-  metal: "bg-amber-500",
-  other: "bg-slate-400",
+const wasteColorTone = {
+  plastic: "#10b981", // emerald-500
+  paper: "#3b82f6", // blue-500
+  metal: "#f59e0b", // amber-500
+  other: "#94a3b8", // slate-400
 };
 
 // Removed WasteRing to simplify data expression
@@ -114,10 +121,13 @@ export default function EnterpriseOverview() {
   const waste = data?.waste;
 
   // Xử lý list hoạt động
-  const totalActivityPages = Math.max(1, Math.ceil(activities.length / itemsPerPage));
+  const totalActivityPages = Math.max(
+    1,
+    Math.ceil(activities.length / itemsPerPage),
+  );
   const currentActivities = activities.slice(
     (activityPage - 1) * itemsPerPage,
-    activityPage * itemsPerPage
+    activityPage * itemsPerPage,
   );
 
   if (loading) {
@@ -168,23 +178,6 @@ export default function EnterpriseOverview() {
           </div>
 
           <div className="flex w-full flex-col gap-3 sm:flex-row md:w-auto md:items-center">
-            {/* Date range picker (styled) */}
-            <div className="flex items-center gap-2">
-              <Input
-                type="date"
-                value={fromDate.slice(0, 10)}
-                onChange={(e) => setFromDate(`${e.target.value} 00:00:00`)}
-                className="h-9 w-[140px]"
-              />
-              <span className="text-muted-foreground">-</span>
-              <Input
-                type="date"
-                value={toDate.slice(0, 10)}
-                onChange={(e) => setToDate(`${e.target.value} 23:59:59`)}
-                className="h-9 w-[140px]"
-              />
-            </div>
-
             <Select value={groupBy} onValueChange={setGroupBy}>
               <SelectTrigger className="h-9 w-[130px]">
                 <SelectValue placeholder="Lọc theo" />
@@ -295,7 +288,7 @@ export default function EnterpriseOverview() {
           </CardContent>
         </Card>
 
-        <Card>
+        {/* <Card>
           <CardHeader>
             <CardTitle className="text-base">Phân loại rác thải</CardTitle>
             <CardDescription>
@@ -306,50 +299,51 @@ export default function EnterpriseOverview() {
           <CardContent className="space-y-6">
             <div className="flex flex-col items-center justify-center rounded-lg bg-green-50 py-6 border border-green-100">
               <span className="text-3xl font-black tracking-tight text-green-700">
-                {waste?.totalText || "0"} <span className="text-base font-semibold">kg</span>
+                {waste?.totalText || "0"}{" "}
+                <span className="text-base font-semibold">kg</span>
               </span>
               <span className="text-xs font-bold uppercase tracking-wider text-green-600/70">
                 TỔNG KHỐI LƯỢNG ĐÃ PHÂN LOẠI
               </span>
             </div>
 
-            <div className="space-y-4">
-              {(waste?.breakdown || []).map((item) => (
-                <div key={item.key} className="space-y-1.5">
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={[
-                          "inline-block size-3 rounded-full",
-                          wasteDotTone[item.key] || "bg-slate-400",
-                        ].join(" ")}
-                      />
-                      <span className="font-semibold">{item.label}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-medium text-slate-700">
-                        {item.quantity} kg
-                      </span>
-                      <span className="w-10 text-right font-bold text-muted-foreground">
-                        {item.percent}%
-                      </span>
-                    </div>
-                  </div>
-                  {/* Progress Bar tự build cho trực quan và tùy biến theo Data */}
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className={[
-                        "h-full rounded-full transition-all duration-500",
-                        wasteDotTone[item.key] || "bg-slate-400",
-                      ].join(" ")}
-                      style={{ width: `${item.percent}%` }}
+            <div className="h-[250px] w-full">
+              {waste?.breakdown && waste.breakdown.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={waste.breakdown}
+                      dataKey="quantity"
+                      nameKey="label"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      paddingAngle={5}
+                    >
+                      {waste.breakdown.map((entry, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={
+                            wasteColorTone[entry.key] || wasteColorTone.other
+                          }
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value, name) => [`${value} kg`, name]}
                     />
-                  </div>
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                  Không có dữ liệu phân loại
                 </div>
-              ))}
+              )}
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
 
       <Card>
@@ -418,7 +412,9 @@ export default function EnterpriseOverview() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setActivityPage((prev) => Math.max(1, prev - 1))}
+                  onClick={() =>
+                    setActivityPage((prev) => Math.max(1, prev - 1))
+                  }
                   disabled={activityPage === 1}
                 >
                   Trước
@@ -426,7 +422,11 @@ export default function EnterpriseOverview() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setActivityPage((prev) => Math.min(totalActivityPages, prev + 1))}
+                  onClick={() =>
+                    setActivityPage((prev) =>
+                      Math.min(totalActivityPages, prev + 1),
+                    )
+                  }
                   disabled={activityPage === totalActivityPages}
                 >
                   Sau

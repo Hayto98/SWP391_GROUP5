@@ -64,6 +64,7 @@ async function getRedeemedVouchers(userAccountId) {
       title: r.title,
       fileUri: r.fileUri || null,
       pointsUsed: Number(r.pointsUsed) || 0,
+      quantity: Number(r.quantity) || 1,
       redeemedAt: formatDateTime(r.redeemedAt)
     }))
   }
@@ -107,19 +108,16 @@ async function redeemVoucher(userAccountId, voucherId, quantity = 1) {
     if (citizenPoints < totalPointsRequired) throw new ApiError(400, 'Insufficient points')
 
     const nowDate = new Date()
-    const redemptions = []
+    const redemptionId = uuidv4()
 
-    for (let i = 0; i < qty; i++) {
-      const redemptionId = uuidv4()
-      await voucherRepository.insertVoucherRedemption(connection, {
-        redemptionId,
-        voucherId,
-        citizenId: citizen.citizenId,
-        pointsUsed: pointsRequired,
-        redeemedAt: nowDate
-      })
-      redemptions.push(redemptionId)
-    }
+    await voucherRepository.insertVoucherRedemption(connection, {
+      redemptionId,
+      voucherId,
+      citizenId: citizen.citizenId,
+      pointsUsed: totalPointsRequired,
+      quantity: qty,
+      redeemedAt: nowDate
+    })
 
     const affectedRows = await voucherRepository.decrementQuantity(connection, voucherId, qty)
     if (affectedRows !== 1) {
@@ -144,7 +142,7 @@ async function redeemVoucher(userAccountId, voucherId, quantity = 1) {
       data: {
         voucherId,
         voucherCode: voucher.voucherCode,
-        redemptions,
+        redemptionId,
         quantity: qty,
         pointsUsed: totalPointsRequired
       }

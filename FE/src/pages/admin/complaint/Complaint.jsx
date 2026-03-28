@@ -73,7 +73,12 @@ function getStatusBadgeVariant(status) {
 
 function Complaint() {
   const [listData, setListData] = useState([]);
-  const [pagination, setPagination] = useState({ page: 1, size: 10, totalElements: 0, totalPages: 1 });
+  const [pagination, setPagination] = useState({
+    page: 1,
+    size: 10,
+    totalElements: 0,
+    totalPages: 1,
+  });
   const [loading, setLoading] = useState(false);
 
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -102,7 +107,14 @@ function Complaint() {
         size,
       });
       setListData(result.data || []);
-      setPagination(result.pagination || { page: 1, size: 10, totalElements: 0, totalPages: 1 });
+      setPagination(
+        result.pagination || {
+          page: 1,
+          size: 10,
+          totalElements: 0,
+          totalPages: 1,
+        },
+      );
     } catch (error) {
       toast.error("Lỗi khi tải danh sách khiếu nại: " + error.message);
     } finally {
@@ -117,7 +129,7 @@ function Complaint() {
   const filteredRows = useMemo(() => {
     if (!citizenKeyword) return listData;
     return listData.filter((row) =>
-      row.citizenName?.toLowerCase().includes(citizenKeyword.toLowerCase())
+      row.citizenName?.toLowerCase().includes(citizenKeyword.toLowerCase()),
     );
   }, [citizenKeyword, listData]);
 
@@ -273,7 +285,7 @@ function Complaint() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>ID</TableHead>
+                <TableHead>STT</TableHead>
                 <TableHead>Người gửi</TableHead>
                 <TableHead>Collector</TableHead>
                 <TableHead>Trạng thái</TableHead>
@@ -285,20 +297,26 @@ function Complaint() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                  <TableCell
+                    colSpan={7}
+                    className="h-24 text-center text-muted-foreground"
+                  >
                     Đang tải...
                   </TableCell>
                 </TableRow>
               ) : filteredRows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                  <TableCell
+                    colSpan={7}
+                    className="h-24 text-center text-muted-foreground"
+                  >
                     Không có dữ liệu phù hợp bộ lọc.
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredRows.map((row) => (
+                filteredRows.map((row, index) => (
                   <TableRow key={row.complaintId}>
-                    <TableCell className="font-mono text-xs">{shortId(row.complaintId)}</TableCell>
+                    <TableCell>{index + 1}</TableCell>
                     <TableCell>{row.citizenName}</TableCell>
                     <TableCell>{row.collectorName || "-"}</TableCell>
                     <TableCell>
@@ -309,7 +327,10 @@ function Complaint() {
                     <TableCell>{formatDateTime(row.createdAt)}</TableCell>
                     <TableCell>{formatDateTime(row.resolvedAt)}</TableCell>
                     <TableCell className="text-right">
-                      <Button variant="outline" onClick={() => openDetailDialog(row.complaintId)}>
+                      <Button
+                        variant="outline"
+                        onClick={() => openDetailDialog(row.complaintId)}
+                      >
                         Xem chi tiết
                       </Button>
                     </TableCell>
@@ -368,7 +389,9 @@ function Complaint() {
                       href="#"
                       onClick={(e) => {
                         e.preventDefault();
-                        setPage((prev) => Math.min(pagination.totalPages, prev + 1));
+                        setPage((prev) =>
+                          Math.min(pagination.totalPages, prev + 1),
+                        );
                       }}
                     />
                   </PaginationItem>
@@ -380,7 +403,7 @@ function Complaint() {
       </Card>
 
       <Dialog open={openDetail} onOpenChange={setOpenDetail}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Chi tiết khiếu nại</DialogTitle>
             <DialogDescription>
@@ -392,118 +415,150 @@ function Complaint() {
             <div className="flex items-center justify-center py-8 text-muted-foreground">
               Đang tải chi tiết...
             </div>
-          ) : selectedDetail && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground">Complaint ID</p>
-                  <p className="font-mono text-sm break-all">{selectedDetail.complaintId}</p>
+          ) : (
+            selectedDetail && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="rounded-md border p-3">
+                    <p className="text-xs text-muted-foreground">
+                      Complaint ID
+                    </p>
+                    <p className="font-mono text-sm break-all">
+                      {selectedDetail.complaintId}
+                    </p>
+                  </div>
+                  <div className="rounded-md border p-3">
+                    <p className="text-xs text-muted-foreground">Trạng thái</p>
+                    <Badge
+                      variant={getStatusBadgeVariant(selectedDetail.status)}
+                    >
+                      {STATUS_DISPLAY[selectedDetail.status] ||
+                        selectedDetail.status}
+                    </Badge>
+                  </div>
+                  <div className="rounded-md border p-3">
+                    <p className="text-xs text-muted-foreground">Người gửi</p>
+                    <p className="text-sm">
+                      {selectedDetail.citizen?.name || "-"}
+                    </p>
+                  </div>
+                  <div className="rounded-md border p-3">
+                    <p className="text-xs text-muted-foreground">Collector</p>
+                    <p className="text-sm">
+                      {selectedDetail.collector
+                        ? selectedDetail.collector.name
+                        : "-"}
+                    </p>
+                  </div>
+                  <div className="rounded-md border p-3">
+                    <p className="text-xs text-muted-foreground">Tạo lúc</p>
+                    <p className="text-sm">
+                      {formatDateTime(selectedDetail.createdAt)}
+                    </p>
+                  </div>
+                  <div className="rounded-md border p-3">
+                    <p className="text-xs text-muted-foreground">Xử lý lúc</p>
+                    <p className="text-sm">
+                      {formatDateTime(selectedDetail.resolvedAt)}
+                    </p>
+                  </div>
                 </div>
+
                 <div className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground">Trạng thái</p>
-                  <Badge variant={getStatusBadgeVariant(selectedDetail.status)}>
-                    {STATUS_DISPLAY[selectedDetail.status] || selectedDetail.status}
-                  </Badge>
-                </div>
-                <div className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground">Người gửi</p>
-                  <p className="text-sm">
-                    {selectedDetail.citizen?.name || "-"}
+                  <p className="text-xs text-muted-foreground">
+                    Nội dung khiếu nại
+                  </p>
+                  <p className="mt-1 text-sm">
+                    {selectedDetail.complaintContent || "-"}
                   </p>
                 </div>
+
+                {selectedDetail.attachments &&
+                  selectedDetail.attachments.length > 0 && (
+                    <div className="rounded-md border p-3">
+                      <p className="text-xs text-muted-foreground mb-2">
+                        Hình ảnh đính kèm
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedDetail.attachments.map((att, idx) => (
+                          <a
+                            key={idx}
+                            href={att.fileUri}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <img
+                              src={att.fileUri}
+                              alt={`Attachment ${idx + 1}`}
+                              className="h-20 w-20 rounded border object-cover"
+                            />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Phản hồi Admin</p>
+                    <Textarea
+                      value={adminResponse}
+                      onChange={(e) => setAdminResponse(e.target.value)}
+                      placeholder="Nhập phản hồi của admin..."
+                      disabled={!isPending(selectedDetail.status)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Điểm hoàn trả</p>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={refundPoints}
+                      onChange={(e) => setRefundPoints(Number(e.target.value))}
+                      disabled={!isPending(selectedDetail.status)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Chỉ áp dụng khi resolve. Reject sẽ luôn đặt về 0.
+                    </p>
+                  </div>
+                </div>
+
                 <div className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground">Collector</p>
+                  <p className="text-xs text-muted-foreground">Người xử lý</p>
                   <p className="text-sm">
-                    {selectedDetail.collector
-                      ? selectedDetail.collector.name
+                    {selectedDetail.resolvedBy
+                      ? `${selectedDetail.resolvedBy.adminName}`
                       : "-"}
                   </p>
                 </div>
-                <div className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground">Tạo lúc</p>
-                  <p className="text-sm">{formatDateTime(selectedDetail.createdAt)}</p>
-                </div>
-                <div className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground">Xử lý lúc</p>
-                  <p className="text-sm">{formatDateTime(selectedDetail.resolvedAt)}</p>
-                </div>
-              </div>
 
-              <div className="rounded-md border p-3">
-                <p className="text-xs text-muted-foreground">Nội dung khiếu nại</p>
-                <p className="mt-1 text-sm">{selectedDetail.complaintContent || "-"}</p>
-              </div>
-
-              {selectedDetail.attachments && selectedDetail.attachments.length > 0 && (
-                <div className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground mb-2">Hình ảnh đính kèm</p>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedDetail.attachments.map((att, idx) => (
-                      <a key={idx} href={att.fileUri} target="_blank" rel="noopener noreferrer">
-                        <img
-                          src={att.fileUri}
-                          alt={`Attachment ${idx + 1}`}
-                          className="h-20 w-20 rounded border object-cover"
-                        />
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Phản hồi Admin</p>
-                  <Textarea
-                    value={adminResponse}
-                    onChange={(e) => setAdminResponse(e.target.value)}
-                    placeholder="Nhập phản hồi của admin..."
-                    disabled={!isPending(selectedDetail.status)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Điểm hoàn trả</p>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={refundPoints}
-                    onChange={(e) => setRefundPoints(Number(e.target.value))}
-                    disabled={!isPending(selectedDetail.status)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Chỉ áp dụng khi resolve. Reject sẽ luôn đặt về 0.
-                  </p>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setOpenDetail(false)}
+                  >
+                    Đóng
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={handleReject}
+                    disabled={
+                      !isPending(selectedDetail.status) || actionLoading
+                    }
+                  >
+                    {actionLoading ? "Đang xử lý..." : "Từ chối khiếu nại"}
+                  </Button>
+                  <Button
+                    onClick={handleResolve}
+                    disabled={
+                      !isPending(selectedDetail.status) || actionLoading
+                    }
+                  >
+                    {actionLoading ? "Đang xử lý..." : "Resolve + Hoàn điểm"}
+                  </Button>
                 </div>
               </div>
-
-              <div className="rounded-md border p-3">
-                <p className="text-xs text-muted-foreground">Người xử lý</p>
-                <p className="text-sm">
-                  {selectedDetail.resolvedBy
-                    ? `${selectedDetail.resolvedBy.adminName}`
-                    : "-"}
-                </p>
-              </div>
-
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setOpenDetail(false)}>
-                  Đóng
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={handleReject}
-                  disabled={!isPending(selectedDetail.status) || actionLoading}
-                >
-                  {actionLoading ? "Đang xử lý..." : "Từ chối khiếu nại"}
-                </Button>
-                <Button
-                  onClick={handleResolve}
-                  disabled={!isPending(selectedDetail.status) || actionLoading}
-                >
-                  {actionLoading ? "Đang xử lý..." : "Resolve + Hoàn điểm"}
-                </Button>
-              </div>
-            </div>
+            )
           )}
         </DialogContent>
       </Dialog>
