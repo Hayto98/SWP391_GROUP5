@@ -36,6 +36,7 @@ export async function getEnterpriseOverview(params = {}) {
     const totalWaste = d.wasteByType.reduce((sum, w) => sum + Number(w.quantity || 0), 0);
     const breakdown = d.wasteByType.map((w) => ({
       label: w.wasteType,
+      quantity: Number(w.quantity || 0),
       percent: totalWaste ? Math.round((w.quantity / totalWaste) * 100) : 0,
       key: WASTE_TYPE_KEY[w.wasteType] || "other",
     }));
@@ -48,8 +49,11 @@ export async function getEnterpriseOverview(params = {}) {
     // Fetch notifications for enterprise and map to activities
     let activities = [];
     try {
-      const notifRes = await notificationService.getNotifications("enterprise", { page: 1, limit: 10 });
-      const notifications = notifRes?.data?.items || [];
+      const notifRes = await notificationService.getNotifications("enterprise", { page: 1, limit: 30 });
+      let notifications = notifRes?.data?.items || [];
+      // Sắp xếp các hoạt động theo thời gian gần nhất (Mới nhất nằm trên cùng)
+      notifications.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
       activities = notifications.map((n) => {
         // Parse code from message if possible (e.g., WR-2026-0006)
         const codeMatch = n.message.match(/(WR-[\d-]+)/);
