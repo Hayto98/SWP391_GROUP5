@@ -3,7 +3,7 @@ import {
   getEmployees,
   getEmployeeById,
   createEmployee,
-  deleteEmployee,
+  lockEmployee,
   getEmployeeStatistics,
 } from "../services/collectors.service";
 
@@ -13,7 +13,11 @@ export function useCollectors() {
   const [pageSize] = useState(6);
 
   const [allRows, setAllRows] = useState([]);
-  const [statistics, setStatistics] = useState({ assigned: 0, completed: 0, rejected: 0 });
+  const [statistics, setStatistics] = useState({
+    assigned: 0,
+    completed: 0,
+    rejected: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -24,7 +28,7 @@ export function useCollectors() {
     try {
       const res = await getEmployees();
       // API trả về toàn bộ list — có thể là mảng trực tiếp hoặc { data: [...] }
-      const rows = Array.isArray(res) ? res : (res?.data || res?.rows || []);
+      const rows = Array.isArray(res) ? res : res?.data || res?.rows || [];
       setAllRows(rows);
       // Có thể API /employees không trả về đủ field thống kê, nên không tự tính ở đây nữa
     } catch (e) {
@@ -39,12 +43,21 @@ export function useCollectors() {
     try {
       const res = await getEmployeeStatistics();
       // API trả về từng object nhân viên (có dạng phân trang hoặc mảng)
-      const dataArr = Array.isArray(res) ? res : (res?.data || res?.rows || []);
-      
+      const dataArr = Array.isArray(res) ? res : res?.data || res?.rows || [];
+
       // Tự tổng hợp từ mảng data objects của nhân viên
-      const assigned = dataArr.reduce((acc, emp) => acc + (emp.totalAssigned || 0), 0);
-      const completed = dataArr.reduce((acc, emp) => acc + (emp.totalCompleted || 0), 0);
-      const rejected = dataArr.reduce((acc, emp) => acc + (emp.totalRejected || 0), 0);
+      const assigned = dataArr.reduce(
+        (acc, emp) => acc + (emp.totalAssigned || 0),
+        0,
+      );
+      const completed = dataArr.reduce(
+        (acc, emp) => acc + (emp.totalCompleted || 0),
+        0,
+      );
+      const rejected = dataArr.reduce(
+        (acc, emp) => acc + (emp.totalRejected || 0),
+        0,
+      );
 
       setStatistics({
         assigned,
@@ -71,7 +84,7 @@ export function useCollectors() {
         (r.fullname || "").toLowerCase().includes(s) ||
         (r.email || "").toLowerCase().includes(s) ||
         (r.phone || "").includes(s) ||
-        (r.userAccountId || "").toLowerCase().includes(s)
+        (r.userAccountId || "").toLowerCase().includes(s),
     );
   }, [allRows, q]);
 
@@ -95,16 +108,16 @@ export function useCollectors() {
       await Promise.all([loadEmployees(), loadStatistics()]);
       return res;
     },
-    [loadEmployees, loadStatistics]
+    [loadEmployees, loadStatistics],
   );
 
-  const handleDelete = useCallback(
+  const handleLock = useCallback(
     async (employeeId) => {
-      const res = await deleteEmployee(employeeId);
+      const res = await lockEmployee(employeeId);
       await Promise.all([loadEmployees(), loadStatistics()]);
       return res;
     },
-    [loadEmployees, loadStatistics]
+    [loadEmployees, loadStatistics],
   );
 
   const getDetail = useCallback(async (employeeId) => {
@@ -130,7 +143,7 @@ export function useCollectors() {
     reload: loadEmployees,
     reloadStatistics: loadStatistics,
     handleCreate,
-    handleDelete,
+    handleLock,
     getDetail,
   };
 }

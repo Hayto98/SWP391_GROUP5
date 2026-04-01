@@ -46,9 +46,9 @@ export async function createEmployee(payload) {
  * Xóa employee
  * @param {string} employeeId - UUID of employee
  */
-export async function deleteEmployee(employeeId) {
-  return request(`/api/v1/enterprise/employees/${employeeId}`, {
-    method: "DELETE",
+export async function lockEmployee(employeeId) {
+  return request(`/api/v1/enterprise/employees/${employeeId}/lock`, {
+    method: "PATCH",
     headers: getAuthHeaders(),
   });
 }

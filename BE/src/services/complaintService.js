@@ -1,6 +1,9 @@
 const complaintRepository = require('../repositories/complaintRepository')
 const wasteReportRepository = require('../repositories/wasteReportRepository')
+const userRepository = require('../repositories/userRepository')
 const rewardRepository = require('../repositories/rewardRepository')
+const notificationService = require('./notificationService')
+const { ROLES, NOTIFICATION_TYPES } = require('../utils/constants')
 const db = require('../config/database')
 const ApiError = require('../errors/ApiError')
 const cloudinary = require('../config/cloudinary')
@@ -93,6 +96,21 @@ async function createComplaint({
     complaintReason,
     attachments: normalizedAttachments
   })
+
+  // Notify Admins
+  try {
+    const adminAccounts = await userRepository.findAll({ roleId: ROLES.ADMIN, limit: 100 })
+    for (const admin of adminAccounts) {
+      await notificationService.createNotification({
+        recipientUserAccountId: admin.userAccountId || admin.user_account_id,
+        notificationType: NOTIFICATION_TYPES.NEW_COMPLAINT_RECEIVED,
+        message: `Có khiếu nại mới từ phía Citizen.`,
+        wasteReportId: wasteReportId
+      })
+    }
+  } catch (error) {
+    console.error('Failed to notify admins about new complaint:', error.message)
+  }
 
   // Trả về dữ liệu như JIRA yêu cầu
   return {

@@ -11,38 +11,38 @@ import {
 import { Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
-export default function DeleteEmployeeDialog({
+export default function LockEmployeeDialog({
   open,
   onOpenChange,
   employee,
   onConfirm,
 }) {
-  const [deleting, setDeleting] = useState(false);
+  const [locking, setLocking] = useState(false);
 
-  async function handleDelete() {
+  async function handleLock() {
     if (!employee) return;
-    setDeleting(true);
+    setLocking(true);
     try {
       await onConfirm(employee.userAccountId);
-      toast.success(`Đã xóa nhân viên "${employee.fullname}" thành công!`);
+      toast.success(`Đã khóa nhân viên "${employee.fullname}" thành công!`);
       onOpenChange(false);
     } catch (err) {
-      toast.error(err?.message || "Lỗi khi xóa nhân viên");
+      toast.error(err?.message || "Lỗi khi khóa nhân viên");
     } finally {
-      setDeleting(false);
+      setLocking(false);
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => !deleting && onOpenChange(v)}>
+    <Dialog open={open} onOpenChange={(v) => !locking && onOpenChange(v)}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-red-600">
             <AlertTriangle className="size-5" />
-            Xác nhận xóa nhân viên
+            Xác nhận khóa nhân viên
           </DialogTitle>
           <DialogDescription>
-            Hành động này không thể hoàn tác. Nhân viên sẽ bị xóa khỏi hệ thống.
+            Hành động này sẽ khóa tài khoản, nhân viên sẽ không thể đăng nhập.
           </DialogDescription>
         </DialogHeader>
 
@@ -61,18 +61,18 @@ export default function DeleteEmployeeDialog({
             type="button"
             variant="outline"
             onClick={() => onOpenChange(false)}
-            disabled={deleting}
+            disabled={locking}
           >
             Hủy bỏ
           </Button>
           <Button
             type="button"
             variant="destructive"
-            onClick={handleDelete}
-            disabled={deleting}
+            onClick={handleLock}
+            disabled={locking}
           >
-            {deleting && <Loader2 className="mr-2 size-4 animate-spin" />}
-            Xóa nhân viên
+            {locking && <Loader2 className="mr-2 size-4 animate-spin" />}
+            Khóa tài khoản
           </Button>
         </DialogFooter>
       </DialogContent>

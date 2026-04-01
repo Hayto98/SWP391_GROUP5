@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -69,16 +69,28 @@ const wasteColorTone = {
 // Removed WasteRing to simplify data expression
 
 export default function EnterpriseOverview() {
-  // State cho filter dashboard
-  const [fromDate, setFromDate] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01 00:00:00`;
-  });
-  const [toDate, setToDate] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-31 23:59:59`;
-  });
-  const [groupBy, setGroupBy] = useState("month");
+  const today = new Date();
+  const [month, setMonth] = useState((today.getMonth() + 1).toString());
+  const [year, setYear] = useState(today.getFullYear().toString());
+
+  const greeting = useMemo(() => {
+    const hour = today.getHours();
+    if (hour < 12) return "Chào buổi sáng!";
+    if (hour < 18) return "Chào buổi chiều!";
+    return "Chào buổi tối!";
+  }, []);
+
+  // Tính toán fromDate và toDate dựa trên month/year
+  const fromDate = useMemo(
+    () => `${year}-${month.padStart(2, "0")}-01 00:00:00`,
+    [month, year],
+  );
+  const toDate = useMemo(() => {
+    const lastDay = new Date(year, month, 0).getDate();
+    return `${year}-${month.padStart(2, "0")}-${lastDay} 23:59:59`;
+  }, [month, year]);
+
+  const [groupBy, setGroupBy] = useState("day");
 
   // State cho phân trang hoạt động gần đây
   const [activityPage, setActivityPage] = useState(1);
@@ -86,6 +98,12 @@ export default function EnterpriseOverview() {
 
   // State filter thực tế dùng cho API
   const [filter, setFilter] = useState({ fromDate, toDate, groupBy });
+
+  // Tự động cập nhật filter thay cho nút Lọc
+  useEffect(() => {
+    setFilter({ fromDate, toDate, groupBy });
+  }, [fromDate, toDate, groupBy]);
+
   const { data, loading, error, refetch } = useEnterpriseOverview(filter);
 
   const stats = useMemo(() => {
@@ -158,53 +176,48 @@ export default function EnterpriseOverview() {
   if (!data) return null;
 
   return (
-    <div className="space-y-6">
-      <div className="mb-6">
-        <h1 className="text-lg font-bold tracking-tight lg:text-2xl">
-          Dashboard tổng quan doanh nghiệp
-        </h1>
-        <p className="mt-1 text-sm text-green-600">
-          Theo dõi hiệu suất thu gom, chất lượng phân loại
-        </p>
-      </div>
+    <div className="space-y-6 animate-in fade-in duration-500 pb-10">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            {greeting}
+          </h1>
+          <p className="mt-1 text-sm text-green-600 font-medium">
+            Theo dõi hiệu suất thu gom và quản trị doanh nghiệp.
+          </p>
+        </div>
 
-      <Card>
-        <CardContent className="flex flex-col gap-3 py-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-sm font-semibold">RecycleCorp</p>
-            <p className="text-xs text-muted-foreground">
-              Quản trị doanh nghiệp
-            </p>
-          </div>
-
-          <div className="flex w-full flex-col gap-3 sm:flex-row md:w-auto md:items-center">
-            <Select value={groupBy} onValueChange={setGroupBy}>
-              <SelectTrigger className="h-9 w-[130px]">
-                <SelectValue placeholder="Lọc theo" />
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="w-[120px]">
+            <Select value={month} onValueChange={setMonth}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Tháng" />
               </SelectTrigger>
               <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="day">Theo ngày</SelectItem>
-                  <SelectItem value="month">Theo tháng</SelectItem>
-                  <SelectItem value="year">Theo năm</SelectItem>
-                </SelectGroup>
+                {[...Array(12)].map((_, i) => (
+                  <SelectItem key={i + 1} value={(i + 1).toString()}>
+                    Tháng {i + 1}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
-
-            <Button
-              variant="default"
-              size="sm"
-              className="h-9 bg-green-600 px-5 text-white shadow-sm hover:bg-green-700 sm:ml-2"
-              onClick={() => {
-                setFilter({ fromDate, toDate, groupBy });
-                setTimeout(() => refetch(), 0); // Đảm bảo refetch sau khi setFilter
-              }}
-            >
-              Lọc
-            </Button>
           </div>
-        </CardContent>
-      </Card>
+          <div className="w-[120px]">
+            <Select value={year} onValueChange={setYear}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Năm" />
+              </SelectTrigger>
+              <SelectContent>
+                {[2024, 2025, 2026, 2027].map((y) => (
+                  <SelectItem key={y} value={y.toString()}>
+                    Năm {y}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-3">
         {stats.map((item) => (

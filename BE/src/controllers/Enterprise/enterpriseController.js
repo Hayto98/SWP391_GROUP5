@@ -227,11 +227,11 @@ async function getEmployees(req, res, next) {
 }
 
 /**
- * DELETE /enterprise/employees/:employeeId - Enterprise xóa nhân viên
+ * PATCH /enterprise/employees/:employeeId/lock - Enterprise khóa nhân viên
  */
-async function deleteEmployee(req, res, next) {
+async function lockEmployee(req, res, next) {
   try {
-    const result = await enterpriseService.deleteEmployee(req.params.employeeId)
+    const result = await enterpriseService.lockEmployee(req.params.employeeId)
     res.status(200).json(result)
   } catch (error) {
     next(error)
@@ -262,5 +262,5 @@ module.exports = {
   getEmployees,
   getEmployeeStatistics,
   getEmployeeById,
-  deleteEmployee
+  lockEmployee
 }

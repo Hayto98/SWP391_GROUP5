@@ -265,21 +265,37 @@ async function createReport({ userAccountId, items, gpsLat, gpsLng, description,
     if (connection && !isTransactionCommitted) connection.release()
   }
 
-  // ── Send notifications to Enterprises ───────────────────────
+  // ── Send notifications to Enterprises AND Admins ───────────────────────
   try {
     const enterprises = await userRepository.findAll({ roleId: ROLES.ENTERPRISE })
-    console.log(`[DEBUG] Notifying ${enterprises.length} Enterprises of new report ${created.wasteReportId}`)
-    for (const ent of enterprises) {
-      console.log(`[DEBUG] Sending notif to Enterprise: ${ent.userAccountId || ent.user_account_id}`)
+    const admins = await userRepository.findAll({ roleId: ROLES.ADMIN })
+
+    console.log(
+      `[DEBUG] Notifying ${enterprises.length} Enterprises and ${admins.length} Admins of new report ${created.wasteReportId}`
+    )
+
+    // Mảng gom chung tất cả người nhận
+    const allRecipients = [
+      ...enterprises.map((e) => ({
+        accountId: e.userAccountId || e.user_account_id,
+        type: NOTIFICATION_TYPES.NEW_REPORT_PENDING
+      })),
+      ...admins.map((a) => ({
+        accountId: a.userAccountId || a.user_account_id,
+        type: NOTIFICATION_TYPES.NEW_REPORT_RECEIVED
+      }))
+    ]
+
+    for (const recipient of allRecipients) {
       await notificationService.createNotification({
-        notificationType: NOTIFICATION_TYPES.NEW_REPORT_PENDING,
-        recipientUserAccountId: ent.userAccountId || ent.user_account_id,
+        notificationType: recipient.type,
+        recipientUserAccountId: recipient.accountId,
         wasteReportId: created.wasteReportId,
         message: `Có báo cáo rác thải mới (${created.reportCode || created?.report_code}) đang chờ xử lý.`
       })
     }
   } catch (notifError) {
-    console.error('Failed to notify enterprises of new report:', notifError.message)
+    console.error('Failed to notify about new report:', notifError.message)
   }
 
   // Lấy items kèm thông tin wastetype để trả về

@@ -84,14 +84,19 @@ export default function AcceptWasteConfig() {
           <div className="flex items-start gap-3">
             <div className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />
             <div className="space-y-1">
-              <div className="text-sm font-medium text-primary">{data.rule.title}</div>
+              <div className="text-sm font-medium text-primary">
+                {data.rule.title}
+              </div>
               <div className="text-sm text-muted-foreground leading-snug">
                 {data.rule.desc}
               </div>
             </div>
           </div>
 
-          <Badge className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/10 hover:text-primary gap-1.5 shadow-none pb-0.5" variant="outline">
+          <Badge
+            className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/10 hover:text-primary gap-1.5 shadow-none pb-0.5"
+            variant="outline"
+          >
             <CheckCircle2 className="size-3.5" />
             {data.rule.status?.toUpperCase() || "ĐANG HIỆU LỰC"}
           </Badge>
@@ -110,7 +115,7 @@ export default function AcceptWasteConfig() {
               className={cn(
                 "transition-all",
                 active &&
-                "border-primary/60 ring-1 ring-primary/20 bg-primary/10",
+                  "border-primary/60 ring-1 ring-primary/20 bg-primary/10",
                 disabledCard && "opacity-70",
               )}
             >
@@ -167,36 +172,6 @@ export default function AcceptWasteConfig() {
           );
         })}
       </div>
-
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Dung lượng kho</CardTitle>
-          <CardDescription>
-            {percent}% công suất đã được sử dụng
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="h-2 overflow-hidden rounded-full bg-muted">
-            {/* Color-coded usage bar for quick capacity awareness. */}
-            <div
-              className={cn(
-                "h-full rounded-full transition-all",
-                percent >= 85
-                  ? "bg-destructive"
-                  : percent >= 70
-                    ? "bg-amber-500"
-                    : "bg-emerald-500",
-              )}
-              style={{ width: `${percent}%` }}
-            />
-          </div>
-
-          <div className="text-sm text-muted-foreground">
-            {data.storage.used.toFixed(2)} / {data.storage.total.toFixed(2)}{" "}
-            {data.storage.unit}
-          </div>
-        </CardContent>
-      </Card>
 
       <div className="flex justify-end">
         <Badge variant="outline" className="font-normal text-muted-foreground">

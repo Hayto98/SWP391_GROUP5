@@ -79,6 +79,13 @@ export function NotificationBell() {
         navigate(`/enterprise/reports/detail/${notif.wasteReportId}`);
       } else if (r === 3 || roleStr === "collector") {
         navigate(`/collector/tasks/${notif.wasteReportId}`);
+      } else if (r === 1 || roleStr === "admin") {
+        if (notif.type === "NEW_COMPLAINT_RECEIVED") {
+          navigate(`/admin/complaints`);
+        } else {
+          // Có thể trỏ về trang chủ admin hoặc trang quản lý báo cáo nếu có
+          navigate(`/admin`);
+        }
       }
     }
   };

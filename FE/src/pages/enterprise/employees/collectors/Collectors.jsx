@@ -24,14 +24,14 @@ import {
   Loader2,
   Plus,
   Search,
-  Trash2,
+  Lock,
   ClipboardList,
   CheckCircle,
   XCircle,
 } from "lucide-react";
 
 import AddEmployeeModal from "./AddEmployeeModal";
-import DeleteEmployeeDialog from "./DeleteEmployeeDialog";
+import LockEmployeeDialog from "./LockEmployeeDialog";
 import ViewEmployeeDialog from "./ViewEmployeeDialog";
 
 /* ─── Stat card metadata ─────────────────────────────────────────────── */
@@ -111,7 +111,7 @@ export default function Collectors() {
     setPage,
     reload,
     handleCreate,
-    handleDelete,
+    handleLock,
     getDetail,
   } = useCollectors();
 
@@ -140,7 +140,7 @@ export default function Collectors() {
   }, [page, totalPages]);
 
   // ── Handlers ────────────────────────────────────────────────────────
-  function openDelete(emp) {
+  function openLock(emp) {
     setDeleteTarget(emp);
     setShowDelete(true);
   }
@@ -287,7 +287,14 @@ export default function Collectors() {
                         <div className="flex items-center gap-3">
                           <Avatar seed={getInitials(row.fullname)} />
                           <div>
-                            <p className="font-semibold">{row.fullname}</p>
+                            <p className="font-semibold flex items-center gap-2">
+                              {row.fullname}
+                              {row.isLocked ? (
+                                <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-sm font-medium">
+                                  Bị khóa
+                                </span>
+                              ) : null}
+                            </p>
                           </div>
                         </div>
                       </TableCell>
@@ -315,15 +322,17 @@ export default function Collectors() {
                           >
                             <Eye className="size-4" />
                           </Button>
-                          <Button
-                            variant="outline"
-                            size="icon-sm"
-                            className="size-8 text-red-600 hover:bg-red-50 hover:text-red-700"
-                            title="Xóa"
-                            onClick={() => openDelete(row)}
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
+                          {!row.isLocked && (
+                            <Button
+                              variant="outline"
+                              size="icon-sm"
+                              className="size-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+                              title="Khóa"
+                              onClick={() => openLock(row)}
+                            >
+                              <Lock className="size-4" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -399,11 +408,11 @@ export default function Collectors() {
         onSubmit={handleCreate}
       />
 
-      <DeleteEmployeeDialog
+      <LockEmployeeDialog
         open={showDelete}
         onOpenChange={setShowDelete}
         employee={deleteTarget}
-        onConfirm={handleDelete}
+        onConfirm={handleLock}
       />
 
       <ViewEmployeeDialog
