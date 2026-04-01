@@ -19,13 +19,14 @@ async function findAvailable({ page = 1, limit = 20 } = {}) {
     FROM voucher
     WHERE is_active = 1
       AND IFNULL(is_deleted, 0) = 0
-      AND valid_from <= NOW()
-      AND valid_to >= NOW()
+      AND valid_from <= ?
+      AND valid_to >= ?
       AND quantity_remaining > 0
     ORDER BY valid_to ASC
     LIMIT ? OFFSET ?`
 
-  const params = [safeLimit, offset]
+  const serverNow = new Date()
+  const params = [serverNow, serverNow, safeLimit, offset]
   const [rows] = await db.query(sql, params)
   return rows
 }
