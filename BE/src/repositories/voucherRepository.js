@@ -143,7 +143,7 @@ async function findById(voucherId) {
  */
 async function getVoucherByIdWithRedemptionCount(voucherId) {
   const query = `
-    SELECT v.*, COALESCE(SUM(vr.quantity), 0) as redeemed_count
+    SELECT v.*, COALESCE(COUNT(vr.voucher_redemption_id), 0) as redeemed_count
     FROM voucher v
     LEFT JOIN voucherredemption vr ON v.voucher_id = vr.voucher_id
     WHERE v.voucher_id = ? AND v.is_deleted = 0
@@ -284,7 +284,7 @@ async function findRedeemedByCitizenId(citizenId) {
        v.title,
        v.file_uri AS fileUri,
        vr.points_used AS pointsUsed,
-       vr.quantity,
+       1 AS quantity,
        vr.redeemed_at AS redeemedAt
      FROM voucherredemption vr
      INNER JOIN voucher v ON vr.voucher_id = v.voucher_id
