@@ -371,7 +371,7 @@ export default function ManageVoucher() {
   const handleViewDetail = async (voucherId) => {
     try {
       const token = localStorage.getItem("accessToken");
-      const res = await fetch(`http://localhost:3000/api/v1/enterprise/vouchers/${voucherId}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/enterprise/vouchers/${voucherId}`, {
         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       });
       if (!res.ok) throw new Error("Không lấy được chi tiết voucher");
@@ -396,7 +396,7 @@ export default function ManageVoucher() {
         if (data.file) formData.append("file", data.file);
 
         const targetId = editTarget.voucherId || editTarget.voucher_id || editTarget.id;
-        const res = await fetch(`http://localhost:3000/api/v1/enterprise/vouchers/${targetId}`, {
+        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/enterprise/vouchers/${targetId}`, {
           method: "PUT",
           headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
           body: formData,
@@ -420,7 +420,7 @@ export default function ManageVoucher() {
         formData.append("validTo", data.validTo);
         formData.append("file", data.file);
 
-        const res = await fetch("http://localhost:3000/api/v1/enterprise/vouchers", {
+        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/enterprise/vouchers`, {
           method: "POST",
           headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
           body: formData,
@@ -449,14 +449,14 @@ export default function ManageVoucher() {
     try {
       const token = localStorage.getItem("accessToken");
       const targetId = v.voucherId || v.voucher_id || v.id;
-      const res = await fetch(`http://localhost:3000/api/v1/enterprise/vouchers/${targetId}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/enterprise/vouchers/${targetId}`, {
         method: "DELETE",
         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       });
       if (!res.ok) throw new Error("Xóa voucher thất bại!");
       toast.success(`Đã xóa voucher "${v.voucher_name}"`);
       // Reload lại danh sách voucher
-      const reload = await fetch("http://localhost:3000/api/v1/enterprise/vouchers", {
+      const reload = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/enterprise/vouchers`, {
         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       });
       if (reload.ok) {
@@ -509,7 +509,7 @@ export default function ManageVoucher() {
     const fetchVouchers = async () => {
       try {
         const token = localStorage.getItem("accessToken");
-        const res = await fetch("http://localhost:3000/api/v1/enterprise/vouchers", {
+        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/enterprise/vouchers`, {
           headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         });
         if (!res.ok) throw new Error("Không lấy được danh sách voucher");
@@ -523,7 +523,7 @@ export default function ManageVoucher() {
     const fetchStatistics = async () => {
       try {
         const token = localStorage.getItem("accessToken");
-        const res = await fetch("http://localhost:3000/api/v1/enterprise/vouchers/statistics", {
+        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/enterprise/vouchers/statistics`, {
           headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         });
         if (!res.ok) throw new Error("Không lấy được thống kê");
@@ -902,3 +902,4 @@ export default function ManageVoucher() {
     </div>
   );
 }
+
