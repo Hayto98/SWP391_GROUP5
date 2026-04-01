@@ -95,7 +95,7 @@ function buildTimeline(rawReport) {
 
   if (status === "PENDING") {
     timeline.push({
-      title: "Chờ admin tiếp nhận",
+      title: "Chờ doanh nghiệp tiếp nhận",
       time: "Đang chờ xử lý",
       state: "active",
     });
