@@ -11,14 +11,11 @@ const citizenRoutes = require('./routes/citizenRoutes')
 const app = express()
 const port = Number(process.env.PORT || 3000)
 
-const rawCorsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173'
-const allowedOrigins = rawCorsOrigin
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean)
-
 const corsOptions = {
-  origin: allowedOrigins,
+  origin: function (origin, callback) {
+    // Return the request origin to allow it, or fallback to true if no origin
+    callback(null, origin || true)
+  },
   credentials: true,
   methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
