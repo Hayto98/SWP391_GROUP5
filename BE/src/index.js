@@ -17,13 +17,16 @@ const allowedOrigins = rawCorsOrigin
   .map((origin) => origin.trim())
   .filter(Boolean)
 
-app.use(
-  cors({
-    origin: allowedOrigins,
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
-  })
-)
+const corsOptions = {
+  origin: allowedOrigins,
+  credentials: true,
+  methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  optionsSuccessStatus: 200
+}
+
+app.options('*', cors(corsOptions))
+app.use(cors(corsOptions))
 
 // Regular expression parsing for non-multipart requests
 app.use(express.json())
