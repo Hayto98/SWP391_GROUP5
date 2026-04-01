@@ -64,7 +64,7 @@ export async function createWasteType(payload) {
     return { success: true, data: newItem };
   }
 
-    return request("/enterprise/waste-types", {
+    return request("/api/v1/enterprise/waste-types", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     data: payload,
@@ -79,7 +79,7 @@ export async function createRewardConfig(payload) {
     return { success: true, data: payload };
   }
 
-  return request("/enterprise/reward-config", {
+  return request("/api/v1/enterprise/reward-config", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     data: {
@@ -102,7 +102,7 @@ export async function updateRewardConfigById(rewardConfigId, payload) {
     return { success: true, data: payload };
   }
 
-  return request(`/api/enterprise/reward-config/${rewardConfigId}`, {
+  return request(`/api/v1/enterprise/reward-config/${rewardConfigId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     data: {
@@ -171,7 +171,7 @@ export async function getWasteTypeById(wasteTypeId) {
     return { success: true, data: item };
   }
 
-    return request(`/enterprise/waste-types/${wasteTypeId}`, {
+    return request(`/api/v1/enterprise/waste-types/${wasteTypeId}`, {
     method: "GET",
     headers: getAuthHeaders(),
   });
@@ -196,7 +196,7 @@ export async function updateWasteType(wasteTypeId, payload) {
     return { success: true, data: FAKE_WASTE_TYPES[idx] };
   }
 
-    return request(`/enterprise/waste-types/${wasteTypeId}`, {
+    return request(`/api/v1/enterprise/waste-types/${wasteTypeId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     data: {
@@ -230,7 +230,7 @@ export async function toggleWasteTypeStatus(wasteTypeId, isActive) {
     };
   }
 
-    return request(`/enterprise/waste-types/${wasteTypeId}/status`, {
+    return request(`/api/v1/enterprise/waste-types/${wasteTypeId}/status`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     data: { isActive },
@@ -255,7 +255,7 @@ export async function deleteWasteType(wasteTypeId) {
     return { success: true, message: "WasteType đã được xóa" };
   }
 
-    return request(`/enterprise/waste-types/${wasteTypeId}`, {
+    return request(`/api/v1/enterprise/waste-types/${wasteTypeId}`, {
     method: "DELETE",
     headers: getAuthHeaders(),
   });

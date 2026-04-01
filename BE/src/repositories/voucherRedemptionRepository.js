@@ -11,7 +11,7 @@ const db = require('../config/database')
 async function getVoucherStatistics() {
   const query = `
     SELECT 
-      COALESCE(SUM(quantity), 0) AS redeemedCount,
+      COALESCE(COUNT(voucher_redemption_id), 0) AS redeemedCount,
       IFNULL(SUM(points_used), 0) AS totalPointsUsed
     FROM voucherredemption
     WHERE status = 'SUCCESS'
