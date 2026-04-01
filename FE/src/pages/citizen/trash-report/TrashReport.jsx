@@ -252,7 +252,7 @@ function TrashReport() {
 
     toast("Kết quả AI phân tích rác:", {
       description: <div>{descriptionElements}</div>,
-      duration: 8000,
+      duration: 30000,
     });
   };
 
