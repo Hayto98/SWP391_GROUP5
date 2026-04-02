@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ChartContainer,
@@ -6,35 +7,7 @@ import {
 } from "@/components/ui/chart";
 import { Users, MessageSquareWarning, CheckCircle2 } from "lucide-react";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
-
-const fakeDashboardResponse = {
-  success: true,
-  data: {
-    totalUsers: 120,
-    totalComplaints: 35,
-    resolvedComplaints: 22,
-    complaintsByTime: [
-      {
-        time: "2026-03-01",
-        complaints: 3,
-      },
-      {
-        time: "2026-03-02",
-        complaints: 5,
-      },
-    ],
-    resolvedComplaintsByTime: [
-      {
-        time: "2026-03-01",
-        resolved: 2,
-      },
-      {
-        time: "2026-03-02",
-        resolved: 4,
-      },
-    ],
-  },
-};
+import { getDashboardStats } from "../../../services/adminService";
 
 const chartConfig = {
   complaints: {
@@ -48,7 +21,38 @@ const chartConfig = {
 };
 
 function Dashboard() {
-  const stats = fakeDashboardResponse.data;
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalComplaints: 0,
+    resolvedComplaints: 0,
+    complaintsByTime: [],
+    resolvedComplaintsByTime: [],
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadStats() {
+      try {
+        const response = await getDashboardStats();
+        if (response && response.success) {
+          setStats(response.data);
+        }
+      } catch (error) {
+        console.error("Lỗi khi tải dữ liệu dashboard:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadStats();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <p className="text-muted-foreground">Đang tải dữ liệu dashboard...</p>
+      </div>
+    );
+  }
 
   const summaryCards = [
     {

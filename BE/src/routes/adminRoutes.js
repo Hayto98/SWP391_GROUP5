@@ -1,5 +1,6 @@
 const express = require('express')
 const adminController = require('../controllers/Admin/adminController')
+const notificationController = require('../controllers/Admin/notificationController')
 const { verifyToken } = require('../middlewares/authMiddleware')
 const { requireRole } = require('../middlewares/roleMiddleware')
 const { ROLES } = require('../utils/constants')
@@ -13,6 +14,9 @@ router.use(verifyToken)
 // Apply ADMIN role check to ALL admin routes
 // BR-A05: Only authenticated users with role ADMIN can access /api/v1/admin/*
 router.use(requireRole(ROLES.ADMIN))
+
+// ==================== DASHBOARD ====================
+router.get('/dashboard', adminController.getDashboardStats)
 
 // ==================== USER CRUD ====================
 
@@ -35,5 +39,9 @@ router.put('/report-complaints/:complaintId/reject', adminController.rejectCompl
 // ==================== ENTERPRISE OPERATIONS ====================
 router.post('/enterprises', adminController.createEnterprise)
 
-module.exports = router
+// ==================== NOTIFICATIONS ====================
+router.get('/notifications', notificationController.getNotifications)
+router.patch('/notifications/read-all', notificationController.markAllAsRead)
+router.patch('/notifications/:notificationId/read', notificationController.markAsRead)
 
+module.exports = router

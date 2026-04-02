@@ -89,9 +89,21 @@ const EMPTY_FORM = {
 };
 
 const SOURCES = [
-  { value: "system", label: "Từ Hệ thống (App)", color: "text-blue-600 bg-blue-100" },
-  { value: "enterprise", label: "Doanh nghiệp tự cấp", color: "text-emerald-600 bg-emerald-100" },
-  { value: "partner", label: "Đối tác tài trợ", color: "text-purple-600 bg-purple-100" },
+  {
+    value: "system",
+    label: "Từ Hệ thống (App)",
+    color: "text-blue-600 bg-blue-100",
+  },
+  {
+    value: "enterprise",
+    label: "Doanh nghiệp tự cấp",
+    color: "text-emerald-600 bg-emerald-100",
+  },
+  {
+    value: "partner",
+    label: "Đối tác tài trợ",
+    color: "text-purple-600 bg-purple-100",
+  },
 ];
 
 function getSourceMeta(value) {
@@ -154,7 +166,10 @@ function VoucherFormDialog({ open, onClose, onSave, initial }) {
       pointsRequired: init.pointsRequired || init.points_required || "",
       quantityTotal: init.quantityTotal || "",
       validFrom: init.validFrom ? String(init.validFrom).substring(0, 10) : "",
-      validTo: (init.validTo || init.expiry_date) ? String(init.validTo || init.expiry_date).substring(0, 10) : "",
+      validTo:
+        init.validTo || init.expiry_date
+          ? String(init.validTo || init.expiry_date).substring(0, 10)
+          : "",
       file: null,
     };
   };
@@ -179,13 +194,23 @@ function VoucherFormDialog({ open, onClose, onSave, initial }) {
   const handleSave = () => {
     if (!form.title.trim()) return toast.error("Nhập tiêu đề!");
     if (!form.description.trim()) return toast.error("Nhập mô tả!");
-    if (!form.pointsRequired || Number(form.pointsRequired) <= 0) return toast.error("Điểm quy đổi phải lớn hơn 0!");
-    if (!form.quantityTotal || Number(form.quantityTotal) <= 0) return toast.error("Số lượng phải lớn hơn 0!");
+    if (!form.pointsRequired || Number(form.pointsRequired) <= 0)
+      return toast.error("Điểm quy đổi phải lớn hơn 0!");
+    if (!form.quantityTotal || Number(form.quantityTotal) <= 0)
+      return toast.error("Số lượng phải lớn hơn 0!");
     if (!form.validFrom.trim()) return toast.error("Nhập ngày bắt đầu!");
     if (!form.validTo.trim()) return toast.error("Nhập ngày hết hạn!");
-    const isEditing = !!(initial?.voucherId || initial?.voucher_id || initial?.id);
+    const isEditing = !!(
+      initial?.voucherId ||
+      initial?.voucher_id ||
+      initial?.id
+    );
     if (!form.file && !isEditing) return toast.error("Chọn ảnh voucher!");
-    onSave({ ...form, pointsRequired: Number(form.pointsRequired), quantityTotal: Number(form.quantityTotal) });
+    onSave({
+      ...form,
+      pointsRequired: Number(form.pointsRequired),
+      quantityTotal: Number(form.quantityTotal),
+    });
   };
 
   const isEdit = !!(initial?.voucherId || initial?.voucher_id || initial?.id);
@@ -323,7 +348,6 @@ function DeleteDialog({ voucher, onClose, onConfirm }) {
   );
 }
 
-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ManageVoucher() {
   const [vouchers, setVouchers] = useState([]);
@@ -353,16 +377,14 @@ export default function ManageVoucher() {
 
   // ── Filtered list ──
   // Tạm thời luôn set trạng thái voucher là bật (active) khi hiển thị
-  const mappedVouchers = vouchers.map(v => ({ ...v, isActive: true }));
+  const mappedVouchers = vouchers.map((v) => ({ ...v, isActive: true }));
   const filtered = mappedVouchers.filter((v) => {
     const matchSource = filterSource === "all" || v.source === filterSource;
     const q = search.toLowerCase();
     const title = v.title || v.voucher_name || "";
     const code = v.voucherCode || v.voucher_code || "";
     const matchSearch =
-      !q ||
-      title.toLowerCase().includes(q) ||
-      code.toLowerCase().includes(q);
+      !q || title.toLowerCase().includes(q) || code.toLowerCase().includes(q);
     return matchSource && matchSearch;
   });
 
@@ -371,9 +393,12 @@ export default function ManageVoucher() {
   const handleViewDetail = async (voucherId) => {
     try {
       const token = localStorage.getItem("accessToken");
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/enterprise/vouchers/${voucherId}`, {
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      });
+      const res = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/api/v1/enterprise/vouchers/${voucherId}`,
+        {
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        },
+      );
       if (!res.ok) throw new Error("Không lấy được chi tiết voucher");
       const data = await res.json();
       setDetailVoucher(data.data || data.voucher || data);
@@ -395,12 +420,16 @@ export default function ManageVoucher() {
         formData.append("validTo", data.validTo);
         if (data.file) formData.append("file", data.file);
 
-        const targetId = editTarget.voucherId || editTarget.voucher_id || editTarget.id;
-        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/enterprise/vouchers/${targetId}`, {
-          method: "PUT",
-          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-          body: formData,
-        });
+        const targetId =
+          editTarget.voucherId || editTarget.voucher_id || editTarget.id;
+        const res = await fetch(
+          `${import.meta.env.VITE_API_BASE_URL}/api/v1/enterprise/vouchers/${targetId}`,
+          {
+            method: "PUT",
+            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+            body: formData,
+          },
+        );
         if (!res.ok) throw new Error("Cập nhật voucher thất bại!");
         toast.success("Đã cập nhật voucher thành công!");
       } catch (err) {
@@ -420,11 +449,14 @@ export default function ManageVoucher() {
         formData.append("validTo", data.validTo);
         formData.append("file", data.file);
 
-        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/enterprise/vouchers`, {
-          method: "POST",
-          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-          body: formData,
-        });
+        const res = await fetch(
+          `${import.meta.env.VITE_API_BASE_URL}/api/v1/enterprise/vouchers`,
+          {
+            method: "POST",
+            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+            body: formData,
+          },
+        );
         if (!res.ok) throw new Error("Tạo voucher thất bại!");
         const result = await res.json();
         toast.success("Đã tạo voucher mới thành công!");
@@ -449,16 +481,22 @@ export default function ManageVoucher() {
     try {
       const token = localStorage.getItem("accessToken");
       const targetId = v.voucherId || v.voucher_id || v.id;
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/enterprise/vouchers/${targetId}`, {
-        method: "DELETE",
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      });
+      const res = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/api/v1/enterprise/vouchers/${targetId}`,
+        {
+          method: "DELETE",
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        },
+      );
       if (!res.ok) throw new Error("Xóa voucher thất bại!");
       toast.success(`Đã xóa voucher "${v.voucher_name}"`);
       // Reload lại danh sách voucher
-      const reload = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/enterprise/vouchers`, {
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      });
+      const reload = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/api/v1/enterprise/vouchers`,
+        {
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        },
+      );
       if (reload.ok) {
         const data = await reload.json();
         setVouchers(data.data || data.vouchers || []);
@@ -485,7 +523,9 @@ export default function ManageVoucher() {
     setVouchers((prev) =>
       prev.map((x) => {
         const xId = x.voucherId || x.voucher_id;
-        return xId === vId ? { ...x, isActive: nextActive, is_active: nextActive } : x;
+        return xId === vId
+          ? { ...x, isActive: nextActive, is_active: nextActive }
+          : x;
       }),
     );
 
@@ -503,15 +543,17 @@ export default function ManageVoucher() {
     );
   };
 
-
   // Lấy danh sách voucher và statistics từ API khi mount
   useEffect(() => {
     const fetchVouchers = async () => {
       try {
         const token = localStorage.getItem("accessToken");
-        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/enterprise/vouchers`, {
-          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        });
+        const res = await fetch(
+          `${import.meta.env.VITE_API_BASE_URL}/api/v1/enterprise/vouchers`,
+          {
+            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          },
+        );
         if (!res.ok) throw new Error("Không lấy được danh sách voucher");
         const data = await res.json();
         // API returns data as { data: [...vouchers], pagination: {...} } or { vouchers: [...] }
@@ -523,9 +565,12 @@ export default function ManageVoucher() {
     const fetchStatistics = async () => {
       try {
         const token = localStorage.getItem("accessToken");
-        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/enterprise/vouchers/statistics`, {
-          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        });
+        const res = await fetch(
+          `${import.meta.env.VITE_API_BASE_URL}/api/v1/enterprise/vouchers/statistics`,
+          {
+            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          },
+        );
         if (!res.ok) throw new Error("Không lấy được thống kê");
         const data = await res.json();
         setStatistics({
@@ -550,10 +595,11 @@ export default function ManageVoucher() {
   const openCreate = () => {
     setEditTarget(null);
     setFormOpen(true);
-  }; return (
+  };
+  return (
     <div className="space-y-6">
       {/* ── Voucher Statistics ── */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="flex items-center gap-4 pt-6">
             <div className="rounded-full p-3 bg-blue-100 text-blue-700">
@@ -582,7 +628,9 @@ export default function ManageVoucher() {
               <Gift className="size-5" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Tổng lượt đổi thưởng</p>
+              <p className="text-sm text-muted-foreground">
+                Tổng lượt đổi thưởng
+              </p>
               <p className="text-2xl font-bold">{totalRedeemed}</p>
             </div>
           </CardContent>
@@ -598,7 +646,7 @@ export default function ManageVoucher() {
             </div>
           </CardContent>
         </Card>
-      </div>
+      </div> */}
       {/* ── Header ── */}
       <Card className="mb-6">
         <CardHeader className="flex flex-row items-center justify-between gap-4 py-4">
@@ -610,16 +658,9 @@ export default function ManageVoucher() {
           </div>
           <div className="flex flex-shrink-0 items-center gap-3">
             <Button
-              variant="outline"
-              className="border-primary text-primary hover:bg-primary/10 hover:text-primary bg-white shadow-sm flex items-center gap-2 px-6"
-              onClick={() => {
-                refreshVoucherHistory();
-                setHistoryDialogOpen(true);
-              }}
+              onClick={openCreate}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm flex items-center gap-2 px-6"
             >
-              <History className="size-4" /> Lịch sử
-            </Button>
-            <Button onClick={openCreate} className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm flex items-center gap-2 px-6">
               <Plus className="size-4" /> Thêm mới
             </Button>
           </div>
@@ -629,7 +670,9 @@ export default function ManageVoucher() {
       {/* ── Search Box ── */}
       <div className="bg-gray-100 p-6 flex flex-col items-center justify-center">
         <div className="flex items-center gap-4 w-full max-w-2xl bg-white px-4 py-2 shadow-sm border">
-          <span className="text-sm font-medium whitespace-nowrap text-gray-700">Mã Voucher</span>
+          <span className="text-sm font-medium whitespace-nowrap text-gray-700">
+            Mã Voucher
+          </span>
           <Input
             placeholder="Nhập mã voucher tại đây..."
             className="flex-1 border-none shadow-none focus-visible:ring-0 px-2"
@@ -643,27 +686,14 @@ export default function ManageVoucher() {
       <div className="border-b border-gray-200 flex items-center overflow-x-auto text-base">
         <button
           onClick={() => setFilterSource("all")}
-          className={`flex-shrink-0 px-6 py-4 border-b-2 font-medium transition-colors ${filterSource === "all" ? "border-primary text-primary" : "border-transparent text-gray-600 hover:text-primary"
-            }`}
+          className={`flex-shrink-0 px-6 py-4 border-b-2 font-medium transition-colors ${
+            filterSource === "all"
+              ? "border-primary text-primary"
+              : "border-transparent text-gray-600 hover:text-primary"
+          }`}
         >
           Tất Cả ({vouchers.length})
         </button>
-        {SOURCES.map((s) => {
-          const count = vouchers.filter((v) => v.source === s.value).length;
-          return (
-            <>
-              <span className="text-gray-300 flex-shrink-0">|</span>
-              <button
-                key={s.value}
-                onClick={() => setFilterSource(s.value)}
-                className={`flex-shrink-0 px-6 py-4 border-b-2 font-medium transition-colors ${filterSource === s.value ? "border-primary text-primary" : "border-transparent text-gray-600 hover:text-primary"
-                  }`}
-              >
-                {s.label} ({count})
-              </button>
-            </>
-          );
-        })}
       </div>
 
       {/* ── Ticket Cards Grid ── */}
@@ -673,13 +703,18 @@ export default function ManageVoucher() {
             <div
               key={v.voucherId || v.voucher_id || v.id}
               className={`relative flex h-32 bg-white border border-gray-200 rounded-md shadow-sm overflow-hidden group ${!(v.isActive !== undefined ? v.isActive : v.is_active) ? "opacity-60" : ""}`}
-              onClick={() => handleViewDetail(v.voucherId || v.voucher_id || v.id)}
-              style={{ cursor: 'pointer' }}
+              onClick={() =>
+                handleViewDetail(v.voucherId || v.voucher_id || v.id)
+              }
+              style={{ cursor: "pointer" }}
             >
               {/* Left Image / Branding */}
               <div className="w-[118px] flex-shrink-0 bg-primary flex flex-col items-center justify-center relative overflow-hidden border-r border-dashed border-gray-200 box-border p-2">
                 <Gift className="size-8 mb-2 text-white opacity-90 flex-shrink-0" />
-                <div className="text-[10px] text-white font-medium text-center uppercase leading-snug line-clamp-2" style={{ textTransform: "initial" }}>
+                <div
+                  className="text-[10px] text-white font-medium text-center uppercase leading-snug line-clamp-2"
+                  style={{ textTransform: "initial" }}
+                >
                   {v.title || v.voucher_name}
                 </div>
               </div>
@@ -698,21 +733,34 @@ export default function ManageVoucher() {
                 )}
 
                 <div>
-                  <h3 className="text-sm font-medium text-gray-800 pr-16 line-clamp-1">{v.title || v.voucher_name}</h3>
-                  <div className="text-xs text-gray-500 mt-1 line-clamp-1">{v.description || v.terms_description || `Áp dụng toàn bộ dịch vụ`}</div>
+                  <h3 className="text-sm font-medium text-gray-800 pr-16 line-clamp-1">
+                    {v.title || v.voucher_name}
+                  </h3>
+                  <div className="text-xs text-gray-500 mt-1 line-clamp-1">
+                    {v.description ||
+                      v.terms_description ||
+                      `Áp dụng toàn bộ dịch vụ`}
+                  </div>
 
                   <div className="mt-2 flex items-center gap-1.5">
                     <span className="text-[10px] px-1.5 py-0.5 border border-red-500 text-red-500 rounded-sm leading-none whitespace-nowrap">
-                      HSD: {(v.validTo || v.expiry_date) ? String(v.validTo || v.expiry_date).substring(0, 10) : ""}
+                      HSD:{" "}
+                      {v.validTo || v.expiry_date
+                        ? String(v.validTo || v.expiry_date).substring(0, 10)
+                        : ""}
                     </span>
                     <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-sm font-medium whitespace-nowrap flex items-center gap-1">
-                      <Star className="size-3 fill-amber-500 text-amber-500" /> {v.pointsRequired || v.points_required} đ
+                      <Star className="size-3 fill-amber-500 text-amber-500" />{" "}
+                      {v.pointsRequired || v.points_required} đ
                     </span>
                   </div>
                 </div>
 
                 {/* Bottom Actions Overlay */}
-                <div className="absolute bottom-3 right-3 flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                <div
+                  className="absolute bottom-3 right-3 flex items-center gap-2"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <button
                     onClick={() => handleEdit(v)}
                     className="text-gray-400 hover:text-blue-600 transition-colors"
@@ -741,16 +789,18 @@ export default function ManageVoucher() {
                 {/* 1. Hình ảnh Voucher (Banner) */}
                 {detailVoucher.fileUri ? (
                   <div className="w-full h-40 sm:h-48 bg-gray-100 relative">
-                    <img 
-                      src={detailVoucher.fileUri} 
-                      alt="voucher" 
-                      className="w-full h-full object-cover" 
+                    <img
+                      src={detailVoucher.fileUri}
+                      alt="voucher"
+                      className="w-full h-full object-cover"
                     />
                     {/* Đã bỏ badge trạng thái trên góc ảnh theo yêu cầu */}
                   </div>
                 ) : (
                   <div className="pt-6 px-6 flex justify-between items-start">
-                    <DialogTitle className="text-xl font-bold">Chi tiết Voucher</DialogTitle>
+                    <DialogTitle className="text-xl font-bold">
+                      Chi tiết Voucher
+                    </DialogTitle>
                     <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">
                       {detailVoucher.status}
                     </span>
@@ -773,8 +823,10 @@ export default function ManageVoucher() {
                     {/* Hai nửa hình tròn tạo hiệu ứng vết cắt của vé */}
                     <div className="absolute top-1/2 -left-3 w-6 h-6 bg-white rounded-full -translate-y-1/2"></div>
                     <div className="absolute top-1/2 -right-3 w-6 h-6 bg-white rounded-full -translate-y-1/2"></div>
-                    
-                    <p className="text-xs text-blue-500 font-semibold mb-1 uppercase tracking-widest">Mã Code</p>
+
+                    <p className="text-xs text-blue-500 font-semibold mb-1 uppercase tracking-widest">
+                      Mã Code
+                    </p>
                     <p className="text-3xl font-mono font-extrabold text-blue-700 tracking-wider">
                       {detailVoucher.voucherCode}
                     </p>
@@ -785,11 +837,13 @@ export default function ManageVoucher() {
                     <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
                       <p className="text-xs text-gray-500 mb-1">Điểm quy đổi</p>
                       <p className="text-sm font-semibold text-gray-900">
-                        <span className="text-yellow-500 font-bold mr-1">★</span> 
+                        <span className="text-yellow-500 font-bold mr-1">
+                          ★
+                        </span>
                         {detailVoucher.pointsRequired} điểm
                       </p>
                     </div>
-                    
+
                     <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
                       <p className="text-xs text-gray-500 mb-1">Đã đổi</p>
                       <p className="text-sm font-semibold text-gray-900">
@@ -799,13 +853,19 @@ export default function ManageVoucher() {
 
                     <div className="bg-gray-50 p-3 rounded-lg border border-gray-100 col-span-2 flex justify-between items-center">
                       <div>
-                        <p className="text-xs text-gray-500 mb-1">Ngày hết hạn</p>
+                        <p className="text-xs text-gray-500 mb-1">
+                          Ngày hết hạn
+                        </p>
                         <p className="text-sm font-semibold text-red-600">
-                          {detailVoucher.expiryDate ? String(detailVoucher.expiryDate).substring(0, 10) : "Vô thời hạn"}
+                          {detailVoucher.expiryDate
+                            ? String(detailVoucher.expiryDate).substring(0, 10)
+                            : "Vô thời hạn"}
                         </p>
                       </div>
                       {/* Badge trạng thái đặt cạnh nút đóng (nút đóng đã có ở góc dialog) */}
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold shadow ${detailVoucher.status === 'ACTIVE' || detailVoucher.status === 'ĐANG BẬT' ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-bold shadow ${detailVoucher.status === "ACTIVE" || detailVoucher.status === "ĐANG BẬT" ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-600"}`}
+                      >
                         {detailVoucher.status}
                       </span>
                     </div>
@@ -815,7 +875,9 @@ export default function ManageVoucher() {
             ) : (
               <div className="p-12 text-center flex flex-col items-center">
                 <div className="w-8 h-8 border-4 border-gray-200 border-t-gray-800 rounded-full animate-spin mb-4"></div>
-                <p className="text-gray-500 text-sm font-medium">Đang tải dữ liệu...</p>
+                <p className="text-gray-500 text-sm font-medium">
+                  Đang tải dữ liệu...
+                </p>
               </div>
             )}
           </DialogContent>
@@ -902,4 +964,3 @@ export default function ManageVoucher() {
     </div>
   );
 }
-

@@ -287,6 +287,13 @@ async function softDeleteUser(userAccountId) {
   ])
 }
 
+async function lockEmployeeAccount(userAccountId) {
+  await db.execute('UPDATE useraccount SET is_locked = 1, is_working = 0, ban_reason = ? WHERE user_account_id = ?', [
+    'Locked by Enterprise',
+    userAccountId
+  ])
+}
+
 // ==================== UTILITY ====================
 
 async function countByRole(roleId) {
@@ -352,6 +359,7 @@ module.exports = {
   updateFailedLoginCount,
   updateLastLogin,
   softDeleteUser,
+  lockEmployeeAccount,
   countByRole,
   findAvailableCollectors,
   getWorkingCollectors,

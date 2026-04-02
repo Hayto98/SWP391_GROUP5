@@ -212,8 +212,8 @@ router.get('/employees/:employeeId', enterpriseController.getEmployeeById)
 router.post('/employees', enterpriseController.createEmployee)
 
 /**
- * DELETE /enterprise/employees/:employeeId - Enterprise xóa nhân viên (soft delete)
+ * PATCH /enterprise/employees/:employeeId/lock - Enterprise khóa nhân viên
  */
-router.delete('/employees/:employeeId', enterpriseController.deleteEmployee)
+router.patch('/employees/:employeeId/lock', enterpriseController.lockEmployee)
 
 module.exports = router

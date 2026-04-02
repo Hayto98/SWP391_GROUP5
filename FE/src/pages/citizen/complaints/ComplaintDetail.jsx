@@ -75,18 +75,21 @@ function ComplaintDetail() {
           <div className="flex justify-between items-start gap-3">
             <div>
               <CardTitle>Chi tiết khiếu nại</CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">
-                {complaint.reportComplaintId}
-              </p>
             </div>
-            <Badge variant={
-              complaint.complaintStatus === "OPEN" ? "default" : 
-              complaint.complaintStatus === "REJECTED" ? "destructive" : 
-              "secondary"
-            }>
-              {complaint.complaintStatus === "OPEN" ? "Đang xử lý" :
-               complaint.complaintStatus === "REJECTED" ? "Từ chối" :
-               "Đã giải quyết"}
+            <Badge
+              variant={
+                complaint.complaintStatus === "OPEN"
+                  ? "default"
+                  : complaint.complaintStatus === "REJECTED"
+                    ? "destructive"
+                    : "secondary"
+              }
+            >
+              {complaint.complaintStatus === "OPEN"
+                ? "Đang xử lý"
+                : complaint.complaintStatus === "REJECTED"
+                  ? "Từ chối"
+                  : "Đã giải quyết"}
             </Badge>
           </div>
         </CardHeader>
@@ -177,15 +180,23 @@ function ComplaintDetail() {
                 </span>
               </div>
               <div>
-                <span className="text-muted-foreground block mb-1">Trạng thái</span>
-                <Badge variant={
-                  complaint.complaintStatus === "OPEN" ? "default" : 
-                  complaint.complaintStatus === "REJECTED" ? "destructive" : 
-                  "secondary"
-                }>
-                  {complaint.complaintStatus === "OPEN" ? "Đang xử lý" :
-                   complaint.complaintStatus === "REJECTED" ? "Từ chối" :
-                   "Đã giải quyết"}
+                <span className="text-muted-foreground block mb-1">
+                  Trạng thái
+                </span>
+                <Badge
+                  variant={
+                    complaint.complaintStatus === "OPEN"
+                      ? "default"
+                      : complaint.complaintStatus === "REJECTED"
+                        ? "destructive"
+                        : "secondary"
+                  }
+                >
+                  {complaint.complaintStatus === "OPEN"
+                    ? "Đang xử lý"
+                    : complaint.complaintStatus === "REJECTED"
+                      ? "Từ chối"
+                      : "Đã giải quyết"}
                 </Badge>
               </div>
               <div>
@@ -194,12 +205,6 @@ function ComplaintDetail() {
                   {complaint.resolvedAt
                     ? new Date(complaint.resolvedAt).toLocaleString("vi-VN")
                     : "-"}
-                </span>
-              </div>
-              <div>
-                <span className="text-muted-foreground block">Đã cập nhật</span>
-                <span className="font-medium">
-                  {complaint.isUpdated ? "Có" : "Không"}
                 </span>
               </div>
             </div>

@@ -34,7 +34,7 @@ function App() {
   return (
     <AppErrorBoundary>
       <AppRoutes />
-      <Toaster richColors position="top-right" />
+      <Toaster richColors position="top-left" />
     </AppErrorBoundary>
   );
 }

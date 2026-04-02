@@ -8,7 +8,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, User, Mail, Phone, Shield, Calendar, ClipboardList, CheckCircle, XCircle, TrendingUp } from "lucide-react";
+import {
+  Loader2,
+  User,
+  Mail,
+  Phone,
+  Shield,
+  Calendar,
+  ClipboardList,
+  CheckCircle,
+  XCircle,
+  TrendingUp,
+} from "lucide-react";
 
 function InfoRow({ icon: Icon, label, value }) {
   return (
@@ -16,7 +27,9 @@ function InfoRow({ icon: Icon, label, value }) {
       <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
       <div className="min-w-0 flex-1">
         <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        <p className="truncate text-sm font-semibold text-slate-900">{value || "—"}</p>
+        <p className="truncate text-sm font-semibold text-slate-900">
+          {value || "—"}
+        </p>
       </div>
     </div>
   );
@@ -85,11 +98,11 @@ export default function ViewEmployeeDialog({
 
   const initials = data?.fullname
     ? data.fullname
-      .split(" ")
-      .map((w) => w[0])
-      .slice(-2)
-      .join("")
-      .toUpperCase()
+        .split(" ")
+        .map((w) => w[0])
+        .slice(-2)
+        .join("")
+        .toUpperCase()
     : "?";
 
   return (
@@ -133,47 +146,18 @@ export default function ViewEmployeeDialog({
             <InfoRow icon={User} label="Họ và tên" value={data.fullname} />
             <InfoRow icon={Mail} label="Email" value={data.email} />
             <InfoRow icon={Phone} label="Số điện thoại" value={data.phone} />
-            <InfoRow icon={Shield} label="Vai trò" value={roleLabel(data.roleId)} />
-            <InfoRow icon={Calendar} label="Ngày tạo" value={formatDate(data.createdAt)} />
+            <InfoRow
+              icon={Shield}
+              label="Vai trò"
+              value={roleLabel(data.roleId)}
+            />
+            <InfoRow
+              icon={Calendar}
+              label="Ngày tạo"
+              value={formatDate(data.createdAt)}
+            />
 
             {/* ── Thống kê nhiệm vụ ── */}
-            <div className="mt-1 border-t pt-3">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Thống kê nhiệm vụ</p>
-
-              <div className="grid grid-cols-2 gap-2">
-                <InfoRow icon={ClipboardList} label="Được giao" value={String(data.totalAssigned ?? 0)} />
-                <InfoRow icon={CheckCircle} label="Hoàn thành" value={String(data.totalCompleted ?? 0)} />
-              </div>
-
-              {(data.totalRejected ?? 0) > 0 && (
-                <div className="mt-2 flex items-start gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3">
-                  <XCircle className="mt-0.5 size-4 shrink-0 text-red-500" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-red-500">Từ chối</p>
-                    <p className="text-sm font-semibold text-red-700">{data.totalRejected}</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Completion rate progress bar */}
-              <div className="mt-3 flex items-start gap-3 rounded-md border px-4 py-3">
-                <TrendingUp className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  <p className="text-xs font-medium text-muted-foreground">Tỷ lệ hoàn thành</p>
-                  <div className="flex items-center gap-2">
-                    <div className="h-2 flex-1 overflow-hidden rounded-full border border-slate-200 bg-slate-100">
-                      <div
-                        className="h-full rounded-full bg-emerald-500 transition-all"
-                        style={{ width: `${Math.min(100, data.completionRate ?? 0)}%` }}
-                      />
-                    </div>
-                    <span className="text-sm font-bold text-slate-700">
-                      {Math.round(data.completionRate ?? 0)}%
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         )}
 

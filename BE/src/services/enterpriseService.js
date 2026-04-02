@@ -826,28 +826,28 @@ async function getEmployeeStatistics({ page = 1, limit = 20, month, year } = {})
 }
 
 /**
- * Enterprise xóa nhân viên (Collector) — soft delete
- * DELETE /enterprise/employees/:employeeId
+ * Enterprise khóa nhân viên (Collector)
+ * PATCH /enterprise/employees/:employeeId/lock
  *
  * Business Rules:
  * - Nhân viên phải tồn tại và có roleId = COLLECTOR
- * - Dùng soft delete (is_locked = 1, ban_reason = 'Account deactivated')
+ * - Dùng soft lock (is_locked = 1, is_working = 0, ban_reason = 'Locked by Enterprise')
  */
-async function deleteEmployee(employeeId) {
+async function lockEmployee(employeeId) {
   const user = await userRepository.findById(employeeId)
   if (!user) {
     throw new ApiError(404, 'Nhân viên không tồn tại')
   }
 
   if (user.roleId !== ROLES.COLLECTOR) {
-    throw new ApiError(403, 'Chỉ có thể xóa tài khoản nhân viên (Collector)')
+    throw new ApiError(403, 'Chỉ có thể khóa tài khoản nhân viên (Collector)')
   }
 
-  await userRepository.softDeleteUser(employeeId)
+  await userRepository.lockEmployeeAccount(employeeId)
 
   return {
     success: true,
-    message: 'Nhân viên đã được xóa'
+    message: 'Nhân viên đã bị khóa'
   }
 }
 
@@ -872,6 +872,6 @@ module.exports = {
   createEmployee,
   getEmployees,
   getEmployeeById,
-  deleteEmployee,
+  lockEmployee,
   getEmployeeStatistics
 }

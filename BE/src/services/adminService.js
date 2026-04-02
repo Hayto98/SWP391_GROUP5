@@ -6,6 +6,70 @@ const { ROLES, USER_STATUS } = require('../utils/constants')
 
 const DEFAULT_SALT_ROUNDS = 10
 
+// ==================== DASHBOARD ====================
+async function getDashboardStats() {
+  const db = require('../config/database')
+  const [usersRes] = await db.execute(`
+    SELECT COUNT(*) as total 
+    FROM useraccount 
+    WHERE ban_reason IS NULL OR ban_reason != 'Account deactivated'
+  `)
+  const totalUsers = Number(usersRes[0].total) || 0
+
+  const [complaintsRes] = await db.execute(`
+    SELECT COUNT(*) as total 
+    FROM reportcomplaint 
+    WHERE is_deleted = 0
+  `)
+  const totalComplaints = Number(complaintsRes[0].total) || 0
+
+  const [resolvedRes] = await db.execute(`
+    SELECT COUNT(*) as total 
+    FROM reportcomplaint 
+    WHERE complaint_status IN ('RESOLVED', 'REJECTED') 
+      AND is_deleted = 0
+  `)
+  const resolvedComplaints = Number(resolvedRes[0].total) || 0
+
+  const [complaintsByTimeRes] = await db.execute(`
+    SELECT DATE_FORMAT(created_at, '%Y-%m-%d') as time, COUNT(*) as complaints
+    FROM reportcomplaint
+    WHERE is_deleted = 0
+    GROUP BY DATE_FORMAT(created_at, '%Y-%m-%d')
+    ORDER BY time ASC
+    LIMIT 30
+  `)
+
+  const complaintsByTime = complaintsByTimeRes.map((row) => ({
+    time: row.time,
+    complaints: Number(row.complaints)
+  }))
+
+  const [resolvedComplaintsByTimeRes] = await db.execute(`
+    SELECT DATE_FORMAT(resolved_at, '%Y-%m-%d') as time, COUNT(*) as resolved
+    FROM reportcomplaint
+    WHERE complaint_status IN ('RESOLVED', 'REJECTED') 
+      AND is_deleted = 0 
+      AND resolved_at IS NOT NULL
+    GROUP BY DATE_FORMAT(resolved_at, '%Y-%m-%d')
+    ORDER BY time ASC
+    LIMIT 30
+  `)
+
+  const resolvedComplaintsByTime = resolvedComplaintsByTimeRes.map((row) => ({
+    time: row.time,
+    resolved: Number(row.resolved)
+  }))
+
+  return {
+    totalUsers,
+    totalComplaints,
+    resolvedComplaints,
+    complaintsByTime,
+    resolvedComplaintsByTime
+  }
+}
+
 // ==================== READ ====================
 /**
  * Get all users with pagination, keyword search, and role filter
@@ -307,6 +371,7 @@ async function createEnterprise(data) {
 }
 
 module.exports = {
+  getDashboardStats,
   getAllUsers,
   getUserById,
   createUser,
