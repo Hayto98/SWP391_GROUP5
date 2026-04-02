@@ -15,6 +15,9 @@ router.use(verifyToken)
 // BR-A05: Only authenticated users with role ADMIN can access /api/v1/admin/*
 router.use(requireRole(ROLES.ADMIN))
 
+// ==================== DASHBOARD ====================
+router.get('/dashboard', adminController.getDashboardStats)
+
 // ==================== USER CRUD ====================
 
 router.get('/users', adminController.getAllUsers)

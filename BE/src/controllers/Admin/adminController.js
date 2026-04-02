@@ -1,6 +1,23 @@
 const adminService = require('../../services/adminService')
 const complaintService = require('../../services/complaintService')
 
+// ==================== DASHBOARD ====================
+
+/**
+ * GET /admin/dashboard - Get dashboard statistics
+ */
+async function getDashboardStats(req, res, next) {
+  try {
+    const result = await adminService.getDashboardStats()
+    res.status(200).json({
+      success: true,
+      data: result
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
 // ==================== READ ====================
 
 /**
@@ -184,6 +201,7 @@ async function getAllComplaints(req, res, next) {
 }
 
 module.exports = {
+  getDashboardStats,
   getAllUsers,
   getUserById,
   createUser,

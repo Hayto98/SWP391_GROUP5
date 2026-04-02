@@ -39,3 +39,10 @@ export function getUserById(userId) {
     headers: getAuthHeaders(),
   });
 }
+
+export function getDashboardStats() {
+  return request("/api/v1/admin/dashboard", {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+}
